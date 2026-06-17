@@ -1,22 +1,25 @@
+// MUST BE THE VERY FIRST IMPORTS
+import '@azure/core-asynciterator-polyfill';
+import '../global.css';
+
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { PowerSyncContext } from '@powersync/react';
+import { PowerSyncDatabase } from '@powersync/react-native'; // Keep this core import
+import { BackendConnector } from '../src/db/PowerSyncConnector';
+import { AppSchema } from '../src/db/Schema';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -24,7 +27,6 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -45,12 +47,39 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
+  // 1. Initialize local SQLite instance cleanly
+  // Pass the filename configuration directly. PowerSync resolves the peer Quick-SQLite bindings natively.
+  const powerSync = useMemo(() => {
+    return new PowerSyncDatabase({
+      schema: AppSchema,
+      database: {
+        dbFilename: 'acadmate_local.db'
+      }
+    });
+  }, []);
+
+  // 2. Synchronize connection lifecycle with your Express backend stream
+  useEffect(() => {
+    const initializeSync = async () => {
+      const userJwtToken = "YOUR_JWT_STRING_FROM_SIGNUP_OR_LOGIN";
+      const connector = new BackendConnector(userJwtToken);
+      
+      await powerSync.init();
+      await powerSync.connect(connector);
+    };
+    
+    initializeSync();
+  }, [powerSync]);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    // 3. Nest your context provider right above your router tree
+    <PowerSyncContext.Provider value={powerSync}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+      </ThemeProvider>
+    </PowerSyncContext.Provider>
   );
 }
