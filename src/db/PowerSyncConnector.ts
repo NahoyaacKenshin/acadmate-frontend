@@ -3,6 +3,7 @@ import {
     PowerSyncBackendConnector,
     PowerSyncCredentials,
 } from "@powersync/react-native";
+import { ENV } from "@/src/config/env";
 
 export class BackendConnector implements PowerSyncBackendConnector {
   private jwtToken: string | null = null;
@@ -14,7 +15,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
     try {
       const response = await fetch(
-        "http://localhost:8000/api/auth/powersync-token",
+        `${ENV.API_URL}/auth/powersync-token`,
         {
           headers: { Authorization: `Bearer ${this.jwtToken}` },
         },
@@ -38,7 +39,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
     if (!batch) return;
 
     for (const op of batch.crud) {
-      const url = `http://localhost:8000/api/sync/${op.table}`;
+      const url = `${ENV.API_URL}/sync/${op.table}`;
 
       await fetch(url, {
         method: "POST",
