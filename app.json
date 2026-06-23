@@ -34,8 +34,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ],
-      "@journeyapps/react-native-quick-sqlite"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
