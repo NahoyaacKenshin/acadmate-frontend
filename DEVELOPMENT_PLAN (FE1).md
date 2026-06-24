@@ -45,9 +45,9 @@
 - [x] Document strict JSON response contracts for all endpoints (including mocked AI schemas) in Postman/Thunder Client for the frontend team.
 
 #### Frontend 1 (UI/UX)
-- [ ] Finalize the app's design system: color palette, typography, spacing, component library.
-- [ ] Build the bottom tab navigation layout (Home, Calendar, Notebook, Settings).
-- [ ] Design the Login and Signup screens (polish existing ones).
+- [x] Finalize the app's design system: color palette, typography, spacing, component library.
+- [x] Build the bottom tab navigation layout (Home, Calendar, Tasks, Notebook, Settings).
+- [x] Design the Login and Signup screens (polish existing ones).
 
 #### Frontend 2 (State & Integration)
 - [ ] Initialize PowerSync client SDK with the local SQLite database matching the Postgres schema.

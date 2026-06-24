@@ -1,7 +1,10 @@
 import { Link, useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, TextInput, View, Pressable } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { Button } from '@/src/components/ui/button';
+import { Text } from '@/src/components/ui/text';
+import { Eye, EyeOff } from 'lucide-react-native';
 
 export function SignupForm() {
   const router = useRouter();
@@ -9,6 +12,7 @@ export function SignupForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async () => {
     const result = await signup({ name: name.trim(), email: email.trim(), password });
@@ -19,48 +23,75 @@ export function SignupForm() {
   };
 
   return (
-    <View className="flex-1 justify-center bg-background px-6">
-      <Text className="text-4xl font-bold text-foreground">Create account</Text>
-      <Text className="mt-2 text-base text-muted-foreground">Use your school email and a strong password.</Text>
+    <View className="flex-1 justify-center bg-background px-8">
+      <View className="mb-10 items-center">
+        <Text className="text-4xl font-bold text-foreground font-sans">Create Account</Text>
+        <Text className="mt-3 text-center text-base text-muted-foreground font-sans">
+          Use your school email and a strong password.
+        </Text>
+      </View>
 
-      <View className="mt-8 gap-4">
+      <View className="gap-5">
         <TextInput
-          placeholder="Name"
+          placeholder="Full Name"
+          placeholderTextColor="#94A3B8"
           value={name}
           onChangeText={setName}
-          className="rounded-xl border border-border bg-card px-4 py-4 text-foreground"
+          className="rounded-2xl border border-border bg-input/50 px-5 py-4 text-foreground font-sans text-base"
         />
         <TextInput
           autoCapitalize="none"
           keyboardType="email-address"
-          placeholder="Email"
+          placeholder="Email Address"
+          placeholderTextColor="#94A3B8"
           value={email}
           onChangeText={setEmail}
-          className="rounded-xl border border-border bg-card px-4 py-4 text-foreground"
+          className="rounded-2xl border border-border bg-input/50 px-5 py-4 text-foreground font-sans text-base"
         />
-        <TextInput
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          className="rounded-xl border border-border bg-card px-4 py-4 text-foreground"
-        />
+        <View className="relative">
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#94A3B8"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            className="rounded-2xl border border-border bg-input/50 px-5 py-4 pr-12 text-foreground font-sans text-base"
+          />
+          <Pressable 
+            onPress={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-4"
+          >
+            {showPassword ? (
+              <EyeOff size={24} color="#94A3B8" />
+            ) : (
+              <Eye size={24} color="#94A3B8" />
+            )}
+          </Pressable>
+        </View>
       </View>
 
-      <Text className="mt-3 text-xs text-muted-foreground">Password must be at least 8 characters and include one uppercase letter and one number.</Text>
+      <Text className="mt-4 text-xs text-muted-foreground font-sans text-center">
+        Password must be at least 8 characters and include one uppercase letter and one number.
+      </Text>
 
-      {error ? <Text className="mt-4 text-sm text-red-500">{error}</Text> : null}
+      {error ? <Text className="mt-4 text-center text-sm text-red-500 font-sans">{error}</Text> : null}
 
-      <Pressable
-        disabled={isLoading}
-        onPress={handleSubmit}
-        className="mt-6 items-center rounded-xl bg-primary py-4 active:opacity-80 disabled:opacity-60"
-      >
-        {isLoading ? <ActivityIndicator /> : <Text className="font-bold text-primary-foreground">Sign up</Text>}
-      </Pressable>
+      <View className="mt-8">
+        <Button 
+          disabled={isLoading} 
+          onPress={handleSubmit} 
+          className="rounded-2xl h-14"
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text className="font-bold text-lg font-sans">Sign Up</Text>
+          )}
+        </Button>
+      </View>
 
-      <Link href={'/login' as Href} className="mt-6 text-center text-primary">
-        Already have an account?
+      <Link href={'/login' as Href} className="mt-8 text-center text-primary font-bold font-sans text-base">
+        Already have an account? Log in
       </Link>
     </View>
   );
