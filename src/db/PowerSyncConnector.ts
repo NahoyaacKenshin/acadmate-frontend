@@ -4,20 +4,18 @@ import {
     PowerSyncCredentials,
 } from "@powersync/react-native";
 import { ENV } from "@/src/config/env";
+import { useAuthStore } from "@/src/features/auth/auth.store";
 
 export class BackendConnector implements PowerSyncBackendConnector {
-  private jwtToken: string | null = null;
-
-  constructor(token: string) {
-    this.jwtToken = token;
-  }
-
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) return null;
+
     try {
       const response = await fetch(
         `${ENV.API_URL}/auth/powersync-token`,
         {
-          headers: { Authorization: `Bearer ${this.jwtToken}` },
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
 
@@ -35,6 +33,9 @@ export class BackendConnector implements PowerSyncBackendConnector {
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) return;
+
     const batch = await database.getCrudBatch();
     if (!batch) return;
 
@@ -45,7 +46,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.jwtToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ action: op.op, id: op.id, data: op.opData }),
       });
