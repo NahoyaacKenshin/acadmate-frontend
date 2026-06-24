@@ -50,11 +50,11 @@
 - [x] Design the Login and Signup screens (polish existing ones).
 
 #### Frontend 2 (State & Integration)
-- [ ] Initialize PowerSync client SDK with the local SQLite database matching the Postgres schema.
-- [ ] Set up a centralized API service layer (`src/services/api.ts`) dedicated exclusively to **Write operations**.
-- [ ] Implement Zustand stores for auth state and system statuses.
-- [ ] Connect the Login/Signup screens to the backend API.
-- [ ] Establish the local PowerSync stream reader context so UI components can subscribe to local data immediately.
+- [x] Initialize PowerSync client SDK with the local SQLite database matching the Postgres schema.
+- [x] Set up a centralized API service layer (`src/services/api.ts`) dedicated exclusively to **Write operations**.
+- [x] Implement Zustand stores for auth state and system statuses.
+- [x] Connect the Login/Signup screens to the backend API.
+- [x] Establish the local PowerSync stream reader context so UI components can subscribe to local data immediately.
 
 ---
 
