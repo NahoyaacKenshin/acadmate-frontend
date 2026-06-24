@@ -2,6 +2,7 @@
 import '@azure/core-asynciterator-polyfill';
 import '../global.css';
 
+import { Inter_400Regular } from '@expo-google-fonts/inter';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -21,6 +22,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    Inter: Inter_400Regular,
   });
 
   useEffect(() => {

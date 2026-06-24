@@ -1,33 +1,68 @@
-import { Link, type Href } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { GraduationCap, BookOpen, CalendarDays, CheckCircle } from 'lucide-react-native';
 
 export default function HomeScreen() {
-  const { user, logout, isLoading } = useAuthStore();
+  const { user } = useAuthStore();
 
   return (
-    <View className="flex-1 bg-background px-6 py-10">
-      <Text className="text-3xl font-bold text-foreground">Acadmate is connected</Text>
-      <Text className="mt-2 text-base text-muted-foreground">Your frontend can now restore and verify backend auth sessions.</Text>
-
-      <View className="mt-8 rounded-2xl border border-border bg-card p-5">
-        <Text className="text-sm font-semibold uppercase text-muted-foreground">Signed in as</Text>
-        <Text className="mt-2 text-xl font-bold text-foreground">{user?.name ?? 'Acadmate user'}</Text>
-        <Text className="mt-1 text-muted-foreground">{user?.email ?? 'No email returned'}</Text>
-        <Text className="mt-1 text-muted-foreground">Role: {user?.role ?? 'USER'}</Text>
+    <View className="flex-1 bg-background px-6 pt-6">
+      {/* Greeting */}
+      <View className="mb-8">
+        <Text className="text-muted-foreground text-base font-sans">Welcome back,</Text>
+        <Text className="text-3xl font-bold text-foreground font-sans mt-1">
+          {user?.name ?? 'Student'}
+        </Text>
       </View>
 
-      <Link href={'/profile' as Href} className="mt-8 text-primary">
-        View profile
-      </Link>
+      {/* Quick Stats Cards */}
+      <View className="gap-4">
+        <View className="flex-row gap-4">
+          <View className="flex-1 rounded-2xl border border-border bg-muted p-5">
+            <View className="h-10 w-10 rounded-xl bg-primary/20 items-center justify-center mb-3">
+              <CheckCircle size={20} color="#6C8EFF" />
+            </View>
+            <Text className="text-2xl font-bold text-foreground font-sans">0</Text>
+            <Text className="text-sm text-muted-foreground font-sans mt-1">Tasks Due</Text>
+          </View>
 
-      <Pressable
-        disabled={isLoading}
-        onPress={logout}
-        className="mt-auto items-center rounded-xl bg-primary py-4 active:opacity-80 disabled:opacity-60"
-      >
-        <Text className="font-bold text-primary-foreground">Log out</Text>
-      </Pressable>
+          <View className="flex-1 rounded-2xl border border-border bg-muted p-5">
+            <View className="h-10 w-10 rounded-xl bg-primary/20 items-center justify-center mb-3">
+              <CalendarDays size={20} color="#6C8EFF" />
+            </View>
+            <Text className="text-2xl font-bold text-foreground font-sans">0</Text>
+            <Text className="text-sm text-muted-foreground font-sans mt-1">Events Today</Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-4">
+          <View className="flex-1 rounded-2xl border border-border bg-muted p-5">
+            <View className="h-10 w-10 rounded-xl bg-primary/20 items-center justify-center mb-3">
+              <BookOpen size={20} color="#6C8EFF" />
+            </View>
+            <Text className="text-2xl font-bold text-foreground font-sans">0</Text>
+            <Text className="text-sm text-muted-foreground font-sans mt-1">Notebooks</Text>
+          </View>
+
+          <View className="flex-1 rounded-2xl border border-border bg-muted p-5">
+            <View className="h-10 w-10 rounded-xl bg-primary/20 items-center justify-center mb-3">
+              <GraduationCap size={20} color="#6C8EFF" />
+            </View>
+            <Text className="text-2xl font-bold text-foreground font-sans">0</Text>
+            <Text className="text-sm text-muted-foreground font-sans mt-1">Subjects</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Activity Placeholder */}
+      <View className="mt-8">
+        <Text className="text-lg font-bold text-foreground font-sans mb-4">Recent Activity</Text>
+        <View className="rounded-2xl border border-border bg-muted p-6 items-center justify-center">
+          <Text className="text-muted-foreground font-sans text-center">
+            No activity yet. Start by adding tasks or uploading notes!
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }

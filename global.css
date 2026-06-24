@@ -3,33 +3,43 @@
 
 @theme {
   /* Design Tokens for React Native Reusables (Shadcn Mobile) */
-  --color-background: #ffffff;
-  --color-foreground: #211201; /* Your backend --ww-hd-dark scale */
+  --color-background: #10131C;
+  --color-foreground: #ffffff;
 
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
+  --color-card: #161A26;
+  --color-card-foreground: #ffffff;
 
-  --color-popover: #ffffff;
-  --color-popover-foreground: #211201;
+  --color-muted: #1A1F2E;
+  --color-muted-foreground: #94A3B8;
 
-  --color-border: #e4e4e7;
-  --color-input: #e4e4e7;
+  --color-popover: #161A26;
+  --color-popover-foreground: #ffffff;
 
-  --color-primary: #875605; /* Your backend --ww-hd-gold scale */
+  --color-border: #2A3143;
+  --color-input: #2A3143;
+  --color-ring: #6C8EFF;
+
+  --color-primary: #6C8EFF;
   --color-primary-foreground: #ffffff;
 
-  --color-accent: #fbf5ee;
-  --color-accent-foreground: #875605;
+  --color-secondary: #1A1F2E;
+  --color-secondary-foreground: #ffffff;
 
-  --font-sans: "Montserrat";
+  --color-accent: #1A1F2E;
+  --color-accent-foreground: #6C8EFF;
+
+  --color-destructive: #EF4444;
+  --color-destructive-foreground: #ffffff;
+
+  --font-sans: "Inter";
 }
 
 /* Base Dark Mode overrides if matching device settings */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #121212;
-    --color-foreground: #f5f5f5;
-    --color-border: #27272a;
-    --color-input: #27272a;
+    --color-background: #10131C;
+    --color-foreground: #ffffff;
+    --color-border: #2A3143;
+    --color-input: #2A3143;
   }
 }
