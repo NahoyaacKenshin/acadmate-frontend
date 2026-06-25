@@ -85,9 +85,9 @@
 ### Week 3: Calendar Core & Holidays
 
 #### Backend
-- [ ] Design and migrate Prisma schema for `CalendarEvent` (title, startTime, endTime, location, isRecurring, subjectId, userId).
-- [ ] Update PowerSync Sync Rules to include `calendar_events`.
-- [ ] Build Write-path REST APIs for CalendarEvents (`POST/PUT/DELETE /api/events`).
+- [ ] Design and migrate Prisma schema for `ClassSchedule` (recurring classes with Set A/B, F2F/Online) and `CalendarEvent` (one-off non-academic events).
+- [ ] Update PowerSync Sync Rules to include `class_schedules` and `calendar_events`.
+- [ ] Build Write-path REST APIs for ClassSchedules (`POST/PUT/DELETE /api/class-schedules`) and CalendarEvents (`POST/PUT/DELETE /api/events`).
 - [ ] Seed a `philippine_holidays` table with official PH holidays (2026–2027) or integrate a public holidays API.
 - [ ] Create a `GET /api/holidays?year=2026` cacheable endpoint.
 
@@ -98,7 +98,7 @@
 - [ ] Render Philippine holidays as special markers on the calendar.
 
 #### Frontend 2 (State & Integration)
-- [ ] Bind Calendar screen views directly to PowerSync local SQLite query streams.
+- [ ] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
 - [ ] Route all calendar creation/modifications through the Express Write endpoints.
 - [ ] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
 
@@ -112,7 +112,7 @@
 - [ ] Build the AI schedule parsing pipeline:
   1. Accept an uploaded image/PDF of a class schedule.
   2. Convert image to base64 (for Gemini Vision) or extract text from PDF.
-  3. Send to Gemini with a structured prompt enforcing a JSON schema payload (Subject Name, Days, Times, Location).
+  3. Send to Gemini with a structured prompt that categorizes the document and enforces a JSON schema matching Week 3 models. (For recurring study loads: `Subject Name, dayOfWeek, startTime, endTime, Set A/B Rooms, Modality`. For one-off events: `title, startDate, endDate, location`).
 - [ ] Create `POST /api/schedule/parse` endpoint (returns parsed events as JSON for user confirmation).
 - [ ] Create `POST /api/schedule/confirm` endpoint (saves confirmed events to the database, automatically streaming down to frontend via PowerSync).
 

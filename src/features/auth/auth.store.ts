@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { authApi } from './auth.api';
+import { ApiError } from '@/src/lib/api';
 import type { AuthTokens, AuthUser, LoginInput, SignupInput } from './auth.types';
 
 const ACCESS_TOKEN_KEY = 'acadmate.accessToken';
@@ -61,13 +62,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         const me = await authApi.getMe(accessToken);
         set({ user: me.data?.user ?? null, isRestoring: false });
-      } catch {
-        const refreshed = await get().refreshSession();
-        set({ isRestoring: false });
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          const refreshed = await get().refreshSession();
+          set({ isRestoring: false });
 
-        if (!refreshed) {
-          await clearTokens();
-          set({ user: null, accessToken: null, refreshToken: null });
+          if (!refreshed) {
+            await clearTokens();
+            set({ user: null, accessToken: null, refreshToken: null });
+          }
+        } else {
+          // Offline or 5xx server error, keep session intact for offline-first capabilities
+          set({ isRestoring: false });
         }
       }
     } catch (error) {
@@ -156,9 +162,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().setSession(tokens, response.data?.user ?? get().user);
       return true;
-    } catch {
-      await clearTokens();
-      set({ user: null, accessToken: null, refreshToken: null });
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        await clearTokens();
+        set({ user: null, accessToken: null, refreshToken: null });
+      }
       return false;
     }
   },
