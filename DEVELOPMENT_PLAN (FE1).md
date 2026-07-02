@@ -71,9 +71,9 @@
 - [x] Implement swipe-to-complete and swipe-to-delete gestures with animations.
 
 #### Frontend 2 (State & Integration)
-- [ ] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
-- [ ] Connect Add/Edit/Delete Task actions to the backend Write REST API.
-- [ ] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
+- [x] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
+- [x] Connect Add/Edit/Delete Task actions to the backend Write REST API.
+- [x] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
 - [ ] Test offline scenarios: create tasks offline $\rightarrow$ verify local database updates instantly $\rightarrow$ go online $\rightarrow$ verify upstream sync to Neon.
 
 ---

@@ -1,58 +1,69 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, SafeAreaView } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  SafeAreaView,
+  ActivityIndicator,
+} from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { Button } from '@/src/components/ui/button';
 import { Plus } from 'lucide-react-native';
-import { Task, TaskListItem } from '@/src/components/tasks/TaskListItem';
-import { AddTaskSheet } from '@/src/components/tasks/AddTaskSheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { usePowerSync } from '@powersync/react';
 
-const initialTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Complete Math Assignment',
-    subject: 'Math 101',
-    subjectColor: '#EF4444',
-    dueDate: '2026-07-03',
-    completed: false,
-  },
-  {
-    id: '2',
-    title: 'Read Physics Chapter 5',
-    subject: 'Physics 202',
-    subjectColor: '#3B82F6',
-    dueDate: '2026-07-04',
-    completed: true,
-  },
-  {
-    id: '3',
-    title: 'Prepare History Presentation',
-    subject: 'History 301',
-    subjectColor: '#10B981',
-    dueDate: '2026-07-05',
-    completed: false,
-  },
-];
+import { TaskListItem } from '@/src/components/tasks/TaskListItem';
+import { AddTaskSheet } from '@/src/components/tasks/AddTaskSheet';
+import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
+import { useTasks, TaskRow } from '@/src/hooks/useTasks';
+import { useSubjects } from '@/src/hooks/useSubjects';
 
 export default function TasksScreen() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const powerSync = usePowerSync();
+  const { tasks, isLoading } = useTasks();
+  const { subjects } = useSubjects();
+
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
 
-  const handleCompleteTask = (id: string) => {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
+  const handleCompleteTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const newCompleted = task.completed === 0 ? 1 : 0;
+    const now = new Date().toISOString();
+
+    try {
+      await powerSync.execute(
+        `UPDATE Task SET completed = ?, updatedAt = ? WHERE id = ?`,
+        [newCompleted, now, id]
+      );
+    } catch (err) {
+      console.error('[Tasks] Toggle complete failed:', err);
+    }
   };
 
-  const handleDeleteTask = (id: string) => {
-    setTasks((currentTasks) => currentTasks.filter((task) => task.id !== id));
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await powerSync.execute(`DELETE FROM Task WHERE id = ?`, [id]);
+    } catch (err) {
+      console.error('[Tasks] Delete failed:', err);
+    }
   };
 
-  const handlePressTask = (task: Task) => {
-    console.log('Edit task:', task.id);
+  const handlePressTask = (task: TaskRow) => {
+    setEditingTask(task);
   };
+
+  // Map TaskRow to the shape TaskListItem expects
+  const mapToListItem = (task: TaskRow) => ({
+    id: task.id,
+    title: task.title,
+    subject: task.subject_name ?? 'No Subject',
+    subjectColor: task.subject_color ?? '#6C8EFF',
+    dueDate: task.due_date ?? 'No due date',
+    completed: task.completed === 1,
+  });
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -64,27 +75,42 @@ export default function TasksScreen() {
           </Button>
         </View>
 
-        <FlatList
-          data={tasks}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TaskListItem
-              task={item}
-              onComplete={handleCompleteTask}
-              onDelete={handleDeleteTask}
-              onPress={handlePressTask}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-        />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color="#6C8EFF" size="large" />
+          </View>
+        ) : tasks.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No tasks yet.</Text>
+            <Text style={styles.emptySubText}>Tap + to add your first task!</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={tasks}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TaskListItem
+                task={mapToListItem(item)}
+                onComplete={handleCompleteTask}
+                onDelete={handleDeleteTask}
+                onPress={() => handlePressTask(item)}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
 
         <AddTaskSheet
           visible={isAddSheetVisible}
+          subjects={subjects}
           onClose={() => setIsAddSheetVisible(false)}
-          onAdd={(newTask) => {
-            setTasks([newTask, ...tasks]);
-            setIsAddSheetVisible(false);
-          }}
+        />
+
+        <EditTaskSheet
+          visible={editingTask !== null}
+          task={editingTask}
+          subjects={subjects}
+          onClose={() => setEditingTask(null)}
         />
       </SafeAreaView>
     </GestureHandlerRootView>
@@ -114,5 +140,25 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 24,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#94A3B8',
   },
 });

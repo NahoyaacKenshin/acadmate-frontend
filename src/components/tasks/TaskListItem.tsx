@@ -17,7 +17,7 @@ interface TaskListItemProps {
   task: Task;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
-  onPress: (task: Task) => void;
+  onPress: () => void;
 }
 
 export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListItemProps) {
@@ -47,7 +47,7 @@ export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListIt
     <Swipeable renderRightActions={renderRightActions} renderLeftActions={renderLeftActions}>
       <Pressable
         style={styles.container}
-        onPress={() => onPress(task)}
+        onPress={() => onPress()}
       >
         <View style={styles.content}>
           <View style={styles.header}>
