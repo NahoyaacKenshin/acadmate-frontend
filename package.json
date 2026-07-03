@@ -8,6 +8,7 @@
     "@journeyapps/react-native-quick-sqlite": "^2.5.2",
     "@powersync/react": "^1.10.0",
     "@powersync/react-native": "^1.35.4",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@rn-primitives/portal": "^1.4.0",
     "@rn-primitives/slot": "^1.4.0",
     "@rn-primitives/types": "^1.4.0",

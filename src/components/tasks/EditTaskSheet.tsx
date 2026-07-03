@@ -5,14 +5,14 @@ import {
   Modal,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown } from 'lucide-react-native';
+import { X, ChevronDown, Calendar } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { SubjectRow } from '@/src/hooks/useSubjects';
 import { TaskRow } from '@/src/hooks/useTasks';
@@ -24,23 +24,38 @@ interface EditTaskSheetProps {
   onClose: () => void;
 }
 
+type DatePickerStep = 'date' | 'time' | null;
+
+function formatDateTime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const hours = date.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${pad(date.getMinutes())} ${ampm}`;
+}
+
 export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskSheetProps) {
   const powerSync = usePowerSync();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState<Date | null>(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
+  const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Populate form when task changes
   useEffect(() => {
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? '');
-      setDueDate(task.due_date ?? '');
+      setDueDate(task.due_date ? new Date(task.due_date) : null);
       setSelectedSubjectId(task.subject_id);
+      setShowSubjectPicker(false);
+      setDatePickerStep(null);
       setError(null);
     }
   }, [task]);
@@ -49,9 +64,48 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
   const handleClose = () => {
     setShowSubjectPicker(false);
+    setDatePickerStep(null);
     setError(null);
     onClose();
   };
+
+  // ── Date / Time picker handlers ────────────────────────────────────────────
+
+  const handleOpenDatePicker = () => {
+    setShowSubjectPicker(false);
+    setDatePickerStep('date');
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (!selected) {
+      setDatePickerStep(null);
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      if (datePickerStep === 'date') {
+        const base = dueDate ?? new Date();
+        const merged = new Date(selected);
+        merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+        setDueDate(merged);
+        setDatePickerStep('time');
+      } else {
+        const base = dueDate ?? new Date();
+        const merged = new Date(base);
+        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+        setDueDate(merged);
+        setDatePickerStep(null);
+      }
+    } else {
+      setDueDate(selected);
+    }
+  };
+
+  const handleIOSDone = () => {
+    setDatePickerStep(null);
+  };
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -65,12 +119,12 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
     try {
       const now = new Date().toISOString();
+      const dueDateISO = dueDate ? dueDate.toISOString() : null;
 
-      // Write directly to local SQLite — PowerSync syncs upstream automatically
       await powerSync.execute(
         `UPDATE Task SET title = ?, description = ?, dueDate = ?, subjectId = ?, updatedAt = ?
          WHERE id = ?`,
-        [title.trim(), description.trim() || null, dueDate.trim() || null, selectedSubjectId, now, task.id]
+        [title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, now, task.id]
       );
 
       handleClose();
@@ -82,22 +136,31 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     }
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.sheetContent}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Edit Task</Text>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={24} color="#94A3B8" />
-            </Pressable>
-          </View>
+      {/* Backdrop tap-to-dismiss */}
+      <Pressable style={styles.backdrop} onPress={handleClose} />
 
+      <View style={styles.sheetContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Edit Task</Text>
+          <Pressable onPress={handleClose} style={styles.closeBtn}>
+            <X size={24} color="#94A3B8" />
+          </Pressable>
+        </View>
+
+        {/* Scrollable form */}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.formContainer}
+        >
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+          {/* Title */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Task Title *</Text>
             <TextInput
@@ -106,9 +169,11 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
               placeholderTextColor="#94A3B8"
               value={title}
               onChangeText={setTitle}
+              onFocus={() => setShowSubjectPicker(false)}
             />
           </View>
 
+          {/* Description */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Description</Text>
             <TextInput
@@ -119,25 +184,55 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
+              onFocus={() => setShowSubjectPicker(false)}
             />
           </View>
 
+          {/* Due Date & Time */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Due Date</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 2026-07-10"
-              placeholderTextColor="#94A3B8"
-              value={dueDate}
-              onChangeText={setDueDate}
-            />
+            <Text style={styles.label}>Due Date & Time</Text>
+            <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
+              <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
+                {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
+              </Text>
+              <Calendar size={16} color="#94A3B8" />
+            </Pressable>
+
+            {/* iOS inline datetime spinner */}
+            {Platform.OS === 'ios' && datePickerStep !== null && (
+              <View style={styles.iosPickerWrapper}>
+                <DateTimePicker
+                  value={dueDate ?? new Date()}
+                  mode="datetime"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  textColor="#ffffff"
+                  themeVariant="dark"
+                  style={styles.iosPicker}
+                />
+                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                  <Text style={styles.iosDoneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Android native dialogs (date then time) */}
+            {Platform.OS === 'android' && datePickerStep !== null && (
+              <DateTimePicker
+                value={dueDate ?? new Date()}
+                mode={datePickerStep}
+                display="default"
+                onChange={handleDateChange}
+              />
+            )}
           </View>
 
+          {/* Subject */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Subject</Text>
             <Pressable
               style={styles.picker}
-              onPress={() => setShowSubjectPicker(!showSubjectPicker)}
+              onPress={() => setShowSubjectPicker((prev) => !prev)}
             >
               <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
                 {selectedSubject ? selectedSubject.name : 'Select a subject...'}
@@ -171,26 +266,31 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
           <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
           </Button>
-        </View>
-      </KeyboardAvoidingView>
+        </ScrollView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   sheetContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#1A1F2E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
+    paddingTop: 24,
+    paddingHorizontal: 24,
     paddingBottom: 40,
     borderTopWidth: 1,
     borderColor: '#2A3143',
+    maxHeight: '90%',
   },
   header: {
     flexDirection: 'row',
@@ -204,6 +304,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   closeBtn: { padding: 4 },
+  formContainer: {
+    paddingBottom: 8,
+  },
   errorText: {
     color: '#EF4444',
     fontSize: 13,
@@ -257,6 +360,30 @@ const styles = StyleSheet.create({
   },
   pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
   subjectDot: { width: 10, height: 10, borderRadius: 5 },
+  // iOS inline picker
+  iosPickerWrapper: {
+    marginTop: 8,
+    backgroundColor: '#10131C',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  iosPicker: {
+    height: 180,
+  },
+  iosDoneBtn: {
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2A3143',
+  },
+  iosDoneBtnText: {
+    color: '#6C8EFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   saveButton: {
     marginTop: 8,
     backgroundColor: '#6C8EFF',

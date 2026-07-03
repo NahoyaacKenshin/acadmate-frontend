@@ -51,7 +51,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
     for (const op of batch.crud) {
       const url = `${ENV.API_URL}/sync/${op.table}`;
 
-      await fetch(url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -59,6 +59,11 @@ export class BackendConnector implements PowerSyncBackendConnector {
         },
         body: JSON.stringify({ action: op.op, id: op.id, data: op.opData }),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed for ${op.table}: ${response.status} - ${errorText}`);
+      }
     }
 
     await batch.complete();

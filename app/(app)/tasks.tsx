@@ -55,13 +55,24 @@ export default function TasksScreen() {
     setEditingTask(task);
   };
 
+  const formatDueDate = (iso: string | null): string => {
+    if (!iso) return 'No due date';
+    const d = new Date(iso);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const hours = d.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} · ${hour12}:${mins} ${ampm}`;
+  };
+
   // Map TaskRow to the shape TaskListItem expects
   const mapToListItem = (task: TaskRow) => ({
     id: task.id,
     title: task.title,
     subject: task.subject_name ?? 'No Subject',
     subjectColor: task.subject_color ?? '#6C8EFF',
-    dueDate: task.due_date ?? 'No due date',
+    dueDate: formatDueDate(task.due_date),
     completed: task.completed === 1,
   });
 
