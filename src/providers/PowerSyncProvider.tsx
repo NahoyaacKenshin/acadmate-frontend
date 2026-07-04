@@ -7,7 +7,7 @@ import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSystemStore } from '@/src/store/systemStore';
 
 export function PowerSyncProvider({ children }: PropsWithChildren) {
-  const { accessToken } = useAuthStore();
+  const { accessToken, isRestoring } = useAuthStore();
   const setSyncStatus = useSystemStore((state) => state.setSyncStatus);
 
   const powerSync = useMemo(() => {
@@ -26,6 +26,8 @@ export function PowerSyncProvider({ children }: PropsWithChildren) {
   }, [powerSync]);
 
   useEffect(() => {
+    if (isRestoring) return;
+
     if (accessToken) {
       const connector = new BackendConnector();
       powerSync.connect(connector);
@@ -34,7 +36,7 @@ export function PowerSyncProvider({ children }: PropsWithChildren) {
       powerSync.disconnect();
       setSyncStatus(false);
     }
-  }, [accessToken, powerSync, setSyncStatus]);
+  }, [accessToken, isRestoring, powerSync, setSyncStatus]);
 
   return <PowerSyncContext.Provider value={powerSync}>{children}</PowerSyncContext.Provider>;
 }
