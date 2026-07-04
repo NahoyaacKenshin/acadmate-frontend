@@ -12,7 +12,7 @@
 | Role | Responsibility |
 |---|---|
 | **Backend Developer (You)** | Database architecture (Prisma/Neon Postgres), REST API development, AI pipelines (Gemini), file storage (Supabase), PowerSync configuration & JWT auth, Expo push notifications server-side. |
-| **Frontend Developer 1 (UI/UX)** | Screen design & layout, navigation, UI components, animations, and visual polish. |
+| **Frontend Developer 1 (UI/UX)** | Screen design & layout, navigation, UI components, animations, and visual polish, Using Uniwind and React Native Reusables. |
 | **Frontend Developer 2 (State & Integration)** | Zustand state management, API service layer (Write-path), PowerSync/SQLite local queries (Read-path), Expo Notifications client-side, file upload logic. |
 
 ---
@@ -61,19 +61,19 @@
 ### Week 2: Task Manager Feature (Native Offline-First)
 
 #### Backend
-- [ ] Add backend validation for task edge cases (empty titles, invalid dates, duplicate subjects).
-- [ ] Add a `GET /api/tasks/stats` analytical endpoint (total tasks, completed count, overdue count).
+- [x] Add backend validation for task edge cases (empty titles, invalid dates, duplicate subjects).
+- [x] Add a `GET /api/tasks/stats` analytical endpoint (total tasks, completed count, overdue count).
 
 #### Frontend 1 (UI/UX)
-- [ ] Build the main Task List screen (subscribing to the local PowerSync SQLite database, grouped by subject, color-coded).
-- [ ] Build the "Add Task" bottom sheet / modal (title, description, due date picker, subject selector).
-- [ ] Build the "Edit Task" screen.
-- [ ] Implement swipe-to-complete and swipe-to-delete gestures with animations.
+- [x] Build the main Task List screen (subscribing to the local PowerSync SQLite database, grouped by subject, color-coded).
+- [x] Build the "Add Task" bottom sheet / modal (title, description, due date picker, subject selector).
+- [x] Build the "Edit Task" screen.
+- [x] Implement swipe-to-complete and swipe-to-delete gestures with animations.
 
 #### Frontend 2 (State & Integration)
-- [ ] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
-- [ ] Connect Add/Edit/Delete Task actions to the backend Write REST API.
-- [ ] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
+- [x] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
+- [x] Connect Add/Edit/Delete Task actions to the backend Write REST API.
+- [x] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
 - [ ] Test offline scenarios: create tasks offline $\rightarrow$ verify local database updates instantly $\rightarrow$ go online $\rightarrow$ verify upstream sync to Neon.
 
 ---
@@ -113,8 +113,7 @@
   1. Accept an uploaded image/PDF of a class schedule.
   2. Convert image to base64 (for Gemini Vision) or extract text from PDF.
   3. Send to Gemini with a structured prompt that categorizes the document and enforces a JSON schema matching Week 3 models. (For recurring study loads: `Subject Name, dayOfWeek, startTime, endTime, Set A/B Rooms, Modality`. For one-off events: `title, startDate, endDate, location`).
-- [ ] Create `POST /api/schedule/parse` endpoint (returns parsed events as JSON for user confirmation).
-- [ ] Create `POST /api/schedule/confirm` endpoint (saves confirmed events to the database, automatically streaming down to frontend via PowerSync).
+werSync).
 
 #### Frontend 1 (UI/UX)
 - [ ] Build the "Upload Schedule" screen (camera capture + file picker).
