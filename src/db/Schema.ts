@@ -19,9 +19,41 @@ export const Task = new Table({
   subjectId: column.text
 });
 
+// ── Week 3: Calendar & Scheduler ─────────────────────────────────────────────
+
+export const ClassSchedule = new Table({
+  dayOfWeek: column.integer,
+  startTime: column.text,
+  endTime: column.text,
+  room: column.text,
+  modality: column.text,   // 'F2F' | 'ONLINE' | 'HYBRID'
+  setType: column.text,    // 'A' | 'B' | 'BOTH' | null
+  createdAt: column.text,
+  updatedAt: column.text,
+  userId: column.text,
+  subjectId: column.text
+});
+
+export const CalendarEvent = new Table({
+  title: column.text,
+  description: column.text,
+  startDate: column.text,
+  endDate: column.text,
+  allDay: column.integer,  // 0 or 1
+  location: column.text,
+  color: column.text,
+  createdAt: column.text,
+  updatedAt: column.text,
+  userId: column.text,
+  subjectId: column.text
+});
+
 export const AppSchema = new Schema({
   Subject,
-  Task
+  Task,
+  ClassSchedule,
+  CalendarEvent,
 });
 
 export type Database = (typeof AppSchema)['types'];
+
