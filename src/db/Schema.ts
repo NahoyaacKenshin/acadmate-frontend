@@ -25,9 +25,11 @@ export const ClassSchedule = new Table({
   dayOfWeek: column.integer,
   startTime: column.text,
   endTime: column.text,
+  startDate: column.text,
+  endDate: column.text,
   room: column.text,
   modality: column.text,   // 'F2F' | 'ONLINE' | 'HYBRID'
-  setType: column.text,    // 'A' | 'B' | 'BOTH' | null
+  setType: column.text,    // 'A' | 'B' | null
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text,

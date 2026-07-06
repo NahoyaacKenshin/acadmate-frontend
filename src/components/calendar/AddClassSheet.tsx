@@ -12,7 +12,8 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, Clock } from 'lucide-react-native';
+import { X, Clock, Calendar } from 'lucide-react-native';
+import ColorPicker, { Panel1, HueSlider, Swatches } from 'reanimated-color-picker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
@@ -24,7 +25,7 @@ interface AddClassSheetProps {
 
 type Modality = 'F2F' | 'ONLINE' | 'HYBRID';
 type SetType = 'A' | 'B' | null;
-type TimeField = 'start' | 'end';
+type PickerField = 'startTime' | 'endTime' | 'startDate' | 'endDate';
 
 // 0 = Sunday … 6 = Saturday, displayed Mon–Sun
 const DAYS = [
@@ -78,12 +79,16 @@ function formatTime12(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-/** Build a Date object from "HH:MM" (today's date, just the time matters) */
 function dateFromHHMM(hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
   const d = new Date();
   d.setHours(h, m, 0, 0);
   return d;
+}
+
+function formatDate(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
@@ -101,8 +106,10 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
 
-  // Time picker state
-  const [activeTimeField, setActiveTimeField] = useState<TimeField | null>(null);
+  // Date & Time state
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [activePickerField, setActivePickerField] = useState<PickerField | null>(null);
 
   // Inline Subject Creation state
   const [isCreatingSubject, setIsCreatingSubject] = useState(false);
@@ -123,9 +130,11 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setModality('F2F');
     setSetType(null);
     setRoom('');
+    setStartDate(new Date());
+    setEndDate(null);
     setSelectedSubjectId(null);
     setShowSubjectPicker(false);
-    setActiveTimeField(null);
+    setActivePickerField(null);
     setIsCreatingSubject(false);
     setNewSubjectName('');
     setError(null);
@@ -169,23 +178,29 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     }
   };
 
-  // ── Time picker ────────────────────────────────────────────────────────────
+  // ── Pickers ────────────────────────────────────────────────────────────
 
-  const openTimePicker = (field: TimeField) => {
+  const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
-    setActiveTimeField(field);
+    setActivePickerField(field);
   };
 
   const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    // On Android the dialog closes itself; on iOS it stays open until Done
-    if (Platform.OS === 'android') setActiveTimeField(null);
+    if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     const hhmm = toHHMM(selected);
-    if (activeTimeField === 'start') setStartTime(hhmm);
-    else setEndTime(hhmm);
+    if (activePickerField === 'startTime') setStartTime(hhmm);
+    else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleIOSTimeDone = () => setActiveTimeField(null);
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (Platform.OS === 'android') setActivePickerField(null);
+    if (!selected) return;
+    if (activePickerField === 'startDate') setStartDate(selected);
+    else if (activePickerField === 'endDate') setEndDate(selected);
+  };
+
+  const handleIOSDone = () => setActivePickerField(null);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
@@ -205,13 +220,15 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
         const id = generateId();
         return powerSync.execute(
           `INSERT INTO ClassSchedule
-            (id, dayOfWeek, startTime, endTime, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             day,
             startTime,
             endTime,
+            startDate.toISOString().split('T')[0],
+            endDate ? endDate.toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
             room.trim() || null,
             modality,
             setType,
@@ -306,17 +323,15 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                         autoFocus
                       />
                       <View style={styles.newSubjectColors}>
-                        {PRESET_COLORS.map(c => (
-                          <Pressable
-                            key={c}
-                            onPress={() => setNewSubjectColor(c)}
-                            style={[
-                              styles.newSubjectColorSwatch,
-                              { backgroundColor: c },
-                              newSubjectColor === c && styles.newSubjectColorSelected
-                            ]}
-                          />
-                        ))}
+                        <ColorPicker
+                          style={{ width: '100%', gap: 12 }}
+                          value={newSubjectColor}
+                          onComplete={(colors) => setNewSubjectColor(colors.hex)}
+                        >
+                          <Panel1 style={{ height: 120, borderRadius: 8 }} />
+                          <HueSlider style={{ borderRadius: 8, height: 20 }} />
+                          <Swatches style={{ marginTop: 8 }} colors={PRESET_COLORS} />
+                        </ColorPicker>
                       </View>
                       <View style={styles.newSubjectActions}>
                         <Pressable
@@ -364,12 +379,39 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             </View>
           </View>
 
+          {/* Start & End Date — side by side */}
+          <View style={[styles.formGroup, styles.timeRow]}>
+            {/* Start Date */}
+            <View style={styles.timeField}>
+              <Text style={styles.label}>Start Date</Text>
+              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
+                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                <Calendar size={14} color="#94A3B8" />
+              </Pressable>
+            </View>
+
+            <View style={styles.timeSeparator}>
+              <Text style={styles.timeSeparatorText}>—</Text>
+            </View>
+
+            {/* End Date */}
+            <View style={styles.timeField}>
+              <Text style={styles.label}>End Date (Optional)</Text>
+              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
+                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {endDate ? formatDate(endDate) : 'Select end date...'}
+                </Text>
+                <Calendar size={14} color="#94A3B8" />
+              </Pressable>
+            </View>
+          </View>
+
           {/* Start & End Time — side by side */}
           <View style={[styles.formGroup, styles.timeRow]}>
             {/* Start Time */}
             <View style={styles.timeField}>
               <Text style={styles.label}>Start Time</Text>
-              <Pressable style={styles.picker} onPress={() => openTimePicker('start')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
               </Pressable>
@@ -382,54 +424,52 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             {/* End Time */}
             <View style={styles.timeField}>
               <Text style={styles.label}>End Time</Text>
-              <Pressable style={styles.picker} onPress={() => openTimePicker('end')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
               </Pressable>
             </View>
           </View>
 
-          {/* Android time picker dialogs */}
-          {Platform.OS === 'android' && activeTimeField !== null && (
+          {/* Android picker dialogs */}
+          {Platform.OS === 'android' && activePickerField !== null && (
             <DateTimePicker
-              value={dateFromHHMM(activeTimeField === 'start' ? startTime : endTime)}
-              mode="time"
+              value={
+                activePickerField === 'startTime' || activePickerField === 'endTime'
+                  ? dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)
+                  : (activePickerField === 'startDate' ? startDate : (endDate ?? startDate))
+              }
+              mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
               display="default"
-              onChange={handleTimeChange}
+              onChange={
+                activePickerField === 'startTime' || activePickerField === 'endTime'
+                  ? handleTimeChange
+                  : handleDateChange
+              }
             />
           )}
 
-          {/* iOS inline time spinner — start */}
-          {Platform.OS === 'ios' && activeTimeField === 'start' && (
+          {/* iOS inline spinners */}
+          {Platform.OS === 'ios' && activePickerField !== null && (
             <View style={styles.iosPickerWrapper}>
               <DateTimePicker
-                value={dateFromHHMM(startTime)}
-                mode="time"
+                value={
+                  activePickerField === 'startTime' || activePickerField === 'endTime'
+                    ? dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)
+                    : (activePickerField === 'startDate' ? startDate : (endDate ?? startDate))
+                }
+                mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
                 display="spinner"
-                onChange={handleTimeChange}
+                onChange={
+                  activePickerField === 'startTime' || activePickerField === 'endTime'
+                    ? handleTimeChange
+                    : handleDateChange
+                }
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}
               />
-              <Pressable style={styles.iosDoneBtn} onPress={handleIOSTimeDone}>
-                <Text style={styles.iosDoneBtnText}>Done</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* iOS inline time spinner — end */}
-          {Platform.OS === 'ios' && activeTimeField === 'end' && (
-            <View style={styles.iosPickerWrapper}>
-              <DateTimePicker
-                value={dateFromHHMM(endTime)}
-                mode="time"
-                display="spinner"
-                onChange={handleTimeChange}
-                textColor="#ffffff"
-                themeVariant="dark"
-                style={styles.iosPicker}
-              />
-              <Pressable style={styles.iosDoneBtn} onPress={handleIOSTimeDone}>
+              <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
                 <Text style={styles.iosDoneBtnText}>Done</Text>
               </Pressable>
             </View>

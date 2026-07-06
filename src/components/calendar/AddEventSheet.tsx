@@ -14,6 +14,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react-native';
+import ColorPicker, { Panel1, HueSlider, Swatches } from 'reanimated-color-picker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects, SubjectRow } from '@/src/hooks/useSubjects';
@@ -349,17 +350,15 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
           <View style={styles.formGroup}>
             <Text style={styles.label}>Color</Text>
             <View style={styles.colorRow}>
-              {PRESET_COLORS.map((color) => (
-                <Pressable
-                  key={color}
-                  onPress={() => setSelectedColor(color)}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: color },
-                    selectedColor === color && styles.colorSwatchSelected,
-                  ]}
-                />
-              ))}
+              <ColorPicker
+                style={{ width: '100%', gap: 12 }}
+                value={selectedColor}
+                onComplete={(colors) => setSelectedColor(colors.hex)}
+              >
+                <Panel1 style={{ height: 120, borderRadius: 8 }} />
+                <HueSlider style={{ borderRadius: 8, height: 20 }} />
+                <Swatches style={{ marginTop: 8 }} colors={PRESET_COLORS} />
+              </ColorPicker>
             </View>
           </View>
 
