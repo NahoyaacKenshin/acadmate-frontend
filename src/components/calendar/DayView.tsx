@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   View,
+  Pressable,
   ScrollView,
   StyleSheet,
 } from 'react-native';
@@ -18,6 +19,7 @@ import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
 import { TaskRow } from '@/src/hooks/useTasks';
+import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 
 interface DayViewProps {
   selectedDate: Date;
@@ -25,6 +27,8 @@ interface DayViewProps {
   schedules: ClassScheduleRow[];
   holidays: Holiday[];
   tasks: TaskRow[];
+  onClassPress?: (schedule: ClassScheduleRow) => void;
+  onEventPress?: (event: CalendarEventRow) => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -79,10 +83,13 @@ function ModalityBadge({ modality }: { modality: string }) {
 }
 
 // ── Class Schedule Card ────────────────────────────────────────────────────────
-function ClassCard({ schedule }: { schedule: ClassScheduleRow }) {
+function ClassCard({ schedule, onPress }: { schedule: ClassScheduleRow; onPress?: () => void }) {
   const subjectColor = schedule.subject_color ?? '#6C8EFF';
   return (
-    <View style={styles.eventCard}>
+    <Pressable
+      style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
+      onPress={onPress}
+    >
       <View style={[styles.eventColorBar, { backgroundColor: subjectColor }]} />
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
@@ -111,15 +118,18 @@ function ClassCard({ schedule }: { schedule: ClassScheduleRow }) {
           ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 // ── Calendar Event Card ────────────────────────────────────────────────────────
-function EventCard({ event }: { event: CalendarEventRow }) {
+function EventCard({ event, onPress }: { event: CalendarEventRow; onPress?: () => void }) {
   const accentColor = event.subject_color ?? event.color ?? '#6C8EFF';
   return (
-    <View style={styles.eventCard}>
+    <Pressable
+      style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
+      onPress={onPress}
+    >
       <View style={[styles.eventColorBar, { backgroundColor: accentColor }]} />
       <View style={styles.eventBody}>
         <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
@@ -152,7 +162,7 @@ function EventCard({ event }: { event: CalendarEventRow }) {
           ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -191,13 +201,13 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ── Main DayView ───────────────────────────────────────────────────────────────
-export function DayView({ selectedDate, events, schedules, holidays, tasks }: DayViewProps) {
+export function DayView({ selectedDate, events, schedules, holidays, tasks, onClassPress, onEventPress }: DayViewProps) {
   const today = new Date();
   const isToday = isSameDay(selectedDate, today);
   const dayOfWeek = selectedDate.getDay();
 
-  // Filter class schedules for this day of week
-  const daySchedules = schedules.filter((s) => s.day_of_week === dayOfWeek);
+  // Filter class schedules for this day — respects start/end date bounds
+  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate));
 
   // Filter one-off events for this date
   const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), selectedDate));
@@ -247,7 +257,7 @@ export function DayView({ selectedDate, events, schedules, holidays, tasks }: Da
       {daySchedules.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader title="Classes" />
-          {daySchedules.map((s) => <ClassCard key={s.id} schedule={s} />)}
+          {daySchedules.map((s) => <ClassCard key={s.id} schedule={s} onPress={() => onClassPress?.(s)} />)}
         </View>
       ) : null}
 
@@ -255,7 +265,7 @@ export function DayView({ selectedDate, events, schedules, holidays, tasks }: Da
       {dayEvents.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader title="Events" />
-          {dayEvents.map((e) => <EventCard key={e.id} event={e} />)}
+          {dayEvents.map((e) => <EventCard key={e.id} event={e} onPress={() => onEventPress?.(e)} />)}
         </View>
       ) : null}
 
@@ -344,6 +354,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#2A3143',
+  },
+  eventCardPressed: {
+    opacity: 0.75,
+    borderColor: '#6C8EFF',
   },
   eventCardDimmed: {
     opacity: 0.5,

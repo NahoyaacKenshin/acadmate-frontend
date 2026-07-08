@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,18 +9,19 @@ import {
   ScrollView,
   Switch,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, MapPin, Clock, Trash2 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
-import { useAuthStore } from '@/src/features/auth/auth.store';
-import { useSubjects, SubjectRow } from '@/src/hooks/useSubjects';
+import { useSubjects } from '@/src/hooks/useSubjects';
+import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 
-interface AddEventSheetProps {
+interface EditEventSheetProps {
   visible: boolean;
-  initialDate?: Date; // Pre-fill start date from selected day
+  event: CalendarEventRow | null;
   onClose: () => void;
 }
 
@@ -50,60 +51,52 @@ function formatDateTime(date: Date): string {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${h12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
-function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetProps) {
+export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps) {
   const powerSync = usePowerSync();
-  const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
 
-  // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState<Date>(initialDate ?? new Date());
+  const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState('');
   const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
-
-  // Picker state
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [activeDateField, setActiveDateField] = useState<DateField | null>(null);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
-
-  // UI state
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Populate form when event changes
+  useEffect(() => {
+    if (event) {
+      setTitle(event.title);
+      setDescription(event.description ?? '');
+      setStartDate(new Date(event.start_date));
+      setEndDate(event.end_date ? new Date(event.end_date) : null);
+      setAllDay(event.all_day === 1);
+      setLocation(event.location ?? '');
+      setSelectedColor(event.color ?? PRESET_COLORS[0]);
+      setSelectedSubjectId(event.subject_id);
+      setShowSubjectPicker(false);
+      setActiveDateField(null);
+      setDatePickerStep(null);
+      setError(null);
+    }
+  }, [event]);
 
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setStartDate(initialDate ?? new Date());
-    setEndDate(null);
-    setAllDay(false);
-    setLocation('');
-    setSelectedColor(PRESET_COLORS[0]);
-    setSelectedSubjectId(null);
+  const handleClose = () => {
     setShowSubjectPicker(false);
     setActiveDateField(null);
     setDatePickerStep(null);
     setError(null);
-  };
-
-  const handleClose = () => {
-    resetForm();
     onClose();
   };
-
-  // ── Date picker handlers ──────────────────────────────────────────────────
 
   const openDatePicker = (field: DateField) => {
     setShowSubjectPicker(false);
@@ -112,15 +105,9 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
   };
 
   const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    if (!selected) {
-      setDatePickerStep(null);
-      setActiveDateField(null);
-      return;
-    }
-
+    if (!selected) { setDatePickerStep(null); setActiveDateField(null); return; }
     if (Platform.OS === 'android') {
       if (datePickerStep === 'date') {
-        // Store the date portion, then open time picker
         if (activeDateField === 'start') {
           const merged = new Date(selected);
           merged.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
@@ -133,7 +120,6 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
         }
         setDatePickerStep('time');
       } else {
-        // Merge time into the stored date
         if (activeDateField === 'start') {
           const merged = new Date(startDate);
           merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
@@ -148,36 +134,26 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
         setActiveDateField(null);
       }
     } else {
-      // iOS: single datetime spinner
       if (activeDateField === 'start') setStartDate(selected);
       else setEndDate(selected);
     }
   };
 
-  const handleIOSDone = () => {
-    setDatePickerStep(null);
-    setActiveDateField(null);
-  };
+  const handleIOSDone = () => { setDatePickerStep(null); setActiveDateField(null); };
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!title.trim()) { setError('Event title is required.'); return; }
-    if (!userId) { setError('You must be logged in.'); return; }
-
+    if (!event) return;
     setIsLoading(true);
     setError(null);
-
     try {
-      const id = generateId();
       const now = new Date().toISOString();
-
       await powerSync.execute(
-        `INSERT INTO CalendarEvent
-          (id, title, description, startDate, endDate, allDay, location, color, subjectId, userId, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `UPDATE CalendarEvent SET
+          title = ?, description = ?, startDate = ?, endDate = ?,
+          allDay = ?, location = ?, color = ?, subjectId = ?, updatedAt = ?
+         WHERE id = ?`,
         [
-          id,
           title.trim(),
           description.trim() || null,
           allDay ? startDate.toISOString().split('T')[0] : startDate.toISOString(),
@@ -186,22 +162,45 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
           location.trim() || null,
           selectedColor,
           selectedSubjectId,
-          userId,
           now,
-          now,
+          event.id,
         ]
       );
-
       handleClose();
-    } catch (err: any) {
-      console.error('[AddEvent] SQLite insert failed:', err);
-      setError('Failed to add event. Please try again.');
+    } catch (err) {
+      console.error('[EditEvent] update failed:', err);
+      setError('Failed to save changes. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Event',
+      'Are you sure you want to delete this event? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!event) return;
+            setIsDeleting(true);
+            try {
+              await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [event.id]);
+              handleClose();
+            } catch (err) {
+              console.error('[EditEvent] delete failed:', err);
+              setError('Failed to delete event.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -210,10 +209,18 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
       <View style={styles.sheetContent}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>New Event</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
+          <Text style={styles.headerTitle}>Edit Event</Text>
+          <View style={styles.headerActions}>
+            <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
+              {isDeleting
+                ? <ActivityIndicator size="small" color="#EF4444" />
+                : <Trash2 size={20} color="#EF4444" />
+              }
+            </Pressable>
+            <Pressable onPress={handleClose} style={styles.closeBtn}>
+              <X size={24} color="#94A3B8" />
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -298,7 +305,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
             )}
           </View>
 
-          {/* End Date (only show if not all-day or explicitly wanted) */}
+          {/* End Date */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>End {allDay ? 'Date' : 'Date & Time'} (Optional)</Text>
             <Pressable style={styles.picker} onPress={() => openDatePicker('end')}>
@@ -349,7 +356,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
             </View>
           </View>
 
-          {/* Color Picker */}
+          {/* Color */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Color</Text>
             <View style={styles.colorRow}>
@@ -410,8 +417,8 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
             )}
           </View>
 
-          <Button style={styles.addButton} onPress={handleAdd} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Add Event</Text>}
+          <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
+            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
           </Button>
         </ScrollView>
       </View>
@@ -424,7 +431,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
-
   sheetContent: {
     position: 'absolute',
     bottom: 0,
@@ -446,11 +452,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deleteBtn: { padding: 6 },
   closeBtn: { padding: 4 },
   formContainer: { paddingBottom: 8 },
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
@@ -483,11 +487,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  inputInline: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 16,
-  },
+  inputInline: { flex: 1, color: '#ffffff', fontSize: 16 },
   picker: {
     backgroundColor: '#10131C',
     borderWidth: 1,
@@ -520,7 +520,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2A3143',
   },
   pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  // Color picker
   colorRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -528,17 +527,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 24,
   },
-  colorSwatch: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
+  colorSwatch: { width: 24, height: 24, borderRadius: 12 },
   colorSwatchSelected: {
     borderWidth: 3,
     borderColor: '#ffffff',
     transform: [{ scale: 1.15 }],
   },
-  // iOS picker
   iosPickerWrapper: {
     marginTop: 8,
     backgroundColor: '#10131C',
@@ -556,5 +550,5 @@ const styles = StyleSheet.create({
     borderTopColor: '#2A3143',
   },
   iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
-  addButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
+  saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 });

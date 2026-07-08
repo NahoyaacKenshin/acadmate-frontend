@@ -4,6 +4,7 @@ import { Text } from '../ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 
 export interface Holiday {
   id: string;
@@ -73,11 +74,10 @@ function getDotColors(
     colors.push(holidayType === 'REGULAR' ? '#EF4444' : '#F59E0B');
   }
 
-  // Class schedule dot (recurring — check dayOfWeek)
-  const hasClass = schedules.some((s) => s.day_of_week === date.getDay());
-  if (hasClass && colors.length < 3) {
-    const sched = schedules.find((s) => s.day_of_week === date.getDay());
-    colors.push(sched?.subject_color ?? '#6C8EFF');
+  // Class schedule dot (recurring — respects bounds)
+  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date));
+  if (activeClass && colors.length < 3) {
+    colors.push(activeClass.subject_color ?? '#6C8EFF');
   }
 
   // CalendarEvent dot (one-off — check startDate)
@@ -102,6 +102,8 @@ export function MonthGrid({
   onNextMonth,
 }: MonthGridProps) {
   const today = new Date();
+  const todayNoTime = new Date();
+  todayNoTime.setHours(0, 0, 0, 0);
   const cells = buildMonthCells(year, month);
 
   return (
@@ -136,12 +138,13 @@ export function MonthGrid({
           const cellDate = new Date(year, month, day);
           const isToday = isSameDay(cellDate, today);
           const isSelected = isSameDay(cellDate, selectedDate);
+          const isPast = cellDate < todayNoTime;
           const dots = getDotColors(cellDate, events, schedules, holidays);
 
           return (
             <Pressable
               key={`day-${day}`}
-              style={styles.cell}
+              style={[styles.cell, isPast && styles.pastCell]}
               onPress={() => onDayPress(cellDate)}
             >
               {/* Day number bubble */}
@@ -224,6 +227,9 @@ const styles = StyleSheet.create({
     width: `${100 / 7}%`,
     alignItems: 'center',
     paddingVertical: 2,
+  },
+  pastCell: {
+    opacity: 0.4,
   },
   dayBubble: {
     width: CELL_SIZE,

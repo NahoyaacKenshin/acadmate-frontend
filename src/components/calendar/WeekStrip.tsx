@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
+import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 
 interface WeekStripProps {
   selectedDate: Date;
@@ -70,7 +71,8 @@ function getDayDots(
     const ht = holidays.find((h) => isSameDay(new Date(h.date), date))?.type;
     colors.push(ht === 'REGULAR' ? '#EF4444' : '#F59E0B');
   }
-  const cls = schedules.find((s) => s.day_of_week === date.getDay());
+  // Class schedule dot (recurring — respects bounds)
+  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
   for (const ev of events) {
     if (colors.length >= 3) break;
@@ -93,6 +95,8 @@ export function WeekStrip({
   onToggleMonth,
 }: WeekStripProps) {
   const today = new Date();
+  const todayNoTime = new Date();
+  todayNoTime.setHours(0, 0, 0, 0);
   const weekDays = getWeekDays(selectedDate);
   const rangeLabel = weekRangeLabel(weekDays);
 
@@ -124,12 +128,13 @@ export function WeekStrip({
         {weekDays.map((d, idx) => {
           const isSelected = isSameDay(d, selectedDate);
           const isToday = isSameDay(d, today);
+          const isPast = d < todayNoTime;
           const dots = getDayDots(d, events, schedules, holidays);
 
           return (
             <Pressable
               key={idx}
-              style={styles.dayCell}
+              style={[styles.dayCell, isPast && styles.pastCell]}
               onPress={() => onDayPress(d)}
             >
               {/* Short day name */}
@@ -208,6 +213,9 @@ const styles = StyleSheet.create({
   dayCell: {
     alignItems: 'center',
     flex: 1,
+  },
+  pastCell: {
+    opacity: 0.4,
   },
   dayName: {
     fontSize: 11,

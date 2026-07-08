@@ -14,9 +14,11 @@ import { WeekStrip } from '@/src/components/calendar/WeekStrip';
 import { DayView } from '@/src/components/calendar/DayView';
 import { AddEventSheet } from '@/src/components/calendar/AddEventSheet';
 import { AddClassSheet } from '@/src/components/calendar/AddClassSheet';
+import { EditEventSheet } from '@/src/components/calendar/EditEventSheet';
+import { EditClassSheet } from '@/src/components/calendar/EditClassSheet';
 
-import { useCalendarEvents } from '@/src/hooks/useCalendarEvents';
-import { useClassSchedules } from '@/src/hooks/useClassSchedules';
+import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
+import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useTasks } from '@/src/hooks/useTasks';
 
 // ── Placeholder holidays — FE2 will populate via GET /api/holidays ────────────
@@ -52,6 +54,10 @@ export default function CalendarScreen() {
   // Sheet visibility
   const [isAddEventVisible, setIsAddEventVisible] = useState(false);
   const [isAddClassVisible, setIsAddClassVisible] = useState(false);
+
+  // Edit sheet state
+  const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
+  const [editingClass, setEditingClass] = useState<ClassScheduleRow | null>(null);
 
   // Data
   const { events } = useCalendarEvents();
@@ -197,6 +203,8 @@ export default function CalendarScreen() {
           schedules={schedules}
           holidays={holidays}
           tasks={tasks}
+          onClassPress={(s) => setEditingClass(s)}
+          onEventPress={(e) => setEditingEvent(e)}
         />
 
         {/* Sheets */}
@@ -208,6 +216,16 @@ export default function CalendarScreen() {
         <AddClassSheet
           visible={isAddClassVisible}
           onClose={() => setIsAddClassVisible(false)}
+        />
+        <EditEventSheet
+          visible={editingEvent !== null}
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+        />
+        <EditClassSheet
+          visible={editingClass !== null}
+          schedule={editingClass}
+          onClose={() => setEditingClass(null)}
         />
 
       </SafeAreaView>

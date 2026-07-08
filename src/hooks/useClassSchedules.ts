@@ -5,6 +5,8 @@ export interface ClassScheduleRow {
   day_of_week: number;        // 0=Sun, 1=Mon, ... 6=Sat
   start_time: string;         // "HH:MM" 24-hour
   end_time: string;           // "HH:MM" 24-hour
+  start_date: string;         // "YYYY-MM-DD"
+  end_date: string | null;    // "YYYY-MM-DD" optional semester end
   room: string | null;
   modality: 'F2F' | 'ONLINE' | 'HYBRID';
   set_type: 'A' | 'B' | 'BOTH' | null;
@@ -27,6 +29,8 @@ export function useClassSchedules() {
       ClassSchedule.dayOfWeek   AS day_of_week,
       ClassSchedule.startTime   AS start_time,
       ClassSchedule.endTime     AS end_time,
+      ClassSchedule.startDate   AS start_date,
+      ClassSchedule.endDate     AS end_date,
       ClassSchedule.room,
       ClassSchedule.modality,
       ClassSchedule.setType     AS set_type,

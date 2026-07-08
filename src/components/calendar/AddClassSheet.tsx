@@ -12,8 +12,7 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, Clock, Calendar } from 'lucide-react-native';
-import ColorPicker, { Panel1, HueSlider, Swatches } from 'reanimated-color-picker';
+import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
@@ -45,6 +44,10 @@ const PRESET_COLORS = [
   '#EF4444', // red
   '#8B5CF6', // purple
   '#06B6D4', // cyan
+  '#EC4899', // pink
+  '#14B8A6', // teal
+  '#6366F1', // indigo
+  '#F97316', // orange
 ];
 
 const MODALITIES: { label: string; value: Modality }[] = [
@@ -144,7 +147,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     resetForm();
     onClose();
   };
-  
+
   const toggleDay = (dayValue: number) => {
     setSelectedDays(prev => {
       if (prev.includes(dayValue)) {
@@ -175,6 +178,19 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
       setError('Failed to create subject.');
     } finally {
       setIsSavingSubject(false);
+    }
+  };
+
+  const handleDeleteSubject = async (subjectId: string) => {
+    if (!userId) return;
+    try {
+      await powerSync.execute('DELETE FROM Subject WHERE id = ? AND userId = ?', [subjectId, userId]);
+      if (selectedSubjectId === subjectId) {
+        setSelectedSubjectId(null);
+      }
+    } catch (err) {
+      console.error('[AddClass] Subject delete failed:', err);
+      setError('Failed to delete subject.');
     }
   };
 
@@ -214,7 +230,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
     try {
       const now = new Date().toISOString();
-      
+
       // We run all inserts concurrently
       await Promise.all(selectedDays.map(day => {
         const id = generateId();
@@ -228,7 +244,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             startTime,
             endTime,
             startDate.toISOString().split('T')[0],
-            endDate ? endDate.toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
+            endDate ? endDate.toISOString().split('T')[0] : null,
             room.trim() || null,
             modality,
             setType,
@@ -294,14 +310,21 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
                   <View style={styles.subjectListContainer}>
                     {subjects.map((s) => (
-                      <Pressable
-                        key={s.id}
-                        style={styles.pickerItem}
-                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
-                      >
-                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                        <Text style={styles.pickerItemText}>{s.name}</Text>
-                      </Pressable>
+                      <View key={s.id} style={styles.pickerItemWrapper}>
+                        <Pressable
+                          style={styles.pickerItem}
+                          onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
+                        >
+                          <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                          <Text style={styles.pickerItemText}>{s.name}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.deleteSubjectBtn}
+                          onPress={() => handleDeleteSubject(s.id)}
+                        >
+                          <X size={16} color="#94A3B8" />
+                        </Pressable>
+                      </View>
                     ))}
                   </View>
 
@@ -323,15 +346,17 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                         autoFocus
                       />
                       <View style={styles.newSubjectColors}>
-                        <ColorPicker
-                          style={{ width: '100%', gap: 12 }}
-                          value={newSubjectColor}
-                          onComplete={(colors) => setNewSubjectColor(colors.hex)}
-                        >
-                          <Panel1 style={{ height: 120, borderRadius: 8 }} />
-                          <HueSlider style={{ borderRadius: 8, height: 20 }} />
-                          <Swatches style={{ marginTop: 8 }} colors={PRESET_COLORS} />
-                        </ColorPicker>
+                        {PRESET_COLORS.map((color) => (
+                          <Pressable
+                            key={color}
+                            style={[
+                              styles.newSubjectColorSwatch,
+                              { backgroundColor: color },
+                              newSubjectColor === color && styles.newSubjectColorSelected
+                            ]}
+                            onPress={() => setNewSubjectColor(color)}
+                          />
+                        ))}
                       </View>
                       <View style={styles.newSubjectActions}>
                         <Pressable
@@ -496,7 +521,6 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           {/* Set Type */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Schedule Set</Text>
-            <Text style={styles.sublabel}>For alternating week setups (e.g. Set A / Set B)</Text>
             <View style={styles.pillRow}>
               {SET_TYPES.map((st) => (
                 <Pressable
@@ -573,7 +597,6 @@ const styles = StyleSheet.create({
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
   formGroup: { marginBottom: 18 },
   label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
-  sublabel: { fontSize: 12, color: '#2A3143', marginTop: -4, marginBottom: 8 },
 
   // Pill selectors
   pillRow: {
@@ -658,15 +681,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
     overflow: 'hidden',
   },
+  pickerItemWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3143',
+  },
   pickerItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
   },
   pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
+  deleteSubjectBtn: {
+    padding: 12,
+  },
 
   // iOS picker
   iosPickerWrapper: {
@@ -726,8 +757,9 @@ const styles = StyleSheet.create({
   newSubjectColors: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 24,
   },
   newSubjectColorSwatch: {
     width: 24,

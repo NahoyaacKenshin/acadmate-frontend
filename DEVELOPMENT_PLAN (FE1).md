@@ -100,8 +100,8 @@
 
 #### Week 3 Refinements (Data Model & UI Enhancements)
 - [x] **Backend**: Update `ClassSchedule` in `schema.prisma` to include `startDate` and `endDate` (DateTime). Run Prisma migrations, update Zod validation schemas (`src/schema/class-schedule.ts`), and update PowerSync sync rules/schema definitions.
-- [ ] **Frontend 1**: Update `AddClassSheet` UI to include Start Date and End Date pickers (so classes don't recur infinitely).
-- [ ] **Frontend 1**: Implement a custom color wheel/picker library (e.g. `react-native-color-picker` or a custom slider) for Subject Creation in `AddClassSheet` and Event Color selection in `AddEventSheet`, replacing the hardcoded preset swatches.
+- [x] **Frontend 1**: Update `AddClassSheet` UI to include Start Date and End Date pickers (so classes don't recur infinitely).
+
 
 #### Frontend 2 (State & Integration)
 - [ ] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
