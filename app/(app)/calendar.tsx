@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
 import { Text } from '@/src/components/ui/text';
 import { Plus, CalendarDays, BookOpen, GraduationCap } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ApiService } from '@/src/services/api';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
 import { WeekStrip } from '@/src/components/calendar/WeekStrip';
@@ -23,8 +24,7 @@ import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedul
 import { useTasks } from '@/src/hooks/useTasks';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 
-// ── Placeholder holidays — FE2 will populate via GET /api/holidays ────────────
-const PLACEHOLDER_HOLIDAYS: Holiday[] = [];
+// Holidays will be fetched from the API
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,21 @@ export default function CalendarScreen() {
   const { schedules } = useClassSchedules();
   const { tasks } = useTasks();
   const { examWeeks } = useExamWeeks();
-  const holidays = PLACEHOLDER_HOLIDAYS;
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const res = await ApiService.holidays.get(displayYear);
+        // Backend returns `{ data: [...] }` or similar. Adjusting to assume it returns the array directly or in a `data` field.
+        const fetchedHolidays = res?.data || res || [];
+        setHolidays(fetchedHolidays);
+      } catch (err) {
+        console.error('Failed to fetch holidays:', err);
+      }
+    };
+    fetchHolidays();
+  }, [displayYear]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 

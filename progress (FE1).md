@@ -92,3 +92,7 @@
 - **Bug Fix — PowerSync Token Auto-Refresh** (`src/db/PowerSyncConnector.ts`):
   - **Root cause**: `fetchCredentials` was sending the stale `accessToken` to `/powersync-token`. On a 401 it would log an error and return `null` without ever calling `refreshSession()`, causing persistent sync failures after the first token expiry.
   - **Fix**: Extracted a private `_fetchPowerSyncToken()` helper that returns a typed sentinel `'UNAUTHORIZED'` on 401/403. `fetchCredentials` now silently calls `refreshSession()` on a 401, retries once with the new token, and only returns `null` if the refresh itself fails. Same retry pattern applied to `uploadData`.
+- **Frontend 2 (Week 3) — State & Integration (Calendar & Offline Sync)**:
+  - **ExamWeek Sync**: Updated backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream. Verified `ExamWeek` is successfully writing locally via PowerSync in the frontend.
+  - **Offline Banner**: Built an offline status banner in `_layout.tsx` using `useSystemStore` to gracefully alert users when they are disconnected and AI/cloud features are unavailable.
+  - **Holidays Integration**: Implemented holiday fetching in `calendar.tsx` via `ApiService.holidays.get` and removed the placeholder constant, dynamically rendering official holidays on the month and week views.

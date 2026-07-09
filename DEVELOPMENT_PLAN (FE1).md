@@ -109,10 +109,10 @@
 #### Frontend 2 (State & Integration)
 - [x] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
 - [x] Fix PowerSync token auto-refresh logic to silently attempt a refresh on 401 instead of blocking sync.
-- [ ] Verify all calendar creations/modifications (including `ExamWeek`) are correctly writing locally to PowerSync (`powerSync.execute`).
-- [ ] Update backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream.
-- [ ] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
-- [ ] Fetch Philippine holidays via `GET /api/holidays?year=YYYY` and populate the `PLACEHOLDER_HOLIDAYS` array in `calendar.tsx`.
+- [x] Verify all calendar creations/modifications (including `ExamWeek`) are correctly writing locally to PowerSync (`powerSync.execute`).
+- [x] Update backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream.
+- [x] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
+- [x] Fetch Philippine holidays via `GET /api/holidays?year=YYYY` and populate the `PLACEHOLDER_HOLIDAYS` array in `calendar.tsx`.
 
 ---
 
