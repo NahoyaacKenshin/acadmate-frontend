@@ -46,5 +46,17 @@ export function isScheduleActiveOnDate(
   const rangeEnd = parseDateLocal(schedule.end_date);
   if (rangeEnd && target > rangeEnd) return false;
 
+  // 3. Set A/B alternation
+  // If set_type is not null, it only occurs every 2 weeks from its own start_date
+  if (schedule.set_type && rangeStart) {
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const diffMs = target.getTime() - rangeStart.getTime();
+    // Round to handle minor daylight savings diffs
+    const diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
+    
+    // Only show on week 0, week 2, week 4, etc.
+    if (diffWeeks % 2 !== 0) return false;
+  }
+
   return true;
 }

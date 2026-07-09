@@ -386,54 +386,81 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
             </View>
           )}
 
-          {/* Modality */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Modality</Text>
-            <View style={styles.pillRow}>
-              {MODALITIES.map((m) => (
-                <Pressable
-                  key={m.value}
-                  style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
-                  onPress={() => setModality(m.value)}
-                >
-                  <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
-                    {m.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          {/* If Every Week, show normal Modality + Schedule Set + Room */}
+          {setType === null ? (
+            <>
+              {/* Modality */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Modality</Text>
+                <View style={styles.pillRow}>
+                  {MODALITIES.map((m) => (
+                    <Pressable
+                      key={m.value}
+                      style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
+                      onPress={() => setModality(m.value)}
+                    >
+                      <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
+                        {m.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
 
-          {/* Set Type */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Schedule Set</Text>
-            <View style={styles.pillRow}>
-              {SET_TYPES.map((st) => (
-                <Pressable
-                  key={String(st.value)}
-                  style={[styles.pill, styles.pillWide, setType === st.value && styles.pillSelected]}
-                  onPress={() => setSetType(st.value)}
-                >
-                  <Text style={[styles.pillText, setType === st.value && styles.pillTextSelected]}>
-                    {st.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+              {/* Set Type (Locked to Every Week to prevent desyncing pairs) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Schedule Set</Text>
+                <View style={styles.pillRow}>
+                  <Pressable style={[styles.pill, styles.pillWide, styles.pillSelected]}>
+                    <Text style={[styles.pillText, styles.pillTextSelected]}>Every Week</Text>
+                  </Pressable>
+                </View>
+              </View>
 
-          {/* Room */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Room / Location (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Room 416, Tech Hall"
-              placeholderTextColor="#94A3B8"
-              value={room}
-              onChangeText={setRoom}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
+              {/* Room */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Room / Location (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Room 416, Tech Hall"
+                  placeholderTextColor="#94A3B8"
+                  value={room}
+                  onChangeText={setRoom}
+                  onFocus={() => setShowSubjectPicker(false)}
+                />
+              </View>
+            </>
+          ) : (
+            /* If By Set, show locked Modality + Room for this specific set */
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Set {setType} Configuration</Text>
+              
+              <View style={{ backgroundColor: '#10131C', borderWidth: 1, borderColor: '#2A3143', borderRadius: 10, padding: 12 }}>
+                <Text style={{ fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' }}>Modality</Text>
+                <View style={[styles.pillRow, { marginBottom: 10 }]}>
+                  {MODALITIES.map((m) => (
+                    <Pressable
+                      key={m.value}
+                      style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
+                      onPress={() => setModality(m.value)}
+                    >
+                      <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>{m.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={{ fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' }}>Room / Location (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={`e.g. Room for Set ${setType}`}
+                  placeholderTextColor="#94A3B8"
+                  value={room}
+                  onChangeText={setRoom}
+                  onFocus={() => setShowSubjectPicker(false)}
+                />
+              </View>
+            </View>
+          )}
 
           <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
             {isLoading

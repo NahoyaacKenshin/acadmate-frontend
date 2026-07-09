@@ -26,6 +26,9 @@ type Modality = 'F2F' | 'ONLINE' | 'HYBRID';
 type SetType = 'A' | 'B' | null;
 type PickerField = 'startTime' | 'endTime' | 'startDate' | 'endDate';
 
+// scheduleMode: null = every week, 'bySet' = alternating Set A/B
+type ScheduleMode = 'everyWeek' | 'bySet';
+
 // 0 = Sunday … 6 = Saturday, displayed Mon–Sun
 const DAYS = [
   { label: 'Mon', value: 1 },
@@ -54,12 +57,6 @@ const MODALITIES: { label: string; value: Modality }[] = [
   { label: 'F2F', value: 'F2F' },
   { label: 'Online', value: 'ONLINE' },
   { label: 'Hybrid', value: 'HYBRID' },
-];
-
-const SET_TYPES: { label: string; value: SetType }[] = [
-  { label: 'Every Week', value: null },
-  { label: 'Set A', value: 'A' },
-  { label: 'Set B', value: 'B' },
 ];
 
 function generateId(): string {
@@ -103,9 +100,18 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   const [selectedDays, setSelectedDays] = useState<number[]>([1]); // Monday default
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('09:30');
-  const [modality, setModality] = useState<Modality>('F2F');
-  const [setType, setSetType] = useState<SetType>(null);
-  const [room, setRoom] = useState('');
+  // Schedule mode: 'everyWeek' (null setType) or 'bySet' (alternating A/B)
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('everyWeek');
+  // For By Set: which set starts first
+  const [startsWithSet, setStartsWithSet] = useState<'A' | 'B'>('A');
+  // Modality fields
+  const [modality, setModality] = useState<Modality>('F2F');         // Every Week
+  const [modalitySetA, setModalitySetA] = useState<Modality>('F2F'); // By Set — Set A
+  const [modalitySetB, setModalitySetB] = useState<Modality>('F2F'); // By Set — Set B
+  // Room fields
+  const [room, setRoom] = useState('');           // used for Every Week
+  const [roomSetA, setRoomSetA] = useState('');   // used for By Set
+  const [roomSetB, setRoomSetB] = useState('');   // used for By Set
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
 
@@ -131,8 +137,13 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setStartTime('08:00');
     setEndTime('09:30');
     setModality('F2F');
-    setSetType(null);
+    setScheduleMode('everyWeek');
+    setStartsWithSet('A');
+    setModalitySetA('F2F');
+    setModalitySetB('F2F');
     setRoom('');
+    setRoomSetA('');
+    setRoomSetB('');
     setStartDate(new Date());
     setEndDate(null);
     setSelectedSubjectId(null);
@@ -230,31 +241,62 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
     try {
       const now = new Date().toISOString();
+      const isBySet = scheduleMode === 'bySet';
 
-      // We run all inserts concurrently
-      await Promise.all(selectedDays.map(day => {
-        const id = generateId();
-        return powerSync.execute(
-          `INSERT INTO ClassSchedule
-            (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            day,
-            startTime,
-            endTime,
-            startDate.toISOString().split('T')[0],
-            endDate ? endDate.toISOString().split('T')[0] : null,
-            room.trim() || null,
-            modality,
-            setType,
-            selectedSubjectId,
-            userId,
-            now,
-            now,
-          ]
-        );
-      }));
+      if (isBySet) {
+        // For By Set: insert TWO records per day — one for Set A, one for Set B.
+        // startsWithSet determines which set the startDate week belongs to,
+        // which controls the alternation via isScheduleActiveOnDate.
+        await Promise.all(selectedDays.flatMap(day => [
+          // Set A record
+          powerSync.execute(
+            `INSERT INTO ClassSchedule
+              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              generateId(), day, startTime, endTime,
+              startDate.toISOString().split('T')[0],
+              endDate ? endDate.toISOString().split('T')[0] : null,
+              roomSetA.trim() || null,
+              modalitySetA, 'A',
+              selectedSubjectId, userId, now, now,
+            ]
+          ),
+          // Set B record
+          powerSync.execute(
+            `INSERT INTO ClassSchedule
+              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              generateId(), day, startTime, endTime,
+              startsWithSet === 'A'
+                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })()
+                : startDate.toISOString().split('T')[0],
+              endDate ? endDate.toISOString().split('T')[0] : null,
+              roomSetB.trim() || null,
+              modalitySetB, 'B',
+              selectedSubjectId, userId, now, now,
+            ]
+          ),
+        ]));
+      } else {
+        // Every Week — single record per day
+        await Promise.all(selectedDays.map(day => {
+          return powerSync.execute(
+            `INSERT INTO ClassSchedule
+              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              generateId(), day, startTime, endTime,
+              startDate.toISOString().split('T')[0],
+              endDate ? endDate.toISOString().split('T')[0] : null,
+              room.trim() || null,
+              modality, null,
+              selectedSubjectId, userId, now, now,
+            ]
+          );
+        }));
+      }
 
       handleClose();
     } catch (err: any) {
@@ -500,54 +542,134 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             </View>
           )}
 
-          {/* Modality */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Modality</Text>
-            <View style={styles.pillRow}>
-              {MODALITIES.map((m) => (
-                <Pressable
-                  key={m.value}
-                  style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
-                  onPress={() => setModality(m.value)}
-                >
-                  <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
-                    {m.label}
-                  </Text>
-                </Pressable>
-              ))}
+          {/* Modality — only shown in Every Week mode */}
+          {scheduleMode === 'everyWeek' && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Modality</Text>
+              <View style={styles.pillRow}>
+                {MODALITIES.map((m) => (
+                  <Pressable
+                    key={m.value}
+                    style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
+                    onPress={() => setModality(m.value)}
+                  >
+                    <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* Set Type */}
+          {/* Schedule Set */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Schedule Set</Text>
             <View style={styles.pillRow}>
-              {SET_TYPES.map((st) => (
-                <Pressable
-                  key={String(st.value)}
-                  style={[styles.pill, styles.pillWide, setType === st.value && styles.pillSelected]}
-                  onPress={() => setSetType(st.value)}
-                >
-                  <Text style={[styles.pillText, setType === st.value && styles.pillTextSelected]}>
-                    {st.label}
-                  </Text>
-                </Pressable>
-              ))}
+              <Pressable
+                style={[styles.pill, styles.pillWide, scheduleMode === 'everyWeek' && styles.pillSelected]}
+                onPress={() => setScheduleMode('everyWeek')}
+              >
+                <Text style={[styles.pillText, scheduleMode === 'everyWeek' && styles.pillTextSelected]}>Every Week</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.pill, styles.pillWide, scheduleMode === 'bySet' && styles.pillSelected]}
+                onPress={() => setScheduleMode('bySet')}
+              >
+                <Text style={[styles.pillText, scheduleMode === 'bySet' && styles.pillTextSelected]}>By Set</Text>
+              </Pressable>
             </View>
           </View>
 
-          {/* Room */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Room / Location (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Room 416, Tech Hall"
-              placeholderTextColor="#94A3B8"
-              value={room}
-              onChangeText={setRoom}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
+          {/* Room — conditional on schedule mode */}
+          {scheduleMode === 'everyWeek' ? (
+            // Single room for every-week classes
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Room / Location (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Room 416, Tech Hall"
+                placeholderTextColor="#94A3B8"
+                value={room}
+                onChangeText={setRoom}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+          ) : (
+            // By Set: Starts With + paired Set A & Set B (Modality + Room each)
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Set Configuration</Text>
+
+              {/* Which set starts first */}
+              <Text style={styles.setRoomLabel}>Starts With</Text>
+              <View style={[styles.pillRow, { marginBottom: 16 }]}>
+                <Pressable
+                  style={[styles.pill, styles.pillWide, startsWithSet === 'A' && styles.pillSelected]}
+                  onPress={() => setStartsWithSet('A')}
+                >
+                  <Text style={[styles.pillText, startsWithSet === 'A' && styles.pillTextSelected]}>Set A First</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.pill, styles.pillWide, startsWithSet === 'B' && styles.pillSelected]}
+                  onPress={() => setStartsWithSet('B')}
+                >
+                  <Text style={[styles.pillText, startsWithSet === 'B' && styles.pillTextSelected]}>Set B First</Text>
+                </Pressable>
+              </View>
+
+              {/* Set A — Modality + Room */}
+              <View style={styles.setGroup}>
+                <Text style={styles.setGroupHeader}>Set A</Text>
+                <Text style={styles.setRoomLabel}>Modality</Text>
+                <View style={[styles.pillRow, { marginBottom: 10 }]}>
+                  {MODALITIES.map((m) => (
+                    <Pressable
+                      key={m.value}
+                      style={[styles.pill, styles.pillWide, modalitySetA === m.value && styles.pillSelected]}
+                      onPress={() => setModalitySetA(m.value)}
+                    >
+                      <Text style={[styles.pillText, modalitySetA === m.value && styles.pillTextSelected]}>{m.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.setRoomLabel}>Room / Location (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Room 301, Building A"
+                  placeholderTextColor="#94A3B8"
+                  value={roomSetA}
+                  onChangeText={setRoomSetA}
+                  onFocus={() => setShowSubjectPicker(false)}
+                />
+              </View>
+
+              {/* Set B — Modality + Room */}
+              <View style={[styles.setGroup, { marginTop: 12 }]}>
+                <Text style={styles.setGroupHeader}>Set B</Text>
+                <Text style={styles.setRoomLabel}>Modality</Text>
+                <View style={[styles.pillRow, { marginBottom: 10 }]}>
+                  {MODALITIES.map((m) => (
+                    <Pressable
+                      key={m.value}
+                      style={[styles.pill, styles.pillWide, modalitySetB === m.value && styles.pillSelected]}
+                      onPress={() => setModalitySetB(m.value)}
+                    >
+                      <Text style={[styles.pillText, modalitySetB === m.value && styles.pillTextSelected]}>{m.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.setRoomLabel}>Room / Location (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Room 205, Building B"
+                  placeholderTextColor="#94A3B8"
+                  value={roomSetB}
+                  onChangeText={setRoomSetB}
+                  onFocus={() => setShowSubjectPicker(false)}
+                />
+              </View>
+            </View>
+          )}
 
           <Button style={styles.addButton} onPress={handleAdd} disabled={isLoading}>
             {isLoading
@@ -597,6 +719,21 @@ const styles = StyleSheet.create({
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
   formGroup: { marginBottom: 18 },
   label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
+  setRoomLabel: { fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' },
+  setGroup: {
+    backgroundColor: '#10131C',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    borderRadius: 10,
+    padding: 12,
+  },
+  setGroupHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 10,
+    letterSpacing: 0.5,
+  },
 
   // Pill selectors
   pillRow: {

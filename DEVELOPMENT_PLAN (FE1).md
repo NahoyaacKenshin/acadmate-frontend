@@ -101,6 +101,9 @@
 #### Week 3 Refinements (Data Model & UI Enhancements)
 - [x] **Backend**: Update `ClassSchedule` in `schema.prisma` to include `startDate` and `endDate` (DateTime). Run Prisma migrations, update Zod validation schemas (`src/schema/class-schedule.ts`), and update PowerSync sync rules/schema definitions.
 - [x] **Frontend 1**: Update `AddClassSheet` UI to include Start Date and End Date pickers (so classes don't recur infinitely).
+- [ ] **Backend**: Create an `ExamWeek` model in Prisma (with title, startDate, endDate) to represent global semester exams (Prelims, Midterms, etc.), run migrations, and update PowerSync Sync Rules to sync exam weeks to clients.
+- [ ] **Frontend 1**: Build an "Add Exam Week" UI/modal to let users define global exam date ranges.
+- [ ] **Frontend 1**: Update `isScheduleActiveOnDate` in `scheduleUtils.ts` to query local `ExamWeek` records, return false if a class falls on an exam week, and subtract the number of past exam weeks from the `diffWeeks` calculation so Set A and Set B alternating classes resume correctly.
 
 
 #### Frontend 2 (State & Integration)
