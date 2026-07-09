@@ -1,7 +1,7 @@
 ```markdown
 # AcadMate — Full Project Development Plan (Revised)
 
-> **Timeline:** 5 Months (20 Weeks)
+> **Timeline:** 3 Months (10 Weeks)
 > **Team:** 3 Members (1 Backend, 2 Frontend)
 > **Start Date:** Week of June 23, 2026
 
@@ -138,7 +138,7 @@ werSync).
 
 ---
 
-## Phase 3: AI Notebook & Study Tool (Weeks 5–8, July 21, 2026 - August 17, 2026)
+## Phase 3: AI Notebook & Study Tool (Weeks 5–7, July 21, 2026 - August 10, 2026)
 
 **Goal:** Build an isolated knowledge base where users upload materials and safely chat with an AI that references their documents using a RAG pipeline.
 
@@ -202,7 +202,7 @@ werSync).
 
 ---
 
-## Phase 4: Notifications & Reminders (Weeks 15–16)
+## Phase 4: Notifications & Reminders (Week 8, Aug 11 – Aug 17, 2026)
 
 **Goal:** Ensure users never miss a milestone with background push notifications when online and reactive local scheduling when offline.
 
