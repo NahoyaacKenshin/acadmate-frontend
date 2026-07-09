@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 export interface Holiday {
   id: string;
@@ -19,6 +20,7 @@ interface MonthGridProps {
   selectedDate: Date;
   events: CalendarEventRow[];
   schedules: ClassScheduleRow[];
+  examWeeks: ExamWeekRow[];
   holidays: Holiday[];
   onDayPress: (date: Date) => void;
   onPrevMonth: () => void;
@@ -60,6 +62,7 @@ function getDotColors(
   date: Date,
   events: CalendarEventRow[],
   schedules: ClassScheduleRow[],
+  examWeeks: ExamWeekRow[],
   holidays: Holiday[],
 ): string[] {
   const colors: string[] = [];
@@ -75,7 +78,7 @@ function getDotColors(
   }
 
   // Class schedule dot (recurring — respects bounds)
-  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date));
+  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks));
   if (activeClass && colors.length < 3) {
     colors.push(activeClass.subject_color ?? '#6C8EFF');
   }
@@ -96,6 +99,7 @@ export function MonthGrid({
   selectedDate,
   events,
   schedules,
+  examWeeks,
   holidays,
   onDayPress,
   onPrevMonth,
@@ -139,7 +143,7 @@ export function MonthGrid({
           const isToday = isSameDay(cellDate, today);
           const isSelected = isSameDay(cellDate, selectedDate);
           const isPast = cellDate < todayNoTime;
-          const dots = getDotColors(cellDate, events, schedules, holidays);
+          const dots = getDotColors(cellDate, events, schedules, examWeeks, holidays);
 
           return (
             <Pressable

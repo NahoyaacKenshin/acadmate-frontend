@@ -20,11 +20,13 @@ import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
 import { TaskRow } from '@/src/hooks/useTasks';
 import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 interface DayViewProps {
   selectedDate: Date;
   events: CalendarEventRow[];
   schedules: ClassScheduleRow[];
+  examWeeks: ExamWeekRow[];
   holidays: Holiday[];
   tasks: TaskRow[];
   onClassPress?: (schedule: ClassScheduleRow) => void;
@@ -201,13 +203,13 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ── Main DayView ───────────────────────────────────────────────────────────────
-export function DayView({ selectedDate, events, schedules, holidays, tasks, onClassPress, onEventPress }: DayViewProps) {
+export function DayView({ selectedDate, events, schedules, examWeeks, holidays, tasks, onClassPress, onEventPress }: DayViewProps) {
   const today = new Date();
   const isToday = isSameDay(selectedDate, today);
   const dayOfWeek = selectedDate.getDay();
 
   // Filter class schedules for this day — respects start/end date bounds
-  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate));
+  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks));
 
   // Filter one-off events for this date
   const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), selectedDate));

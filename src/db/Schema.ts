@@ -50,11 +50,21 @@ export const CalendarEvent = new Table({
   subjectId: column.text
 });
 
+export const ExamWeek = new Table({
+  title: column.text,
+  startDate: column.text,
+  endDate: column.text,
+  createdAt: column.text,
+  updatedAt: column.text,
+  userId: column.text
+});
+
 export const AppSchema = new Schema({
   Subject,
   Task,
   ClassSchedule,
   CalendarEvent,
+  ExamWeek,
 });
 
 export type Database = (typeof AppSchema)['types'];

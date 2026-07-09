@@ -16,6 +16,8 @@ import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
+import { useClassSchedules } from '@/src/hooks/useClassSchedules';
+import { AddExamWeekModal } from './AddExamWeekModal';
 
 interface AddClassSheetProps {
   visible: boolean;

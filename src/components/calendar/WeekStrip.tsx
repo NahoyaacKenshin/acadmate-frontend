@@ -6,11 +6,13 @@ import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
 import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 interface WeekStripProps {
   selectedDate: Date;
   events: CalendarEventRow[];
   schedules: ClassScheduleRow[];
+  examWeeks: ExamWeekRow[];
   holidays: Holiday[];
   isMonthExpanded: boolean;
   onDayPress: (date: Date) => void;
@@ -63,6 +65,7 @@ function getDayDots(
   date: Date,
   events: CalendarEventRow[],
   schedules: ClassScheduleRow[],
+  examWeeks: ExamWeekRow[],
   holidays: Holiday[],
 ): string[] {
   const colors: string[] = [];
@@ -72,7 +75,7 @@ function getDayDots(
     colors.push(ht === 'REGULAR' ? '#EF4444' : '#F59E0B');
   }
   // Class schedule dot (recurring — respects bounds)
-  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date));
+  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
   for (const ev of events) {
     if (colors.length >= 3) break;
@@ -87,6 +90,7 @@ export function WeekStrip({
   selectedDate,
   events,
   schedules,
+  examWeeks,
   holidays,
   isMonthExpanded,
   onDayPress,
@@ -129,7 +133,7 @@ export function WeekStrip({
           const isSelected = isSameDay(d, selectedDate);
           const isToday = isSameDay(d, today);
           const isPast = d < todayNoTime;
-          const dots = getDayDots(d, events, schedules, holidays);
+          const dots = getDayDots(d, events, schedules, examWeeks, holidays);
 
           return (
             <Pressable

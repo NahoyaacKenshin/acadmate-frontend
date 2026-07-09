@@ -1,4 +1,5 @@
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 /**
  * Safely parses a date string as LOCAL midnight to avoid UTC timezone shifts.
@@ -8,7 +9,7 @@ import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
  *  - 'YYYY-MM-DDTHH:mm:ss.sssZ' (full ISO, strips the time part)
  *  - null / undefined           (returns null — means "no bound")
  */
-function parseDateLocal(dateStr: string | null | undefined): Date | null {
+export function parseDateLocal(dateStr: string | null | undefined): Date | null {
   if (!dateStr) return null;
   const datePart = dateStr.split('T')[0];
   const parts = datePart.split('-');
@@ -25,10 +26,12 @@ function parseDateLocal(dateStr: string | null | undefined): Date | null {
  *  1. Day-of-week must match
  *  2. Target date must be >= schedule startDate
  *  3. Target date must be <= schedule endDate (if set)
+ *  4. Exam week exclusions and Set A/B alternation
  */
 export function isScheduleActiveOnDate(
   schedule: ClassScheduleRow,
   date: Date,
+  examWeeks: ExamWeekRow[] = []
 ): boolean {
   // 1. Day-of-week match
   if (schedule.day_of_week !== date.getDay()) return false;
@@ -46,13 +49,38 @@ export function isScheduleActiveOnDate(
   const rangeEnd = parseDateLocal(schedule.end_date);
   if (rangeEnd && target > rangeEnd) return false;
 
-  // 3. Set A/B alternation
-  // If set_type is not null, it only occurs every 2 weeks from its own start_date
+  // 3. Exam Week logic
+  // Check if target date falls inside any exam week
+  for (const ew of examWeeks) {
+    const ewStart = parseDateLocal(ew.startDate);
+    const ewEnd = parseDateLocal(ew.endDate);
+    if (ewStart && ewEnd) {
+      if (target >= ewStart && target <= ewEnd) {
+        return false; // Class does not happen during exam weeks
+      }
+    }
+  }
+
+  // 4. Set A/B alternation
   if (schedule.set_type && rangeStart) {
-    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
     const diffMs = target.getTime() - rangeStart.getTime();
-    // Round to handle minor daylight savings diffs
-    const diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
+    let diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
+    
+    // Subtract any exam weeks that occurred between rangeStart and target
+    // so that Set A/B alternating pattern resumes correctly.
+    let pastExamWeeksCount = 0;
+    for (const ew of examWeeks) {
+      const ewStart = parseDateLocal(ew.startDate);
+      const ewEnd = parseDateLocal(ew.endDate);
+      if (ewStart && ewEnd) {
+        // If the exam week started after the class started and ended before or on the target date
+        if (ewStart >= rangeStart && ewStart <= target) {
+          pastExamWeeksCount++;
+        }
+      }
+    }
+    
+    diffWeeks -= pastExamWeeksCount;
     
     // Only show on week 0, week 2, week 4, etc.
     if (diffWeeks % 2 !== 0) return false;
@@ -60,3 +88,4 @@ export function isScheduleActiveOnDate(
 
   return true;
 }
+

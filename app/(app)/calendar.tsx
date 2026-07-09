@@ -6,7 +6,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { Plus, CalendarDays, BookOpen } from 'lucide-react-native';
+import { Plus, CalendarDays, BookOpen, GraduationCap } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
@@ -16,10 +16,12 @@ import { AddEventSheet } from '@/src/components/calendar/AddEventSheet';
 import { AddClassSheet } from '@/src/components/calendar/AddClassSheet';
 import { EditEventSheet } from '@/src/components/calendar/EditEventSheet';
 import { EditClassSheet } from '@/src/components/calendar/EditClassSheet';
+import { AddExamWeekModal } from '@/src/components/calendar/AddExamWeekModal';
 
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useTasks } from '@/src/hooks/useTasks';
+import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 
 // ── Placeholder holidays — FE2 will populate via GET /api/holidays ────────────
 const PLACEHOLDER_HOLIDAYS: Holiday[] = [];
@@ -54,6 +56,7 @@ export default function CalendarScreen() {
   // Sheet visibility
   const [isAddEventVisible, setIsAddEventVisible] = useState(false);
   const [isAddClassVisible, setIsAddClassVisible] = useState(false);
+  const [isAddExamWeekVisible, setIsAddExamWeekVisible] = useState(false);
 
   // Edit sheet state
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
@@ -63,6 +66,7 @@ export default function CalendarScreen() {
   const { events } = useCalendarEvents();
   const { schedules } = useClassSchedules();
   const { tasks } = useTasks();
+  const { examWeeks } = useExamWeeks();
   const holidays = PLACEHOLDER_HOLIDAYS;
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -116,6 +120,11 @@ export default function CalendarScreen() {
     setIsAddClassVisible(true);
   };
 
+  const openAddExamWeek = () => {
+    setActionMenuVisible(false);
+    setIsAddExamWeekVisible(true);
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -164,6 +173,18 @@ export default function CalendarScreen() {
                   <Text style={styles.actionMenuSub}>Recurring weekly class schedule</Text>
                 </View>
               </Pressable>
+
+              <View style={styles.actionMenuDivider} />
+
+              <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
+                <View style={styles.actionMenuIcon}>
+                  <GraduationCap size={18} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
+                  <Text style={styles.actionMenuSub}>Block off exam / holiday periods</Text>
+                </View>
+              </Pressable>
             </View>
           </>
         )}
@@ -176,6 +197,7 @@ export default function CalendarScreen() {
             selectedDate={selectedDate}
             events={events}
             schedules={schedules}
+            examWeeks={examWeeks}
             holidays={holidays}
             onDayPress={handleDayPress}
             onPrevMonth={handlePrevMonth}
@@ -188,6 +210,7 @@ export default function CalendarScreen() {
           selectedDate={selectedDate}
           events={events}
           schedules={schedules}
+          examWeeks={examWeeks}
           holidays={holidays}
           isMonthExpanded={isMonthExpanded}
           onDayPress={handleDayPress}
@@ -201,6 +224,7 @@ export default function CalendarScreen() {
           selectedDate={selectedDate}
           events={events}
           schedules={schedules}
+          examWeeks={examWeeks}
           holidays={holidays}
           tasks={tasks}
           onClassPress={(s) => setEditingClass(s)}
@@ -226,6 +250,10 @@ export default function CalendarScreen() {
           visible={editingClass !== null}
           schedule={editingClass}
           onClose={() => setEditingClass(null)}
+        />
+        <AddExamWeekModal
+          visible={isAddExamWeekVisible}
+          onClose={() => setIsAddExamWeekVisible(false)}
         />
 
       </SafeAreaView>

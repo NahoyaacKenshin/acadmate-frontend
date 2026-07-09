@@ -508,6 +508,8 @@ const styles = StyleSheet.create({
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
   formGroup: { marginBottom: 18 },
   label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
+  sublabel: { fontSize: 12, color: '#64748B', marginBottom: 8, marginTop: -6 },
+  setRoomLabel: { fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
     paddingHorizontal: 12,
