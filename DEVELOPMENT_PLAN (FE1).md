@@ -122,19 +122,21 @@
 - [ ] Set up **Gemini API** integration (`@google/generative-ai` SDK).
 - [ ] Build defensive utility handler to catch `429` rate limit errors and automatically hot-swap execution from `gemini-2.5-flash` to `gemini-2.0-flash`.
 - [ ] Build the AI schedule parsing pipeline:
-  1. Accept an uploaded image/PDF of a class schedule.
-  2. Convert image to base64 (for Gemini Vision) or extract text from PDF.
-  3. Send to Gemini with a structured prompt that categorizes the document and enforces a JSON schema matching Week 3 models. (For recurring study loads: `Subject Name, dayOfWeek, startTime, endTime, Set A/B Rooms, Modality`. For one-off events: `title, startDate, endDate, location`).
-werSync).
+  1. Accept an uploaded file (PDF, DOCX), image (Camera/Gallery), or pasted plain text.
+  2. Extract text from the source format.
+  3. Send to Gemini with a structured prompt that categorizes the document and enforces a JSON schema matching Week 3 models. (Extract `ExamWeek` date ranges, map standard holidays to `CalendarEvent`s, and recurring study loads).
+  4. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
 
 #### Frontend 1 (UI/UX)
-- [ ] Build the "Upload Schedule" screen (camera capture + file picker).
+- [ ] Build the "Upload Schedule" screen supporting file picker, camera capture, and manual text paste.
 - [ ] Build the "Confirm Parsed Schedule" screen — display AI-extracted events in an editable list.
+- [ ] Integrate inline subject creation: if the AI detects a new subject, trigger the inline subject creation flow built in Week 3.
 - [ ] Add loading/progress animations while AI is processing.
 
 #### Frontend 2 (State & Integration)
-- [ ] Handle multipart file upload form data and basic image compression client-side.
-- [ ] Connect the upload screen to the parse API and handle error boundaries gracefully (e.g., failed parsing, timeouts).
+- [ ] Handle multipart file upload form data and basic text compression client-side.
+- [ ] Connect the upload screen to the parse API and handle error boundaries gracefully.
+- [ ] Write the returned `ClassSchedule`, `CalendarEvent`, and `ExamWeek` arrays locally via `powerSync.execute()` (optimistic offline-first) rather than direct POST requests.
 
 ---
 
@@ -176,7 +178,7 @@ werSync).
   1. Receive user question $\rightarrow$ generate embedding vector using `text-embedding-004`.
   2. Search pgvector for the top-k most relevant text chunks matching the notebook.
   3. Consolidate context chunks and format a unified system prompt for Gemini.
-- [ ] Create `POST /api/notebooks/:notebookId/chat` endpoint (supporting server-sent events/streaming responses if possible, or fast JSON returns).
+- [ ] Create `POST /api/notebooks/:notebookId/chat` endpoint (supporting server-sent events/streaming responses).
 - [ ] Create `GET /api/notebooks/:notebookId/chat/history` endpoint.
 
 #### Frontend 1 (UI/UX)
@@ -188,40 +190,49 @@ werSync).
 - [ ] Implement Zustand store for message states.
 - [ ] Connect chat UI to the query API.
 - [ ] Handle UI streaming text assemblies or loading blocks cleanly.
-- [ ] Explicitly block/disable input when the device loses network connectivity, prompting an explicit offline notice.
+- [ ] Explicitly block/disable input when the device loses network connectivity, prompting an explicit offline notice (RAG requires active connection).
 
 ---
 
 ### Week 7: Polish, Model Interceptors & Edge Cases
 
-#### All Team Members
+#### Backend
 - [ ] Test AI prompt quality and tune system boundaries to prevent hallucination.
 - [ ] Rigorously check file extraction pipelines against large or multi-page documents.
 - [ ] Verify rate limit fallback middleware functions flawlessly under artificial heavy loads.
-- [ ] Resolve visual alignment bugs across all newly built chat and notebook components.
+
+#### Frontend 1 (UI/UX)
+- [ ] **Homepage Redesign**: Build a minimal and clean dashboard layout focused on reducing clutter.
+  - Prioritize "Urgent Tasks" at the very top of the screen (max 3 items to maintain a clean aesthetic).
+  - Add a highly condensed, scrolling "Today's Timeline" for classes and events.
+  - Add a premium "AI Study Hub" quick-access button section.
+- [ ] Add sleek confirmation modals for destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
+- [ ] Add onboarding/introductory screens for new users highlighting key features and benefits.
+- [ ] Clean up duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header).
+- [ ] Replace the default Expo splash screen logo with the custom AcadMate logo.
+- [ ] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
+- [ ] Resolve visual alignment bugs and inconsistencies across all newly built components.
+
+#### Frontend 2 (State & Integration)
+- [ ] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
 
 ---
 
 ## Phase 4: Notifications & Reminders (Week 8, Aug 11 – Aug 17, 2026)
 
-**Goal:** Ensure users never miss a milestone with background push notifications when online and reactive local scheduling when offline.
+**Goal:** Ensure users never miss a milestone using 100% offline, locally-scheduled push notifications that trigger independently of network status.
 
-### Week 8: Notification Orchestration
-
-#### Backend
-- [ ] Create a `device_tokens` table to save platform-specific tokens.
-- [ ] Create `POST /api/notifications/register` endpoint.
-- [ ] Build a lightweight notification scheduler (Cron utility or worker script) that reads Postgres for upcoming events/tasks and posts requests to the Expo Push API (`https://exp.host/--/api/v2/push/send`).
+### Week 8: Local Notification Orchestration
 
 #### Frontend 1 (UI/UX)
-- [ ] Build Notification Settings management layout.
-- [ ] Design custom in-app notification pop-ups/toasts.
+- [ ] Build Notification Settings management layout (toggles for event reminders, task reminders).
+- [ ] Design custom in-app notification pop-ups/toasts for foreground alerts.
 
 #### Frontend 2 (State & Integration)
 - [ ] Set up `expo-notifications` and handle user permission configurations.
-- [ ] Register device tokens securely on successful application authentication.
 - [ ] Implement **Local Offline Reminders**:
-  - Whenever local PowerSync database listeners detect a newly synced task/event, locally schedule a companion notification alert (e.g., 1 hour before a task is due) natively on the device.
+  - Whenever local PowerSync database listeners detect a newly synced task/event (or when an item is created locally), natively schedule a companion notification alert (e.g., 1 hour before due time) using `scheduleNotificationAsync`.
+  - Automatically cancel old local notifications and reschedule when a task date changes.
 - [ ] Configure notification response listeners to deep-link the user straight to the target screen upon tap (injecting type identifiers like `{"type": "task", "id": "xxx"}`).
 
 ---
