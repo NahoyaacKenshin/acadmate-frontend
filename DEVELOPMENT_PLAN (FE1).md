@@ -1,7 +1,7 @@
 ```markdown
 # AcadMate — Full Project Development Plan (Revised)
 
-> **Timeline:** 5 Months (20 Weeks)
+> **Timeline:** 3 Months (10 Weeks)
 > **Team:** 3 Members (1 Backend, 2 Frontend)
 > **Start Date:** Week of June 23, 2026
 
@@ -74,7 +74,7 @@
 - [x] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
 - [x] Connect Add/Edit/Delete Task actions to the backend Write REST API.
 - [x] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
-- [ ] Test offline scenarios: create tasks offline $\rightarrow$ verify local database updates instantly $\rightarrow$ go online $\rightarrow$ verify upstream sync to Neon.
+- [x] Test offline scenarios: create tasks offline $\rightarrow$ verify local database updates instantly $\rightarrow$ go online $\rightarrow$ verify upstream sync to Neon.
 
 ---
 
@@ -85,22 +85,34 @@
 ### Week 3: Calendar Core & Holidays
 
 #### Backend
-- [ ] Design and migrate Prisma schema for `ClassSchedule` (recurring classes with Set A/B, F2F/Online) and `CalendarEvent` (one-off non-academic events).
-- [ ] Update PowerSync Sync Rules to include `class_schedules` and `calendar_events`.
-- [ ] Build Write-path REST APIs for ClassSchedules (`POST/PUT/DELETE /api/class-schedules`) and CalendarEvents (`POST/PUT/DELETE /api/events`).
-- [ ] Seed a `philippine_holidays` table with official PH holidays (2026–2027) or integrate a public holidays API.
-- [ ] Create a `GET /api/holidays?year=2026` cacheable endpoint.
+- [x] Design and migrate Prisma schema for `ClassSchedule` (recurring classes with Set A/B, F2F/Online) and `CalendarEvent` (one-off non-academic events).
+- [x] Update PowerSync Sync Rules to include `class_schedules` and `calendar_events`.
+- [x] Build Write-path REST APIs for ClassSchedules (`POST/PUT/DELETE /api/class-schedules`) and CalendarEvents (`POST/PUT/DELETE /api/events`).
+- [x] Seed a `philippine_holidays` table with official PH holidays (2026–2027) or integrate a public holidays API.
+- [x] Create a `GET /api/holidays?year=2026` cacheable endpoint.
 
 #### Frontend 1 (UI/UX)
-- [ ] Build the Calendar screen with Monthly view (dots indicating events on each day).
-- [ ] Build the Day view (list of events for a selected day).
-- [ ] Build the "Add Event" modal (title, start/end time pickers, optional subject link).
-- [ ] Render Philippine holidays as special markers on the calendar.
+- [x] Build the Calendar screen with Monthly view (dots indicating events on each day).
+- [x] Build the Day view (list of events for a selected day).
+- [x] Build the "Add Event" modal (title, start/end time pickers, optional subject link).
+- [x] Build the "Add Class Schedule" manual entry modal (recurring day, time, modality, set type).
+- [x] Render Philippine holidays as special markers on the calendar.
+
+#### Week 3 Refinements (Data Model & UI Enhancements)
+- [x] **Backend**: Update `ClassSchedule` in `schema.prisma` to include `startDate` and `endDate` (DateTime). Run Prisma migrations, update Zod validation schemas (`src/schema/class-schedule.ts`), and update PowerSync sync rules/schema definitions.
+- [x] **Frontend 1**: Update `AddClassSheet` UI to include Start Date and End Date pickers (so classes don't recur infinitely).
+- [x] **Backend**: Create an `ExamWeek` model in Prisma (with title, startDate, endDate) to represent global semester exams (Prelims, Midterms, etc.), run migrations, and update PowerSync Sync Rules to sync exam weeks to clients.
+- [x] **Frontend 1**: Build an "Add Exam Week" UI/modal inside "Add Class" sheet to let users define global exam date ranges.
+- [x] **Frontend 1**: Update `isScheduleActiveOnDate` in `scheduleUtils.ts` to query local `ExamWeek` records, return false if a class falls on an exam week, and subtract the number of past exam weeks from the `diffWeeks` calculation so Set A and Set B alternating classes resume correctly.
+
 
 #### Frontend 2 (State & Integration)
-- [ ] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
-- [ ] Route all calendar creation/modifications through the Express Write endpoints.
-- [ ] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
+- [x] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
+- [x] Fix PowerSync token auto-refresh logic to silently attempt a refresh on 401 instead of blocking sync.
+- [x] Verify all calendar creations/modifications (including `ExamWeek`) are correctly writing locally to PowerSync (`powerSync.execute`).
+- [x] Update backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream.
+- [x] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
+- [x] Fetch Philippine holidays via `GET /api/holidays?year=YYYY` and populate the `PLACEHOLDER_HOLIDAYS` array in `calendar.tsx`.
 
 ---
 
@@ -126,7 +138,7 @@ werSync).
 
 ---
 
-## Phase 3: AI Notebook & Study Tool (Weeks 5–8, July 21, 2026 - August 17, 2026)
+## Phase 3: AI Notebook & Study Tool (Weeks 5–7, July 21, 2026 - August 10, 2026)
 
 **Goal:** Build an isolated knowledge base where users upload materials and safely chat with an AI that references their documents using a RAG pipeline.
 
@@ -190,7 +202,7 @@ werSync).
 
 ---
 
-## Phase 4: Notifications & Reminders (Weeks 15–16)
+## Phase 4: Notifications & Reminders (Week 8, Aug 11 – Aug 17, 2026)
 
 **Goal:** Ensure users never miss a milestone with background push notifications when online and reactive local scheduling when offline.
 

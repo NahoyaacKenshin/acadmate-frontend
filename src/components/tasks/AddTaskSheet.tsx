@@ -211,7 +211,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
                   value={dueDate ?? new Date()}
                   mode="datetime"
                   display="spinner"
-                  onChange={handleDateChange}
+                  onValueChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -228,7 +228,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
                 value={dueDate ?? new Date()}
                 mode={datePickerStep}
                 display="default"
-                onChange={handleDateChange}
+                onValueChange={handleDateChange}
               />
             )}
           </View>
@@ -280,7 +280,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   sheetContent: {

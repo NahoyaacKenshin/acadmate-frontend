@@ -205,7 +205,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
                   value={dueDate ?? new Date()}
                   mode="datetime"
                   display="spinner"
-                  onChange={handleDateChange}
+                  onValueChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -222,7 +222,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
                 value={dueDate ?? new Date()}
                 mode={datePickerStep}
                 display="default"
-                onChange={handleDateChange}
+                onValueChange={handleDateChange}
               />
             )}
           </View>
@@ -274,7 +274,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   sheetContent: {

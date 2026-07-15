@@ -77,4 +77,15 @@ export const ApiService = {
       return handleResponse(response);
     },
   },
+
+  // --- Holidays ---
+  holidays: {
+    get: async (year: number) => {
+      const response = await fetch(`${ENV.API_URL}/holidays?year=${year}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    }
+  },
 };
