@@ -278,7 +278,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
                   value={startDate}
                   mode={allDay ? 'date' : 'datetime'}
                   display="spinner"
-                  onChange={handleDateChange}
+                  onValueChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -293,7 +293,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
                 value={startDate}
                 mode={datePickerStep}
                 display="default"
-                onChange={handleDateChange}
+                onValueChange={handleDateChange}
               />
             )}
           </View>
@@ -313,7 +313,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
                   value={endDate ?? startDate}
                   mode={allDay ? 'date' : 'datetime'}
                   display="spinner"
-                  onChange={handleDateChange}
+                  onValueChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -328,7 +328,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
                 value={endDate ?? startDate}
                 mode={datePickerStep}
                 display="default"
-                onChange={handleDateChange}
+                onValueChange={handleDateChange}
               />
             )}
           </View>

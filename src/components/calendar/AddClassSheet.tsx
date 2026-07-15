@@ -510,7 +510,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
               }
               mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
               display="default"
-              onChange={
+              onValueChange={
                 activePickerField === 'startTime' || activePickerField === 'endTime'
                   ? handleTimeChange
                   : handleDateChange
@@ -529,7 +529,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 }
                 mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
                 display="spinner"
-                onChange={
+                onValueChange={
                   activePickerField === 'startTime' || activePickerField === 'endTime'
                     ? handleTimeChange
                     : handleDateChange

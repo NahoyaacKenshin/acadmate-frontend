@@ -121,7 +121,7 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
               value={activePickerField === 'startDate' ? startDate : endDate}
               mode="date"
               display="default"
-              onChange={handleDateChange}
+              onValueChange={handleDateChange}
             />
           )}
 
@@ -131,7 +131,7 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
                  value={activePickerField === 'startDate' ? startDate : endDate}
                  mode="date"
                  display="spinner"
-                 onChange={handleDateChange}
+                 onValueChange={handleDateChange}
                  textColor="#ffffff"
                  themeVariant="dark"
                />

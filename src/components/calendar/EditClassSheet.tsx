@@ -317,7 +317,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
               value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
               mode="date"
               display="default"
-              onChange={handleDateChange}
+              onValueChange={handleDateChange}
             />
           )}
 
@@ -328,7 +328,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
                 value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
                 mode="date"
                 display="spinner"
-                onChange={handleDateChange}
+                onValueChange={handleDateChange}
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}
@@ -364,7 +364,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
               value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)}
               mode="time"
               display="default"
-              onChange={handleTimeChange}
+              onValueChange={handleTimeChange}
             />
           )}
 
@@ -375,7 +375,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
                 value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)}
                 mode="time"
                 display="spinner"
-                onChange={handleTimeChange}
+                onValueChange={handleTimeChange}
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}

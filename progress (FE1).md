@@ -92,3 +92,16 @@
 - **Bug Fix — PowerSync Token Auto-Refresh** (`src/db/PowerSyncConnector.ts`):
   - **Root cause**: `fetchCredentials` was sending the stale `accessToken` to `/powersync-token`. On a 401 it would log an error and return `null` without ever calling `refreshSession()`, causing persistent sync failures after the first token expiry.
   - **Fix**: Extracted a private `_fetchPowerSyncToken()` helper that returns a typed sentinel `'UNAUTHORIZED'` on 401/403. `fetchCredentials` now silently calls `refreshSession()` on a 401, retries once with the new token, and only returns `null` if the refresh itself fails. Same retry pattern applied to `uploadData`.
+- **Frontend 2 (Week 3) — State & Integration (Calendar & Offline Sync)**:
+  - **ExamWeek Sync**: Updated backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream. Verified `ExamWeek` is successfully writing locally via PowerSync in the frontend.
+  - **Offline Banner**: Built an offline status banner in `_layout.tsx` using `useSystemStore` to gracefully alert users when they are disconnected and AI/cloud features are unavailable.
+  - **Holidays Integration**: Implemented holiday fetching in `calendar.tsx` via `ApiService.holidays.get` and removed the placeholder constant, dynamically rendering official holidays on the month and week views.
+
+## 2026-07-16
+- **Backend (Week 3) — Prisma & Sync Bug Fixes**:
+  - **Date Parsing**: Fixed a `PrismaClientValidationError` in `sync.controller.ts` where string dates (e.g., `YYYY-MM-DD`) from PowerSync uploads were causing sync failures (`500`). Implemented an `ensureIsoDate` helper to strictly parse and append ISO-8601 timestamps (`T00:00:00.000Z`) for `Task`, `CalendarEvent`, `ClassSchedule`, and `ExamWeek` date fields before Prisma insertion.
+  - **ExamWeek Sync**: Added `ExamWeek` to the `ALLOWED_TABLES` whitelist in `sync.controller.ts` to allow PowerSync to successfully sync local `ExamWeek` creations upstream to Postgres.
+  - **Prisma Client Regeneration**: Ran `npx prisma generate` on the backend to rebuild the Prisma client, resolving a `TypeError` (Cannot read properties of undefined reading 'upsert') that occurred when attempting to sync `ExamWeek` operations on the un-updated client.
+- **Frontend (Week 3) — React Native Deprecation Fixes**:
+  - **SafeAreaView**: Swapped deprecated `SafeAreaView` imports from `react-native` to `react-native-safe-area-context` across `calendar.tsx` and `tasks.tsx` to fix console warnings.
+  - **DateTimePicker**: Mass-replaced the deprecated `onChange` prop with `onValueChange` for `<DateTimePicker>` components across all date/time picker modals and bottom sheets (`AddEventSheet`, `AddClassSheet`, `AddTaskSheet`, `AddExamWeekModal`, and their edit variants).
