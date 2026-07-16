@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
-import { Plus, CalendarDays, BookOpen, GraduationCap } from 'lucide-react-native';
+import { Plus, CalendarDays, BookOpen, GraduationCap, ScanLine } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ApiService } from '@/src/services/api';
 
@@ -135,6 +136,11 @@ export default function CalendarScreen() {
     setIsAddExamWeekVisible(true);
   };
 
+  const openScanSchedule = () => {
+    setActionMenuVisible(false);
+    router.push('/(app)/schedule-upload');
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -193,6 +199,18 @@ export default function CalendarScreen() {
                 <View>
                   <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
                   <Text style={styles.actionMenuSub}>Block off exam / holiday periods</Text>
+                </View>
+              </Pressable>
+
+              <View style={styles.actionMenuDivider} />
+
+              <Pressable style={styles.actionMenuItem} onPress={openScanSchedule}>
+                <View style={styles.actionMenuIcon}>
+                  <ScanLine size={18} color="#8B5CF6" />
+                </View>
+                <View>
+                  <Text style={styles.actionMenuLabel}>Scan Schedule</Text>
+                  <Text style={styles.actionMenuSub}>Upload PDF, photo or Word doc</Text>
                 </View>
               </Pressable>
             </View>

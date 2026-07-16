@@ -111,3 +111,15 @@
   - **Schedule Parser Controller** (`src/controllers/schedule-parser.controller.ts`): Multer-powered file upload handler (max 10MB, allows PDF/DOCX/JPEG/PNG/WEBP/GIF). Returns structured parsed schedule JSON with granular error status codes (400, 413, 415, 503).
   - **Schedule Parser Route** (`src/routes/schedule-parser.routes.ts`): Registered `POST /api/schedule-parser/parse`, protected by `AuthMiddleware`.
   - **Packages installed**: `multer`, `@types/multer`, `@types/pdf-parse`.
+
+## 2026-07-16 (continued)
+- **Frontend 1 (Week 4) — AI Schedule Scan UI**:
+  - **Packages**: Installed `expo-document-picker` and `expo-image-picker` (Expo SDK 56 compatible) for file and camera access.
+  - **`AILoadingOverlay.tsx`** (`src/components/schedule/AILoadingOverlay.tsx`): Full-screen modal overlay shown while AI is reading a document. Features a pulsing glow ring, a slow-rotating arc spinner, a `Sparkles` icon, and a dot loader. Status text cycles through friendly messages: "Reading your document…" → "Detecting your schedule…" → "Organising the results…" → "Almost done…". All animations use the React Native `Animated` API.
+  - **`UploadPickerCard.tsx`** (`src/components/schedule/UploadPickerCard.tsx`): Reusable styled tappable card for each upload option (PDF/DOCX, Gallery, Camera). Supports accent colour, a loading state (shows `ActivityIndicator`), and press feedback.
+  - **`ParsedItemRow.tsx`** (`src/components/schedule/ParsedItemRow.tsx`): Three row components (`ClassScheduleRow`, `CalendarEventRow`, `ExamWeekRow`) for the Review screen. Each row shows an icon, formatted details, and a dismiss (`×`) button. `ClassScheduleRow` includes a yellow **"+ New Subject"** badge for subjects not yet in the local database.
+  - **`schedule-upload.tsx`** (`app/(app)/schedule-upload.tsx`): Full upload screen. Three picker cards (PDF/DOCX, gallery, camera) with permission handling. Selected file shows a live preview card. The **"Read My Schedule →"** CTA calls `POST /api/schedule-parser/parse` with `multipart/form-data`, shows the `AILoadingOverlay`, then navigates to the review screen on success. Friendly error banners for network, file-size, and unsupported-type errors.
+  - **`schedule-confirm.tsx`** (`app/(app)/schedule-confirm.tsx`): Review screen showing AI-detected items in three collapsible sections (Classes, Events & Holidays, Exam Periods). Each item can be individually removed with an `×` button. Unrecognised subjects trigger an inline **"Create New Subject"** bottom-sheet (name pre-filled from the AI result, colour picker included) that writes directly to the local `Subject` table via `powerSync.execute()`. **"Add to My Calendar"** CTA is stubbed with `resolvedClasses`/`events`/`exams` ready for FE2 to hook in.
+  - **`_layout.tsx`**: Registered `schedule-upload` and `schedule-confirm` as hidden routes (`href: null`, `headerShown: false`) inside the Tabs navigator.
+  - **`calendar.tsx`**: Added a 4th action-menu item — **"Scan Schedule"** (purple `ScanLine` icon, subtitle "Upload PDF, photo or Word doc") — that navigates to `/(app)/schedule-upload`.
+

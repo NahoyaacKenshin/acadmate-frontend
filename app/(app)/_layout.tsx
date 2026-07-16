@@ -57,6 +57,15 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />
+      {/* Hidden full-screen routes — not shown in tab bar */}
+      <Tabs.Screen
+        name="schedule-upload"
+        options={{ href: null, headerShown: false, title: 'Scan Schedule' }}
+      />
+      <Tabs.Screen
+        name="schedule-confirm"
+        options={{ href: null, headerShown: false, title: 'Review Your Schedule' }}
+      />
     </Tabs>
     {!isOnline && (
       <View style={styles.offlineBannerAbsolute} pointerEvents="none">

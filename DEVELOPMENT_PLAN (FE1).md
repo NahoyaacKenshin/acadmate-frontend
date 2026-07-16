@@ -129,10 +129,10 @@
   5. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
 
 #### Frontend 1 (UI/UX)
-- [ ] Build the "Upload Schedule" screen supporting file picker and camera capture.
-- [ ] Build the "Confirm Parsed Schedule" screen — display AI-extracted events in an editable list.
-- [ ] Integrate inline subject creation: if the AI detects a new subject, trigger the inline subject creation flow built in Week 3.
-- [ ] Add loading/progress animations while AI is processing.
+- [x] Build the "Upload Schedule" screen supporting file picker and camera capture.
+- [x] Build the "Review Your Schedule" screen — display AI-extracted events in an editable list.
+- [x] Integrate inline subject creation: if the AI detects a new subject, trigger the inline subject creation flow built in Week 3.
+- [x] Add loading/progress animations while AI is reading the document.
 
 #### Frontend 2 (State & Integration)
 - [ ] Handle multipart file upload form data and basic text compression client-side.
