@@ -119,13 +119,14 @@
 ### Week 4: AI Schedule Parsing
 
 #### Backend
-- [ ] Set up **Gemini API** integration (`@google/generative-ai` SDK).
-- [ ] Build defensive utility handler to catch `429` rate limit errors and automatically hot-swap execution from `gemini-2.5-flash` to `gemini-2.0-flash`.
-- [ ] Build the AI schedule parsing pipeline:
+- [x] Set up **Gemini API** integration (`@google/generative-ai` SDK). Install `pdf-parse` and `mammoth` for PDF/DOCX text extraction.
+- [x] Build defensive utility handler to catch `429` rate limit errors and automatically cascade through the model fallback chain: `gemini-2.5-pro` → `gemini-2.5-flash` → `gemini-2.5-flash-lite`. All three models use the same single API key.
+- [x] Build the AI schedule parsing pipeline:
   1. Accept an uploaded file (PDF, DOCX), image (Camera/Gallery), or pasted plain text.
-  2. Extract text from the source format.
-  3. Send to Gemini with a structured prompt that categorizes the document and enforces a JSON schema matching Week 3 models. (Extract `ExamWeek` date ranges, map standard holidays to `CalendarEvent`s, and recurring study loads).
-  4. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
+  2. Extract text from the source format (`pdf-parse` for PDFs, `mammoth` for DOCX, base64 for images via Gemini Vision, direct string for plain text).
+  3. Attempt parsing with `gemini-2.5-pro` first for maximum accuracy. On `429`, cascade to `gemini-2.5-flash`, then `gemini-2.5-flash-lite` as last resort.
+  4. Send to Gemini with a structured prompt that enforces a JSON schema matching Week 3 models. (Extract `ExamWeek` date ranges, map standard holidays to `CalendarEvent`s, and recurring study loads as `ClassSchedule`s).
+  5. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
 
 #### Frontend 1 (UI/UX)
 - [ ] Build the "Upload Schedule" screen supporting file picker, camera capture, and manual text paste.
