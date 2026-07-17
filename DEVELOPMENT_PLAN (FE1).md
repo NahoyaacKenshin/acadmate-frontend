@@ -135,9 +135,9 @@
 - [x] Add loading/progress animations while AI is reading the document.
 
 #### Frontend 2 (State & Integration)
-- [ ] Handle multipart file upload form data and basic text compression client-side.
-- [ ] Connect the upload screen to the parse API and handle error boundaries gracefully.
-- [ ] Write the returned `ClassSchedule`, `CalendarEvent`, and `ExamWeek` arrays locally via `powerSync.execute()` (optimistic offline-first) rather than direct POST requests.
+- [x] Handle multipart file upload form data and basic text compression client-side.
+- [x] Connect the upload screen to the parse API and handle error boundaries gracefully.
+- [x] Write the returned `ClassSchedule`, `CalendarEvent`, and `ExamWeek` arrays locally via `powerSync.execute()` (optimistic offline-first) rather than direct POST requests.
 
 ---
 

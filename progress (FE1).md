@@ -123,3 +123,7 @@
   - **`_layout.tsx`**: Registered `schedule-upload` and `schedule-confirm` as hidden routes (`href: null`, `headerShown: false`) inside the Tabs navigator.
   - **`calendar.tsx`**: Added a 4th action-menu item — **"Scan Schedule"** (purple `ScanLine` icon, subtitle "Upload PDF, photo or Word doc") — that navigates to `/(app)/schedule-upload`.
 
+- **Frontend 2 (Week 4) — State & Integration (AI Schedule Parsing)**:
+  - **Upload Screen Integration**: Verified FE1's integration in `schedule-upload.tsx`, ensuring multipart/form-data handles files seamlessly. Image picker's 0.85 quality serves as basic client-side compression. Graceful error boundary handling (413 Payload Too Large, 415 Unsupported Media Type, 503 Service Unavailable) is correctly implemented.
+  - **Offline-First Persistence**: Updated `schedule-confirm.tsx` to handle the final confirmation stage. Mapped the confirmed and subject-resolved `ClassSchedule`, `CalendarEvent`, and `ExamWeek` arrays into multiple `powerSync.execute()` SQL `INSERT` commands.
+  - **Batch Write**: Grouped all inserts into a `Promise.all` array to execute concurrently, ensuring local offline-first writes that will automatically sync upstream to Neon via PowerSync's upload queue when online. Included loading states to disable the confirmation button while saving.

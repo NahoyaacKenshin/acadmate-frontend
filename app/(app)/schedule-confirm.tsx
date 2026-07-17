@@ -284,6 +284,9 @@ const nsStyles = StyleSheet.create({
 export default function ScheduleConfirmScreen() {
   const params = useLocalSearchParams<{ payload?: string }>();
   const { subjects } = useSubjects();
+  const powerSync = usePowerSync();
+  const userId = useAuthStore((s) => s.user?.id);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Decode the payload passed from the upload screen
   const initialData = useMemo(() => {
@@ -327,19 +330,97 @@ export default function ScheduleConfirmScreen() {
     setResolvedSubjects((prev) => ({ ...prev, [name]: { id, color } }));
   };
 
-  /**
-   * "Add to My Calendar" — FE2 will replace this stub with actual powerSync.execute() calls.
-   * FE1 exposes the resolved data so FE2 can hook in cleanly.
-   */
-  const handleConfirm = () => {
-    const resolvedClasses = classes.map((c) => ({
-      ...c,
-      resolvedSubjectId: resolvedSubjects[c.subjectName]?.id ??
-        subjects.find((s) => s.name.toLowerCase() === c.subjectName.toLowerCase())?.id ?? null,
-    }));
-    // TODO (FE2): write resolvedClasses, events, exams to local PowerSync via powerSync.execute()
-    console.log('[ScheduleConfirm] Confirmed data:', { resolvedClasses, events, exams });
-    router.back();
+  const handleConfirm = async () => {
+    if (!userId) return;
+    setIsSaving(true);
+
+    try {
+      const resolvedClasses = classes.map((c) => ({
+        ...c,
+        resolvedSubjectId: resolvedSubjects[c.subjectName]?.id ??
+          subjects.find((s) => s.name.toLowerCase() === c.subjectName.toLowerCase())?.id ?? null,
+      }));
+
+      const now = new Date().toISOString();
+      const queries = [];
+
+      for (const c of resolvedClasses) {
+        if (!c.resolvedSubjectId) continue;
+        const id = generateId();
+        queries.push(
+          powerSync.execute(
+            `INSERT INTO ClassSchedule (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              c.dayOfWeek,
+              c.startTime,
+              c.endTime,
+              c.startDate ?? null,
+              c.endDate ?? null,
+              c.room ?? null,
+              c.modality ?? null,
+              c.setType ?? null,
+              userId,
+              c.resolvedSubjectId,
+              now,
+              now
+            ]
+          )
+        );
+      }
+
+      for (const e of events) {
+        const id = generateId();
+        queries.push(
+          powerSync.execute(
+            `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              e.title,
+              null,
+              e.startDate,
+              e.endDate ?? null,
+              e.allDay ? 1 : 0,
+              e.location ?? null,
+              '#6C8EFF',
+              userId,
+              null,
+              now,
+              now
+            ]
+          )
+        );
+      }
+
+      for (const ex of exams) {
+        const id = generateId();
+        queries.push(
+          powerSync.execute(
+            `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              ex.title,
+              ex.startDate,
+              ex.endDate,
+              userId,
+              now,
+              now
+            ]
+          )
+        );
+      }
+
+      await Promise.all(queries);
+      console.log('[ScheduleConfirm] Saved data locally via PowerSync');
+      router.back();
+    } catch (err) {
+      console.error('[ScheduleConfirm] Failed to save schedule:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -431,13 +512,13 @@ export default function ScheduleConfirmScreen() {
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
           <Button
-            style={[styles.confirmBtn, isEmpty && styles.confirmBtnDisabled]}
+            style={[styles.confirmBtn, (isEmpty || isSaving) && styles.confirmBtnDisabled]}
             onPress={handleConfirm}
-            disabled={isEmpty}
+            disabled={isEmpty || isSaving}
           >
-            <CheckCircle2 size={16} color={isEmpty ? '#64748B' : '#ffffff'} style={{ marginRight: 6 }} />
-            <Text style={[styles.confirmText, isEmpty && styles.confirmTextDisabled]}>
-              Add to My Calendar
+            <CheckCircle2 size={16} color={isEmpty || isSaving ? '#64748B' : '#ffffff'} style={{ marginRight: 6 }} />
+            <Text style={[styles.confirmText, (isEmpty || isSaving) && styles.confirmTextDisabled]}>
+              {isSaving ? 'Saving...' : 'Add to My Calendar'}
             </Text>
           </Button>
         </View>
