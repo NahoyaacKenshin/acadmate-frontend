@@ -146,8 +146,8 @@
 - [x] **Frontend 2 (State & Integration)**: Update the temporary `parsedData` state in memory when a user saves their edits, ensuring the list reflects changes *before* committing to PowerSync.
 
 #### Week 4 Additional Tasks (Admin System & Set A/B Scheduling Logic)
-- [ ] **Backend**: Update Prisma `User` model with `role` Enum (`STUDENT`, `ADMIN`). Create global config models (`SemesterRule`, `ProgramMapping`, `Holiday`). Update PowerSync sync rules to sync these global tables to all clients (read-only for students).
-- [ ] **Backend**: Update the Gemini AI parsing pipeline. The prompt should receive the user's Set (A or B) and extract only the relevant room for that set from the class schedule image, keeping the `ClassSchedule` database model simple (single `room` field).
+- [x] **Backend**: Update Prisma `User` model with `role` Enum (`STUDENT`, `ADMIN`). Create global config models (`SemesterRule`, `ProgramMapping`, `Holiday`). Update PowerSync sync rules to sync these global tables to all clients (read-only for students).
+- [x] **Backend**: Update the Gemini AI parsing pipeline. The prompt should receive the user's Set (A or B) and extract only the relevant room for that set from the class schedule image, keeping the `ClassSchedule` database model simple (single `room` field).
 - [ ] **Frontend 1 (UI/UX)**: Build a hidden "Admin Dashboard" accessible only if `user.role === 'ADMIN'`. This includes UI for defining the Semester's alternating Saturday schedules, Exam Weeks, Holidays, and viewing comprehensive analytics (e.g., total user count, active tasks, scanned schedules, user distribution by program).
   - *Requirement*: Strictly utilize modular React components to prevent massive, unmaintainable files (avoid long lines of code).
   - *Requirement*: Adhere strictly to established UI/UX standards (spacing, typography, feedback states) matching the rest of the application.

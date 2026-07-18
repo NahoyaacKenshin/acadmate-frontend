@@ -293,3 +293,15 @@
   - **Frontend**: Refactored `schedule-upload.tsx` to use `useScheduleScanner`, significantly reducing its size.
   - **Frontend**: Created `src/components/schedule/ScanAnotherSheet.tsx` - a purple-accented bottom-sheet modal with three upload options, file preview, and a "Scan & Merge" CTA.
   - **Frontend**: Updated `schedule-confirm.tsx` to include the `ScanAnotherSheet` and a "Scan Another" pill button in the footer. On scan completion, Gemini's merged result fully replaces the existing parsed state arrays.
+
+## 2026-07-18
+- **Backend (Week 4 Additional — Admin System & Set A/B Scheduling Logic)**:
+  - **Prisma Schema**: Added two new globally-shared models — `SemesterRule` (admin-defined Saturday Set A/B rules with `date`, `ruleType` enum, and optional `label`) and `ProgramMapping` (maps degree program names like "BSIT" to `StudentSet` enum A or B). Added `StudentSet` and `SemesterRuleType` enums. Ran and applied migration `20260718154237_add_semester_rules_and_program_mappings` to Neon Postgres.
+  - **Prisma Client**: Regenerated Prisma Client (`prisma generate`) to expose the new `semesterRule` and `programMapping` accessors.
+  - **Admin Middleware**: Created `src/middlewares/admin-middleware.ts` — stacks after `AuthMiddleware` and rejects requests with a 403 if the JWT payload's role is not `ADMIN`.
+  - **Zod Schemas**: Created `src/schema/admin.ts` with validated Zod schemas for `createSemesterRuleSchema`, `updateSemesterRuleSchema`, `createProgramMappingSchema`, and `updateProgramMappingSchema`.
+  - **Admin Controller**: Created `src/controllers/admin.controller.ts` with full CRUD for `SemesterRule` and `ProgramMapping`, plus a comprehensive `GET /api/admin/analytics` endpoint returning: total users (by role), task completion stats, content counts (subjects, schedules, events, exam weeks), admin config counts (semester rules, program mappings), program distribution, and the 5 most recently registered users.
+  - **Admin Routes**: Created `src/routes/admin.routes.ts` mounting all admin endpoints under `AuthMiddleware + AdminMiddleware` protection.
+  - **Router**: Registered `adminRoutes` at `/api/admin` in `src/routes/index.ts`.
+  - **PowerSync Sync Rules**: Updated `powersync-rules.yaml` to include two new global streams (`global_semester_rules`, `global_program_mappings`) with no `userId` filter so they sync read-only to all authenticated student clients.
+  - **AI Parsing Pipeline**: Refactored `src/services/schedule-parser.service.ts` — replaced the static `SYSTEM_PROMPT` constant with a `buildSystemPrompt(studentSet?)` factory function. When `studentSet` is "A" or "B", it appends a directive instructing Gemini to extract only the relevant Set's room from class schedule images (e.g. Set A columns only). Updated `parseScheduleFromFile` signature to accept an optional `studentSet` parameter. Updated `src/controllers/schedule-parser.controller.ts` to read `studentSet` from the multipart form body and pass it through.
