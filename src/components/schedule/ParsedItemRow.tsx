@@ -57,16 +57,17 @@ interface ClassRowProps {
   isNewSubject: boolean;
   onRemove: () => void;
   onCreateSubject: () => void;
+  onEdit?: () => void;
 }
 
-export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject }: ClassRowProps) {
+export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject, onEdit }: ClassRowProps) {
   return (
     <View style={styles.row}>
       <View style={[styles.iconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
         <BookOpen size={16} color="#10B981" />
       </View>
 
-      <View style={styles.content}>
+      <Pressable style={styles.content} onPress={onEdit}>
         <View style={styles.titleRow}>
           <Text style={styles.rowTitle} numberOfLines={1}>{item.subjectName}</Text>
           {isNewSubject && (
@@ -87,7 +88,7 @@ export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject
             {item.endDate ? ` – ${formatDate(item.endDate)}` : ''}
           </Text>
         )}
-      </View>
+      </Pressable>
 
       <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
         <X size={16} color="#64748B" />
@@ -101,23 +102,24 @@ export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject
 interface EventRowProps {
   item: ParsedCalendarEvent;
   onRemove: () => void;
+  onEdit?: () => void;
 }
 
-export function CalendarEventRow({ item, onRemove }: EventRowProps) {
+export function CalendarEventRow({ item, onRemove, onEdit }: EventRowProps) {
   return (
     <View style={styles.row}>
       <View style={[styles.iconWrap, { backgroundColor: 'rgba(108, 142, 255, 0.15)' }]}>
         <CalendarDays size={16} color="#6C8EFF" />
       </View>
 
-      <View style={styles.content}>
+      <Pressable style={styles.content} onPress={onEdit}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.rowSub}>
           {item.allDay ? 'All Day  ·  ' : ''}{formatDate(item.startDate)}
           {item.endDate && item.endDate !== item.startDate ? ` – ${formatDate(item.endDate)}` : ''}
           {item.location ? `  ·  ${item.location}` : ''}
         </Text>
-      </View>
+      </Pressable>
 
       <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
         <X size={16} color="#64748B" />
@@ -131,21 +133,22 @@ export function CalendarEventRow({ item, onRemove }: EventRowProps) {
 interface ExamWeekRowProps {
   item: ParsedExamWeek;
   onRemove: () => void;
+  onEdit?: () => void;
 }
 
-export function ExamWeekRow({ item, onRemove }: ExamWeekRowProps) {
+export function ExamWeekRow({ item, onRemove, onEdit }: ExamWeekRowProps) {
   return (
     <View style={styles.row}>
       <View style={[styles.iconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
         <GraduationCap size={16} color="#F59E0B" />
       </View>
 
-      <View style={styles.content}>
+      <Pressable style={styles.content} onPress={onEdit}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.rowSub}>
           {formatDate(item.startDate)} – {formatDate(item.endDate)}
         </Text>
-      </View>
+      </Pressable>
 
       <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
         <X size={16} color="#64748B" />
@@ -222,3 +225,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+

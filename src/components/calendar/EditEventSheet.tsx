@@ -104,7 +104,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
     setDatePickerStep('date');
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (!selected) { setDatePickerStep(null); setActiveDateField(null); return; }
     if (Platform.OS === 'android') {
       if (datePickerStep === 'date') {
@@ -552,3 +552,4 @@ const styles = StyleSheet.create({
   iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
   saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 });
+

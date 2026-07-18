@@ -62,7 +62,7 @@ export function isScheduleActiveOnDate(
   }
 
   // 4. Set A/B alternation
-  if (schedule.set_type && rangeStart) {
+  if ((schedule.set_type === 'A' || schedule.set_type === 'B') && rangeStart) {
     const diffMs = target.getTime() - rangeStart.getTime();
     let diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
     
@@ -82,8 +82,13 @@ export function isScheduleActiveOnDate(
     
     diffWeeks -= pastExamWeeksCount;
     
-    // Only show on week 0, week 2, week 4, etc.
-    if (diffWeeks % 2 !== 0) return false;
+    if (schedule.set_type === 'A') {
+      // Set A: Only show on week 0, week 2, week 4, etc. (Even weeks)
+      if (diffWeeks % 2 !== 0) return false;
+    } else if (schedule.set_type === 'B') {
+      // Set B: Only show on week 1, week 3, week 5, etc. (Odd weeks)
+      if (diffWeeks % 2 === 0) return false;
+    }
   }
 
   return true;

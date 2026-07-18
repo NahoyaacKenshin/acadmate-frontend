@@ -219,3 +219,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#6C8EFF',
   },
 });
+

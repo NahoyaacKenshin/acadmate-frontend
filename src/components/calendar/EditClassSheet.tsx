@@ -127,7 +127,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     setActivePickerField(field);
   };
 
-  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleTimeChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     const hhmm = toHHMM(selected);
@@ -135,7 +135,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
@@ -591,3 +591,4 @@ const styles = StyleSheet.create({
   iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
   saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 });
+

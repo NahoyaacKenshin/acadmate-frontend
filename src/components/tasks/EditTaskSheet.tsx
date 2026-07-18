@@ -76,7 +76,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     setDatePickerStep('date');
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (!selected) {
       setDatePickerStep(null);
       return;
@@ -389,3 +389,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#6C8EFF',
   },
 });
+

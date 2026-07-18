@@ -214,7 +214,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setActivePickerField(field);
   };
 
-  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleTimeChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     const hhmm = toHHMM(selected);
@@ -222,7 +222,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
@@ -938,3 +938,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

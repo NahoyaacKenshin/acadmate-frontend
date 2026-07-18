@@ -212,3 +212,4 @@ const styles = StyleSheet.create({
   addButton: { marginTop: 8 },
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
 });
+
