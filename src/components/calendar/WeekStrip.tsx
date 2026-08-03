@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 interface WeekStripProps {
@@ -76,16 +76,12 @@ function getDayDots(
 
   // Exam week dot (Amber)
   const isExamWeek = examWeeks.some((ew) => {
-    const ewStart = ew.startDate ? new Date(ew.startDate) : null;
-    const ewEnd = ew.endDate ? new Date(ew.endDate) : ewStart;
+    const ewStart = parseDateLocal(ew.startDate);
+    const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
     if (!ewStart || !ewEnd) return false;
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
-    const start = new Date(ewStart);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(ewEnd);
-    end.setHours(23, 59, 59, 999);
-    return target >= start && target <= end;
+    return target >= ewStart && target <= ewEnd;
   });
   if (isExamWeek && colors.length < 3) {
     colors.push('#F59E0B');

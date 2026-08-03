@@ -412,7 +412,7 @@ export default function ScheduleConfirmScreen() {
         const id = generateId();
         const effectiveStartDate = universalStartDate.trim()
           ? (universalStartDate.includes("T") ? universalStartDate.trim() : `${universalStartDate.trim()}T00:00:00.000Z`)
-          : (c.startDate ?? null);
+          : (c.startDate ?? now);
         const effectiveEndDate = universalEndDate.trim()
           ? (universalEndDate.includes("T") ? universalEndDate.trim() : `${universalEndDate.trim()}T00:00:00.000Z`)
           : (c.endDate ?? null);
@@ -428,11 +428,13 @@ export default function ScheduleConfirmScreen() {
 
       for (const e of events) {
         const id = generateId();
+        const validStartDate = e.startDate || now;
+        const validEndDate = e.endDate || validStartDate;
         queries.push(
           powerSync.execute(
             `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, e.title, null, e.startDate, e.endDate ?? null, e.allDay ? 1 : 0, e.location ?? null, "#6C8EFF", userId, null, now, now]
+            [id, e.title, null, validStartDate, validEndDate, e.allDay ? 1 : 0, e.location ?? null, "#6C8EFF", userId, null, now, now]
           )
         );
       }
@@ -441,11 +443,13 @@ export default function ScheduleConfirmScreen() {
         // Admins: save exam weeks as global school-wide blocks
         for (const ex of exams) {
           const id = generateId();
+          const validStartDate = ex.startDate || now;
+          const validEndDate = ex.endDate || validStartDate;
           queries.push(
             powerSync.execute(
               `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [id, ex.title, ex.startDate, ex.endDate, userId, now, now]
+              [id, ex.title, validStartDate, validEndDate, userId, now, now]
             )
           );
         }
@@ -453,11 +457,13 @@ export default function ScheduleConfirmScreen() {
         // Students: save parsed exam schedules as personal CalendarEvents with Purple (#8B5CF6) accent
         for (const ex of exams) {
           const id = generateId();
+          const validStartDate = ex.startDate || now;
+          const validEndDate = ex.endDate || validStartDate;
           queries.push(
             powerSync.execute(
               `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [id, ex.title, '🎓 Exam Schedule', ex.startDate, ex.endDate ?? ex.startDate, 0, null, '#8B5CF6', userId, null, now, now]
+              [id, ex.title, '🎓 Exam Schedule', validStartDate, validEndDate, 0, null, '#8B5CF6', userId, null, now, now]
             )
           );
         }

@@ -266,17 +266,17 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
     return hd ? isSameDay(hd, selectedDate) : false;
   });
 
-  // Exam week active on this date
-  const activeExamWeek = examWeeks.find((ew) => {
+  // Exam weeks active on this date
+  const activeExamWeeks = examWeeks.filter((ew) => {
     const ewStart = parseDateLocal(ew.startDate);
-    const ewEnd = parseDateLocal(ew.endDate);
+    const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
     if (!ewStart || !ewEnd) return false;
     const target = new Date(selectedDate);
     target.setHours(0, 0, 0, 0);
     return target >= ewStart && target <= ewEnd;
   });
 
-  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activeExamWeek;
+  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activeExamWeeks.length > 0;
 
   // Day header label
   const dateLabel = isToday
@@ -292,15 +292,15 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
       {/* Day label */}
       <Text style={styles.dayHeader}>{dateLabel}</Text>
 
-      {/* Exam Week banner */}
-      {activeExamWeek ? (
-        <View style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
+      {/* Exam Week banners */}
+      {activeExamWeeks.map((ew) => (
+        <View key={ew.id} style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
           <GraduationCap size={14} color="#F59E0B" />
           <Text style={[styles.holidayText, { color: '#F59E0B' }]}>
-            Exam Week Block — {activeExamWeek.title}
+            Exam Week Block — {ew.title}
           </Text>
         </View>
-      ) : null}
+      ))}
 
       {/* Holiday / Suspension banner */}
       {dayHoliday ? (
