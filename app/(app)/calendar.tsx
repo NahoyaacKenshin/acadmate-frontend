@@ -141,7 +141,7 @@ export default function CalendarScreen() {
 
   const openScanSchedule = () => {
     setActionMenuVisible(false);
-    router.push('/(app)/schedule-upload');
+    router.push('/(app)/schedule-upload' as any);
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
