@@ -346,3 +346,27 @@
 - **Student Calendar Exam Schedule Scanner Filter**:
   - **Backend & Frontend (`schedule-parser.service.ts` & `schedule-confirm.tsx`)**: Enhanced schedule parser and confirmation flow for student users (`user.role !== 'ADMIN'`). Multi-day exam weeks (spanning multiple days) are automatically rejected/filtered out, ensuring the scanner accepts only single-day / one-off exam schedules.
 
+## 2026-08-03
+- **Backend (Week 5) — AI Notebook: File Upload & Automated Processing Pipeline**:
+  - **Supabase Client** (`src/lib/supabase.ts`): Initialized service-role Supabase client singleton using `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` from `.env`. Bypasses Row Level Security for server-side storage operations.
+  - **Environment Config** (`src/config/env.ts`): Added `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` to the `ENV` config object.
+  - **Prisma Schema** (`prisma/schema.prisma`): Added three new models and two enums:
+    - `SourceFileType` enum: `PDF | IMAGE | TEXT`
+    - `SourceStatus` enum: `PENDING | PROCESSING | READY | FAILED`
+    - `Notebook`: id, title, description, userId → User, sources → Source[]. Indexed on `userId`.
+    - `Source`: id, fileName, fileType, storagePath (Supabase object path), status, rawText (up to 100k chars), errorMsg, notebookId → Notebook, userId → User, chunks → SourceChunk[].
+    - `SourceChunk`: id, chunkIndex, content (~500 words), `embedding Unsupported("vector(768)")`, sourceId → Source, notebookId. Embeddings stored via pgvector raw SQL.
+    - Added `notebooks` and `sources` back-relations to the `User` model.
+    - Applied schema via `prisma db push` (resolves drift with existing Neon DB).
+    - Regenerated Prisma Client (`prisma generate`).
+  - **Gemini Embedding** (`src/utils/gemini.ts`): Added exported `generateEmbedding(text: string): Promise<number[]>` function using `text-embedding-004` model (returns 768-dimensional float array).
+  - **Notebook Service** (`src/services/notebook.service.ts`): Full async processing pipeline:
+    1. `uploadSourceFile()` — uploads file to Supabase Storage (`notebook-sources` bucket), creates `Source` (status: `PENDING`), fires background `processSource()` without awaiting.
+    2. `processSource()` — sets status `PROCESSING` → extracts text (pdf-parse / mammoth / Gemini Vision OCR / raw buffer) → normalizes → chunks (~500 words, 50-word overlap) → embeds each chunk via `text-embedding-004` → inserts `SourceChunk` rows with pgvector via `prisma.$executeRaw` → sets status `READY`. On any failure sets status `FAILED` with error message.
+    3. `deleteSource()` — removes file from Supabase Storage and deletes Source record (cascades SourceChunks).
+  - **Notebook Controller** (`src/controllers/notebook.controller.ts`): Full REST handlers — `listNotebooks`, `createNotebook`, `getNotebook`, `deleteNotebook`, `uploadSource`, `deleteSourceHandler`. All routes require `AuthMiddleware`. Source listing includes `_count.chunks` for progress display.
+  - **Notebook Routes** (`src/routes/notebook.routes.ts`): Registered all 6 endpoints. Upload route uses multer memory-storage (20MB limit). All routes protected by `AuthMiddleware`.
+  - **Routes Index** (`src/routes/index.ts`): Registered `notebookRoutes` at `/api/notebooks`.
+  - **Package**: Installed `@supabase/supabase-js` (9 packages added).
+  - **TypeScript**: Clean `tsc --noEmit` — zero errors.
+

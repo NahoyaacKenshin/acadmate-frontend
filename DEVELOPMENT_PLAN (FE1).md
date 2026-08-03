@@ -180,16 +180,22 @@
 ### Week 5: File Upload & Automated Processing Pipeline
 
 #### Backend
-- [ ] Set up **Supabase Storage** bucket for user-uploaded files (PDFs, images, text files).
-- [ ] Design and migrate Prisma schema for `Notebook` and `Source`. Enable `pgvector` on Neon Postgres.
-- [ ] Build `POST /api/notebooks/:notebookId/sources` file upload endpoint.
-- [ ] Implement combined, asynchronous background processing workflow:
-  1. Extract text (PDF text parsing or Gemini Vision OCR for images).
-  2. Normalize text (strip excessive whitespaces/duplicate symbols to save token limits).
-  3. Chunk text into overlapping segments (~500 tokens).
-  4. Generate vector embeddings via Gemini's `text-embedding-004` model.
-  5. Store embeddings into the pgvector chunk table.
-  6. Use a fast Gemini prompt to auto-categorize which subject context the material belongs to.
+- [x] Set up **Supabase Storage** bucket (`notebook-sources`) for user-uploaded files (PDFs, images, DOCX, text).
+- [x] Design and migrate Prisma schema: `Notebook`, `Source` (with `SourceFileType` & `SourceStatus` enums), `SourceChunk` (pgvector `vector(768)`). Applied via `prisma db push`. `pgvector` enabled on Neon.
+- [x] Build full Notebook CRUD API (`GET/POST /api/notebooks`, `GET/DELETE /api/notebooks/:id`) — protected by `AuthMiddleware`.
+- [x] Build `POST /api/notebooks/:notebookId/sources` file upload endpoint (multer memory-storage, 20MB limit, PDF/DOCX/TXT/image).
+- [x] Build `DELETE /api/notebooks/:notebookId/sources/:sourceId` — deletes from Supabase Storage and cascades DB rows.
+- [x] Implement combined, asynchronous background processing workflow (fires after upload returns `201`):
+  1. Extract text: PDF → `pdf-parse`, DOCX → `mammoth`, Image → Gemini Vision OCR, TXT → raw buffer.
+  2. Normalize text (strip non-printable chars, collapse whitespace/blank lines).
+  3. Chunk text into overlapping ~500-word segments (50-word overlap).
+  4. Generate 768-dimensional embeddings via Gemini `text-embedding-004` for each chunk.
+  5. Batch-insert `SourceChunk` rows with pgvector embeddings via `prisma.$executeRaw`.
+  6. Update `Source.status` to `READY` (or `FAILED` on error), persist `rawText`.
+- [x] Added `generateEmbedding()` to `src/utils/gemini.ts` using `text-embedding-004`.
+- [x] Created `src/lib/supabase.ts` — service-role Supabase client singleton.
+- [x] Registered `router.use("/notebooks", notebookRoutes)` in `src/routes/index.ts`.
+- [x] TypeScript type-checked (`tsc --noEmit`) — **zero errors**.
 
 #### Frontend 1 (UI/UX)
 - [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
