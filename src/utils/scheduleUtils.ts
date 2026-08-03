@@ -20,18 +20,38 @@ export function parseDateLocal(dateStr: string | null | undefined): Date | null 
 }
 
 /**
+ * Formats a Date object as 'YYYY-MM-DD' in LOCAL timezone (avoiding UTC offset shifts).
+ */
+export function formatDateLocal(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+
+export interface SimpleHoliday {
+  date: string;
+  name?: string;
+  type?: string;
+}
+
+/**
  * Determines whether a class schedule should appear on a given calendar date.
  *
  * Checks:
  *  1. Day-of-week must match
  *  2. Target date must be >= schedule startDate
  *  3. Target date must be <= schedule endDate (if set)
- *  4. Exam week exclusions and Set A/B alternation
+ *  4. Exam week exclusions
+ *  5. Regular/Special Holidays & Class Suspensions exclusions
+ *  6. Set A/B alternation logic
  */
 export function isScheduleActiveOnDate(
   schedule: ClassScheduleRow,
   date: Date,
-  examWeeks: ExamWeekRow[] = []
+  examWeeks: ExamWeekRow[] = [],
+  holidays: SimpleHoliday[] = []
 ): boolean {
   // 1. Day-of-week match
   if (schedule.day_of_week !== date.getDay()) return false;
@@ -61,8 +81,18 @@ export function isScheduleActiveOnDate(
     }
   }
 
-  // 4. Set A/B alternation
-  if (schedule.set_type && rangeStart) {
+  // 4. Holiday & Suspension Blocker logic
+  for (const h of holidays) {
+    const hDate = parseDateLocal(h.date);
+    if (hDate && hDate.getFullYear() === target.getFullYear() &&
+        hDate.getMonth() === target.getMonth() &&
+        hDate.getDate() === target.getDate()) {
+      return false; // Class blocked by holiday or suspension
+    }
+  }
+
+  // 5. Set A/B alternation
+  if ((schedule.set_type === 'A' || schedule.set_type === 'B') && rangeStart) {
     const diffMs = target.getTime() - rangeStart.getTime();
     let diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
     
@@ -73,7 +103,6 @@ export function isScheduleActiveOnDate(
       const ewStart = parseDateLocal(ew.startDate);
       const ewEnd = parseDateLocal(ew.endDate);
       if (ewStart && ewEnd) {
-        // If the exam week started after the class started and ended before or on the target date
         if (ewStart >= rangeStart && ewStart <= target) {
           pastExamWeeksCount++;
         }
@@ -82,8 +111,13 @@ export function isScheduleActiveOnDate(
     
     diffWeeks -= pastExamWeeksCount;
     
-    // Only show on week 0, week 2, week 4, etc.
-    if (diffWeeks % 2 !== 0) return false;
+    if (schedule.set_type === 'A') {
+      // Set A: Only show on week 0, week 2, week 4, etc. (Even weeks)
+      if (diffWeeks % 2 !== 0) return false;
+    } else if (schedule.set_type === 'B') {
+      // Set B: Only show on week 1, week 3, week 5, etc. (Odd weeks)
+      if (diffWeeks % 2 === 0) return false;
+    }
   }
 
   return true;

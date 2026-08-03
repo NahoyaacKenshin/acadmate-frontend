@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 interface WeekStripProps {
@@ -71,11 +71,24 @@ function getDayDots(
   const colors: string[] = [];
   const isHoliday = holidays.some((h) => isSameDay(new Date(h.date), date));
   if (isHoliday) {
-    const ht = holidays.find((h) => isSameDay(new Date(h.date), date))?.type;
-    colors.push(ht === 'REGULAR' ? '#EF4444' : '#F59E0B');
+    colors.push('#EF4444');
   }
-  // Class schedule dot (recurring — respects bounds)
-  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks));
+
+  // Exam week dot (Amber)
+  const isExamWeek = examWeeks.some((ew) => {
+    const ewStart = parseDateLocal(ew.startDate);
+    const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
+    if (!ewStart || !ewEnd) return false;
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return target >= ewStart && target <= ewEnd;
+  });
+  if (isExamWeek && colors.length < 3) {
+    colors.push('#F59E0B');
+  }
+
+  // Class schedule dot (recurring — respects bounds and blockers)
+  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
   for (const ev of events) {
     if (colors.length >= 3) break;
@@ -272,3 +285,4 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 });
+

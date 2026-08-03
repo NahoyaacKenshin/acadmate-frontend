@@ -17,6 +17,7 @@ import { X, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects, SubjectRow } from '@/src/hooks/useSubjects';
+import { formatDateLocal } from '@/src/utils/scheduleUtils';
 
 interface AddEventSheetProps {
   visible: boolean;
@@ -111,7 +112,7 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
     setDatePickerStep('date');
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (!selected) {
       setDatePickerStep(null);
       setActiveDateField(null);
@@ -180,8 +181,8 @@ export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetPr
           id,
           title.trim(),
           description.trim() || null,
-          allDay ? startDate.toISOString().split('T')[0] : startDate.toISOString(),
-          endDate ? (allDay ? endDate.toISOString().split('T')[0] : endDate.toISOString()) : null,
+          allDay ? formatDateLocal(startDate) : startDate.toISOString(),
+          endDate ? (allDay ? formatDateLocal(endDate) : endDate.toISOString()) : null,
           allDay ? 1 : 0,
           location.trim() || null,
           selectedColor,
@@ -558,3 +559,4 @@ const styles = StyleSheet.create({
   iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
   addButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 });
+

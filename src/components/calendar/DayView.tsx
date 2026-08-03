@@ -14,13 +14,18 @@ import {
   Wifi,
   Users,
   Layers,
+  GraduationCap,
 } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { Holiday } from './MonthGrid';
-import { TaskRow } from '@/src/hooks/useTasks';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
+import { TaskRow } from '@/src/hooks/useTasks';
+import { SemesterRuleRow, useSemesterRules } from '@/src/hooks/useSemesterRules';
+import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
+import { Holiday } from './MonthGrid';
+import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
+import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { useUserStore } from '@/src/store/userStore';
 
 interface DayViewProps {
   selectedDate: Date;
@@ -60,33 +65,55 @@ function formatEventTime(isoString: string): string {
 }
 
 // ── Modality Badge ─────────────────────────────────────────────────────────────
-function ModalityBadge({ modality }: { modality: string }) {
-  const isF2F = modality === 'F2F';
-  const isOnline = modality === 'ONLINE';
+function ModalityBadge({ text, color }: { text: string; color: string }) {
+  const isF2F = color === '#10B981';
+  const isOnline = color === '#3B82F6' || color === '#6C8EFF';
   return (
     <View style={[
       styles.badge,
-      isF2F ? styles.badgeF2F : isOnline ? styles.badgeOnline : styles.badgeHybrid,
+      { backgroundColor: `${color}1F` }
     ]}>
       {isF2F
-        ? <Users size={10} color="#10B981" />
+        ? <Users size={10} color={color} />
         : isOnline
-          ? <Wifi size={10} color="#6C8EFF" />
-          : <Layers size={10} color="#F59E0B" />
+          ? <Wifi size={10} color={color} />
+          : <Layers size={10} color={color} />
       }
-      <Text style={[
-        styles.badgeText,
-        isF2F ? styles.badgeTextF2F : isOnline ? styles.badgeTextOnline : styles.badgeTextHybrid,
-      ]}>
-        {modality}
+      <Text style={[styles.badgeText, { color }]}>
+        {text}
       </Text>
     </View>
   );
 }
 
 // ── Class Schedule Card ────────────────────────────────────────────────────────
-function ClassCard({ schedule, onPress }: { schedule: ClassScheduleRow; onPress?: () => void }) {
+function ClassCard({
+  schedule,
+  selectedDate,
+  studentSet,
+  semesterRules,
+  holidays,
+  examWeeks,
+  onPress,
+}: {
+  schedule: ClassScheduleRow;
+  selectedDate: Date;
+  studentSet: 'A' | 'B' | null;
+  semesterRules: SemesterRuleRow[];
+  holidays: HolidayRow[];
+  examWeeks: ExamWeekRow[];
+  onPress?: () => void;
+}) {
   const subjectColor = schedule.subject_color ?? '#6C8EFF';
+  const resolution = resolveScheduleForDate(
+    schedule,
+    selectedDate,
+    studentSet,
+    semesterRules,
+    holidays,
+    examWeeks
+  );
+
   return (
     <Pressable
       style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
@@ -98,13 +125,13 @@ function ClassCard({ schedule, onPress }: { schedule: ClassScheduleRow; onPress?
           <Text style={styles.eventTitle} numberOfLines={1}>
             {schedule.subject_name ?? 'Class'}
           </Text>
-          <ModalityBadge modality={schedule.modality} />
+          <ModalityBadge text={resolution.badgeText} color={resolution.badgeColor} />
         </View>
         <View style={styles.eventMeta}>
-          {schedule.room ? (
+          {resolution.effectiveRoom ? (
             <View style={styles.metaItem}>
               <MapPin size={11} color="#94A3B8" />
-              <Text style={styles.metaText}>{schedule.room}</Text>
+              <Text style={styles.metaText}>{resolution.effectiveRoom}</Text>
             </View>
           ) : null}
           <View style={styles.metaItem}>
@@ -113,9 +140,9 @@ function ClassCard({ schedule, onPress }: { schedule: ClassScheduleRow; onPress?
               {formatTime12(schedule.start_time)} – {formatTime12(schedule.end_time)}
             </Text>
           </View>
-          {schedule.set_type ? (
+          {resolution.reason ? (
             <View style={styles.metaItem}>
-              <Text style={styles.setTypeTag}>Set {schedule.set_type}</Text>
+              <Text style={styles.setTypeTag}>{resolution.reason}</Text>
             </View>
           ) : null}
         </View>
@@ -123,6 +150,7 @@ function ClassCard({ schedule, onPress }: { schedule: ClassScheduleRow; onPress?
     </Pressable>
   );
 }
+
 
 // ── Calendar Event Card ────────────────────────────────────────────────────────
 function EventCard({ event, onPress }: { event: CalendarEventRow; onPress?: () => void }) {
@@ -208,8 +236,23 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   const isToday = isSameDay(selectedDate, today);
   const dayOfWeek = selectedDate.getDay();
 
-  // Filter class schedules for this day — respects start/end date bounds
-  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks));
+  const { semesterRules } = useSemesterRules();
+  const { holidays: dbHolidays } = useHolidays();
+  const { studentSet } = useUserStore();
+
+  // Combine prop holidays with DB holidays
+  const combinedHolidays: HolidayRow[] = [
+    ...holidays.map((h) => ({
+      id: h.id || h.date,
+      date: h.date,
+      name: h.name,
+      type: h.type as 'REGULAR' | 'SPECIAL',
+    })),
+    ...dbHolidays,
+  ];
+
+  // Filter class schedules for this day — respects start/end date bounds and blockers
+  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks, combinedHolidays));
 
   // Filter one-off events for this date
   const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), selectedDate));
@@ -217,10 +260,23 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   // Filter tasks due on this date
   const dayTasks = tasks.filter((t) => t.due_date && isSameDay(new Date(t.due_date), selectedDate));
 
-  // Holiday for this date
-  const dayHoliday = holidays.find((h) => isSameDay(new Date(h.date), selectedDate));
+  // Holiday / Suspension for this date
+  const dayHoliday = combinedHolidays.find((h) => {
+    const hd = parseDateLocal(h.date);
+    return hd ? isSameDay(hd, selectedDate) : false;
+  });
 
-  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday;
+  // Exam weeks active on this date
+  const activeExamWeeks = examWeeks.filter((ew) => {
+    const ewStart = parseDateLocal(ew.startDate);
+    const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
+    if (!ewStart || !ewEnd) return false;
+    const target = new Date(selectedDate);
+    target.setHours(0, 0, 0, 0);
+    return target >= ewStart && target <= ewEnd;
+  });
+
+  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activeExamWeeks.length > 0;
 
   // Day header label
   const dateLabel = isToday
@@ -236,21 +292,43 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
       {/* Day label */}
       <Text style={styles.dayHeader}>{dateLabel}</Text>
 
-      {/* Holiday banner */}
+      {/* Exam Week banners */}
+      {activeExamWeeks.map((ew) => (
+        <View key={ew.id} style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
+          <GraduationCap size={14} color="#F59E0B" />
+          <Text style={[styles.holidayText, { color: '#F59E0B' }]}>
+            Exam Week Block — {ew.title}
+          </Text>
+        </View>
+      ))}
+
+      {/* Holiday / Suspension banner */}
       {dayHoliday ? (
         <View style={[
           styles.holidayBanner,
-          dayHoliday.type === 'REGULAR' ? styles.holidayBannerRegular : styles.holidayBannerSpecial,
+          dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
+            ? { backgroundColor: 'rgba(236, 72, 153, 0.12)', borderColor: 'rgba(236, 72, 153, 0.3)' }
+            : styles.holidayBannerRegular,
         ]}>
           <CalendarDays
             size={14}
-            color={dayHoliday.type === 'REGULAR' ? '#EF4444' : '#F59E0B'}
+            color={
+              dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
+                ? '#EC4899'
+                : '#EF4444'
+            }
           />
           <Text style={[
             styles.holidayText,
-            dayHoliday.type === 'REGULAR' ? styles.holidayTextRegular : styles.holidayTextSpecial,
+            dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
+              ? { color: '#EC4899' }
+              : styles.holidayTextRegular,
           ]}>
-            {dayHoliday.type === 'REGULAR' ? 'Regular Holiday' : 'Special Holiday'} — {dayHoliday.name}
+            {dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
+              ? 'Class Suspension'
+              : dayHoliday.type === 'REGULAR'
+                ? 'Regular Holiday'
+                : 'Special Holiday'} — {dayHoliday.name}
           </Text>
         </View>
       ) : null}
@@ -259,9 +337,21 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
       {daySchedules.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader title="Classes" />
-          {daySchedules.map((s) => <ClassCard key={s.id} schedule={s} onPress={() => onClassPress?.(s)} />)}
+          {daySchedules.map((s) => (
+            <ClassCard
+              key={s.id}
+              schedule={s}
+              selectedDate={selectedDate}
+              studentSet={studentSet}
+              semesterRules={semesterRules}
+              holidays={combinedHolidays}
+              examWeeks={examWeeks}
+              onPress={() => onClassPress?.(s)}
+            />
+          ))}
         </View>
       ) : null}
+
 
       {/* One-off events */}
       {dayEvents.length > 0 ? (
@@ -452,3 +542,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

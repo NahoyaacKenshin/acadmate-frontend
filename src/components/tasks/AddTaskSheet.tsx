@@ -73,7 +73,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
     }
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (!selected) {
       // User dismissed the picker on Android
       setDatePickerStep(null);
@@ -395,3 +395,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#6C8EFF',
   },
 });
+

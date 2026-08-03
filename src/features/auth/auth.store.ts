@@ -14,6 +14,7 @@ type AuthState = {
   isRestoring: boolean;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
   restoreSession: () => Promise<void>;
   login: (input: LoginInput) => Promise<void>;
   signup: (input: SignupInput) => Promise<'verification-required' | 'authenticated'>;
@@ -39,6 +40,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isRestoring: true,
   isLoading: false,
   error: null,
+
+  clearError: () => set({ error: null }),
 
   setSession: async (tokens, user = null) => {
     await saveTokens(tokens);

@@ -1,17 +1,37 @@
 import { Text, View } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { useUserStore } from '@/src/store/userStore';
 import { GraduationCap, BookOpen, CalendarDays, CheckCircle } from 'lucide-react-native';
+import AdminDashboardScreen from './admin';
 
 export default function HomeScreen() {
   const { user } = useAuthStore();
+  const { nickname } = useUserStore();
+
+  // Priority: nickname → first word of account name → fallback
+  const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return { text: 'Good Morning', emoji: '☀️' };
+    if (hour >= 12 && hour < 17) return { text: 'Good Afternoon', emoji: '🌤️' };
+    if (hour >= 17 && hour < 21) return { text: 'Good Evening', emoji: '🌇' };
+    return { text: 'Good Night', emoji: '🌙' };
+  };
+
+  const greeting = getGreeting();
+
+  if (user?.role === 'ADMIN') {
+    return <AdminDashboardScreen />;
+  }
 
   return (
     <View className="flex-1 bg-background px-6 pt-6">
       {/* Greeting */}
       <View className="mb-8">
-        <Text className="text-muted-foreground text-base font-sans">Welcome back,</Text>
+        <Text className="text-muted-foreground text-base font-sans">{greeting.text} {greeting.emoji}</Text>
         <Text className="text-3xl font-bold text-foreground font-sans mt-1">
-          {user?.name ?? 'Student'}
+          {displayName} 👋
         </Text>
       </View>
 

@@ -18,6 +18,7 @@ import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { useClassSchedules } from '@/src/hooks/useClassSchedules';
 import { AddExamWeekModal } from './AddExamWeekModal';
+import { formatDateLocal } from '@/src/utils/scheduleUtils';
 
 interface AddClassSheetProps {
   visible: boolean;
@@ -214,7 +215,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setActivePickerField(field);
   };
 
-  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleTimeChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     const hhmm = toHHMM(selected);
@@ -222,7 +223,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleDateChange = (_event: any, selected?: Date) => {
     if (Platform.OS === 'android') setActivePickerField(null);
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
@@ -257,8 +258,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               generateId(), day, startTime, endTime,
-              startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+              formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               roomSetA.trim() || null,
               modalitySetA, 'A',
               selectedSubjectId, userId, now, now,
@@ -272,9 +273,9 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             [
               generateId(), day, startTime, endTime,
               startsWithSet === 'A'
-                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })()
-                : startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return formatDateLocal(d); })()
+                : formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               roomSetB.trim() || null,
               modalitySetB, 'B',
               selectedSubjectId, userId, now, now,
@@ -290,8 +291,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               generateId(), day, startTime, endTime,
-              startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+              formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               room.trim() || null,
               modality, null,
               selectedSubjectId, userId, now, now,
@@ -351,78 +352,78 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             </Pressable>
             {showSubjectPicker && (
               <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
-                  <View style={styles.subjectListContainer}>
-                    {subjects.map((s) => (
-                      <View key={s.id} style={styles.pickerItemWrapper}>
-                        <Pressable
-                          style={styles.pickerItem}
-                          onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
-                        >
-                          <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                          <Text style={styles.pickerItemText}>{s.name}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.deleteSubjectBtn}
-                          onPress={() => handleDeleteSubject(s.id)}
-                        >
-                          <X size={16} color="#94A3B8" />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-
-                  {!isCreatingSubject ? (
-                    <Pressable
-                      style={styles.newSubjectBtn}
-                      onPress={() => setIsCreatingSubject(true)}
-                    >
-                      <Text style={styles.newSubjectBtnText}>+ New Subject</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.newSubjectForm}>
-                      <TextInput
-                        style={styles.newSubjectInput}
-                        placeholder="Subject Name"
-                        placeholderTextColor="#94A3B8"
-                        value={newSubjectName}
-                        onChangeText={setNewSubjectName}
-                        autoFocus
-                      />
-                      <View style={styles.newSubjectColors}>
-                        {PRESET_COLORS.map((color) => (
-                          <Pressable
-                            key={color}
-                            style={[
-                              styles.newSubjectColorSwatch,
-                              { backgroundColor: color },
-                              newSubjectColor === color && styles.newSubjectColorSelected
-                            ]}
-                            onPress={() => setNewSubjectColor(color)}
-                          />
-                        ))}
-                      </View>
-                      <View style={styles.newSubjectActions}>
-                        <Pressable
-                          style={styles.newSubjectCancel}
-                          onPress={() => setIsCreatingSubject(false)}
-                        >
-                          <Text style={styles.newSubjectCancelText}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.newSubjectSave}
-                          onPress={handleCreateSubject}
-                        >
-                          {isSavingSubject ? (
-                            <ActivityIndicator size="small" color="#6C8EFF" />
-                          ) : (
-                            <Text style={styles.newSubjectSaveText}>Save</Text>
-                          )}
-                        </Pressable>
-                      </View>
+                {/* Scrollable subject list — capped height so button always shows */}
+                <ScrollView nestedScrollEnabled style={styles.subjectScroll} showsVerticalScrollIndicator={false}>
+                  {subjects.map((s) => (
+                    <View key={s.id} style={styles.pickerItemWrapper}>
+                      <Pressable
+                        style={styles.pickerItem}
+                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.deleteSubjectBtn}
+                        onPress={() => handleDeleteSubject(s.id)}
+                      >
+                        <X size={16} color="#94A3B8" />
+                      </Pressable>
                     </View>
-                  )}
+                  ))}
                 </ScrollView>
+
+                {/* Always-visible action at bottom — either "+ New Subject" or the creation form */}
+                {!isCreatingSubject ? (
+                  <Pressable
+                    style={styles.newSubjectBtn}
+                    onPress={() => setIsCreatingSubject(true)}
+                  >
+                    <Text style={styles.newSubjectBtnText}>+ New Subject</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.newSubjectForm}>
+                    <TextInput
+                      style={styles.newSubjectInput}
+                      placeholder="Subject Name"
+                      placeholderTextColor="#94A3B8"
+                      value={newSubjectName}
+                      onChangeText={setNewSubjectName}
+                      autoFocus
+                    />
+                    <View style={styles.newSubjectColors}>
+                      {PRESET_COLORS.map((color) => (
+                        <Pressable
+                          key={color}
+                          style={[
+                            styles.newSubjectColorSwatch,
+                            { backgroundColor: color },
+                            newSubjectColor === color && styles.newSubjectColorSelected
+                          ]}
+                          onPress={() => setNewSubjectColor(color)}
+                        />
+                      ))}
+                    </View>
+                    <View style={styles.newSubjectActions}>
+                      <Pressable
+                        style={styles.newSubjectCancel}
+                        onPress={() => setIsCreatingSubject(false)}
+                      >
+                        <Text style={styles.newSubjectCancelText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.newSubjectSave}
+                        onPress={handleCreateSubject}
+                      >
+                        {isSavingSubject ? (
+                          <ActivityIndicator size="small" color="#6C8EFF" />
+                        ) : (
+                          <Text style={styles.newSubjectSaveText}>Save</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -861,8 +862,8 @@ const styles = StyleSheet.create({
   addButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 
   // Inline new subject form
-  subjectListContainer: {
-    maxHeight: 180,
+  subjectScroll: {
+    maxHeight: 200,
   },
   newSubjectBtn: {
     paddingVertical: 12,
@@ -938,3 +939,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
