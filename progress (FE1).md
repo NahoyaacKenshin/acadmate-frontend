@@ -383,3 +383,10 @@
   - **Route Registration** (`app/(app)/_layout.tsx`): Added `notebook/[id]` as a hidden tab screen (`href: null`, `headerShown: false`).
   - **API Service** (`src/services/api.ts`): Added `notebooks` namespace (list, create, get, delete) and `sources.delete` namespace.
   - **TypeScript**: All new notebook files compile with zero new errors. Remaining pre-existing errors (`expo-document-picker`/`expo-image-picker` missing type declarations in `AdminAIScannerModal.tsx`, `useScheduleScanner.ts`; router path literal errors in `calendar.tsx`/`schedule-upload.tsx`) are unchanged from before this session.
+
+## 2026-08-03 (continued)
+- **Frontend 2 (Week 5) — Notebook State Management & Upload Streams**:
+  - **Zustand Store** (src/store/notebookStore.ts): Implemented centralized state management for notebooks and sources using Zustand. It manages isLoadingNotebooks, 
+otebooksError, and stores sourcesByNotebook efficiently. Automatically sorts notebooks and sources by createdAt descending.
+  - **UI Integration**: Refactored pp/(app)/notebook.tsx and pp/(app)/notebook/[id].tsx to consume data, loading states, and error handling entirely from useNotebookStore. Retained the auto-polling logic to fetch updates from the backend whenever any source status is PENDING or PROCESSING.
+  - **File Upload Streams & Progress** (UploadSourceSheet.tsx): Replaced the mocked setInterval progress bar with FileSystem.createUploadTask from expo-file-system. The UI now updates its progress bar using true, byte-level tracking during multipart uploads (	otalBytesSent / totalBytesExpectedToSend). Retained image compression and error boundaries for large files (413) or invalid formats (415).

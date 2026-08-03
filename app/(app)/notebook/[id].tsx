@@ -14,7 +14,7 @@ import { Text } from '@/src/components/ui/text';
 import { SourceListItem, Source } from '@/src/components/notebook/SourceListItem';
 import { UploadSourceSheet } from '@/src/components/notebook/UploadSourceSheet';
 import { NoteEditor } from '@/src/components/notebook/NoteEditor';
-import { ApiService } from '@/src/services/api';
+import { useNotebookStore } from '@/src/store/notebookStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
@@ -32,7 +32,9 @@ export default function NotebookDetailScreen() {
   const router = useRouter();
   const { id, title: notebookTitle } = useLocalSearchParams<{ id: string; title: string }>();
 
-  const [sources, setSources] = useState<Source[]>([]);
+  const { sourcesByNotebook, fetchSources, deleteSource } = useNotebookStore();
+  const sources = id ? (sourcesByNotebook[id] || []) : [];
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,26 +45,12 @@ export default function NotebookDetailScreen() {
 
   // ─── Fetch sources ────────────────────────────────────────────────────────
 
-  const fetchSources = useCallback(async (silent = false) => {
+  const loadSources = useCallback(async (silent = false) => {
     if (!id) return;
     if (!silent) setIsLoading(true);
     setError(null);
     try {
-      const data = await ApiService.notebooks.get(id);
-      const list: any[] = data?.sources ?? data?.notebook?.sources ?? [];
-      const mapped: Source[] = list.map((s: any) => ({
-        id: s.id,
-        fileName: s.fileName,
-        fileType: s.fileType ?? 'TEXT',
-        status: s.status ?? 'PENDING',
-        chunkCount: s._count?.chunks ?? s.chunkCount ?? undefined,
-        createdAt: s.createdAt,
-      }));
-      setSources(mapped);
-
-      // If any source is still PENDING/PROCESSING, keep polling every 5s
-      const hasPending = mapped.some((s) => s.status === 'PENDING' || s.status === 'PROCESSING');
-      setIsPolling(hasPending);
+      await fetchSources(id, silent);
     } catch (err: any) {
       setError('Could not load sources. Please check your connection.');
       console.error('[NotebookDetail] fetch error:', err);
@@ -70,30 +58,37 @@ export default function NotebookDetailScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [id]);
+  }, [id, fetchSources]);
 
   useEffect(() => {
-    fetchSources();
-  }, [fetchSources]);
+    loadSources();
+  }, [loadSources]);
+
+  // Handle polling logic separately by checking the sources in the store
+  useEffect(() => {
+    const hasPending = sources.some((s) => s.status === 'PENDING' || s.status === 'PROCESSING');
+    setIsPolling(hasPending);
+  }, [sources]);
 
   // Auto-poll every 5s while any source is still processing
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(() => fetchSources(true), 5000);
+    const timer = setInterval(() => loadSources(true), 5000);
     return () => clearInterval(timer);
-  }, [isPolling, fetchSources]);
+  }, [isPolling, loadSources]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    fetchSources(true);
+    await loadSources(true);
+    setIsRefreshing(false);
   };
 
   // ─── Delete Source ────────────────────────────────────────────────────────
 
   const handleDeleteSource = async (source: Source) => {
+    if (!id) return;
     try {
-      await ApiService.sources.delete(id!, source.id);
-      setSources((prev) => prev.filter((s) => s.id !== source.id));
+      await deleteSource(id, source.id);
     } catch {
       Alert.alert('Error', 'Failed to remove source. Please try again.');
     }
@@ -128,7 +123,7 @@ export default function NotebookDetailScreen() {
       throw new Error('Failed to save note as a source.');
     }
     // Refresh source list
-    await fetchSources(true);
+    await loadSources(true);
   };
 
   // ─── Action Menu ──────────────────────────────────────────────────────────
@@ -260,7 +255,7 @@ export default function NotebookDetailScreen() {
       {error && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => fetchSources()}>
+          <Pressable onPress={() => loadSources()}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -300,7 +295,7 @@ export default function NotebookDetailScreen() {
           visible={isUploadVisible}
           notebookId={id}
           onClose={() => setIsUploadVisible(false)}
-          onUploaded={() => fetchSources(true)}
+          onUploaded={() => loadSources(true)}
         />
       )}
 

@@ -205,9 +205,9 @@
 - [x] Build a simple plain-text editor for direct note generation.
 
 #### Frontend 2 (State & Integration)
-- [ ] Implement Zustand store for notebooks metadata.
-- [ ] Handle file uploading streams, compression, and error states.
-- [ ] Render processing/indexing status tags next to documents (e.g., "Processing" $\rightarrow$ "Ready").
+- [x] Implement Zustand store for notebooks metadata.
+- [x] Handle file uploading streams, compression, and error states.
+- [x] Render processing/indexing status tags next to documents (e.g., "Processing" -> "Ready").
 
 ---
 

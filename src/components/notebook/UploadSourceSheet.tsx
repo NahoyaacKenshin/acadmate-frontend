@@ -157,23 +157,33 @@ export function UploadSourceSheet({
     setErrorMsg(null);
     setUploadProgress(0);
 
-    // Simulate incremental progress while uploading (real progress isn't available in FileSystem.uploadAsync)
-    const tickInterval = setInterval(() => {
-      setUploadProgress((prev) => Math.min(prev + 0.07, 0.9));
-    }, 400);
-
     try {
       const uploadUrl = `${ENV.API_URL}/notebooks/${notebookId}/sources`;
-      const response = await FileSystem.uploadAsync(uploadUrl, selectedFile.uri, {
-        httpMethod: 'POST',
-        uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
-        fieldName: 'file',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+      
+      const uploadTask = FileSystem.createUploadTask(
+        uploadUrl,
+        selectedFile.uri,
+        {
+          httpMethod: 'POST',
+          uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
+          fieldName: 'file',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      });
+        (data) => {
+          if (data.totalBytesExpectedToSend > 0) {
+            const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
+            setUploadProgress(progress);
+          }
+        }
+      );
 
-      clearInterval(tickInterval);
+      const response = await uploadTask.uploadAsync();
+
+      if (!response) {
+        throw new Error('Upload returned no response.');
+      }
 
       if (response.status >= 400) {
         let errorMessage = 'Upload failed.';
@@ -195,7 +205,6 @@ export function UploadSourceSheet({
         onClose();
       }, 1500);
     } catch (err: any) {
-      clearInterval(tickInterval);
       setUploadState('error');
       setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
       setUploadProgress(0);

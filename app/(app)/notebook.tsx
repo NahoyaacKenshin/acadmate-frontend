@@ -13,77 +13,49 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
 import { NotebookCard, Notebook } from '@/src/components/notebook/NotebookCard';
 import { CreateNotebookSheet } from '@/src/components/notebook/CreateNotebookSheet';
-import { ApiService } from '@/src/services/api';
+import { useNotebookStore } from '@/src/store/notebookStore';
 import { Plus, BookOpen, Sparkles } from 'lucide-react-native';
 
 export default function NotebookScreen() {
   const router = useRouter();
 
-  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    notebooks,
+    isLoadingNotebooks: isLoading,
+    notebooksError: error,
+    fetchNotebooks,
+    createNotebook,
+    deleteNotebook,
+  } = useNotebookStore();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreateVisible, setIsCreateVisible] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // ─── Fetch notebooks ─────────────────────────────────────────────────────
-
-  const fetchNotebooks = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    setError(null);
-    try {
-      const data = await ApiService.notebooks.list();
-      // Backend returns { notebooks: [...] } or an array
-      const list: any[] = Array.isArray(data) ? data : (data?.notebooks ?? []);
-      const mapped: Notebook[] = list.map((n: any) => ({
-        id: n.id,
-        title: n.title,
-        description: n.description ?? null,
-        sourceCount: n._count?.sources ?? n.sourceCount ?? 0,
-        createdAt: n.createdAt,
-        updatedAt: n.updatedAt,
-      }));
-      setNotebooks(mapped);
-    } catch (err: any) {
-      setError('Could not load notebooks. Please check your connection.');
-      console.error('[Notebook] fetch error:', err);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
 
   useEffect(() => {
     fetchNotebooks();
   }, [fetchNotebooks]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    fetchNotebooks(true);
+    await fetchNotebooks(true);
+    setIsRefreshing(false);
   };
 
   // ─── Create ───────────────────────────────────────────────────────────────
 
   const handleCreate = async (title: string, description: string) => {
-    const newNotebook = await ApiService.notebooks.create({ title, description: description || undefined });
-    // Optimistically prepend
-    const nb = newNotebook.notebook ?? newNotebook;
-    const mapped: Notebook = {
-      id: nb.id ?? '',
-      title: nb.title ?? title,
-      description: (nb.description ?? description) || null,
-      sourceCount: 0,
-      createdAt: nb.createdAt ?? new Date().toISOString(),
-      updatedAt: nb.updatedAt ?? new Date().toISOString(),
-    };
-    setNotebooks((prev) => [mapped, ...prev]);
+    try {
+      await createNotebook(title, description);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to create notebook. Please try again.');
+    }
   };
 
   // ─── Delete ───────────────────────────────────────────────────────────────
 
   const handleDelete = async (notebook: Notebook) => {
     try {
-      await ApiService.notebooks.delete(notebook.id);
-      setNotebooks((prev) => prev.filter((n) => n.id !== notebook.id));
+      await deleteNotebook(notebook.id);
     } catch (err: any) {
       Alert.alert('Error', 'Failed to delete notebook. Please try again.');
     }
