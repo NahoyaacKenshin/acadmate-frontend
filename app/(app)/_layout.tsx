@@ -79,6 +79,10 @@ export default function AppLayout() {
           name="admin"
           options={{ href: null, headerShown: false, title: 'Admin Dashboard' }}
         />
+        <Tabs.Screen
+          name="notebook/[id]"
+          options={{ href: null, headerShown: false, title: 'Notebook' }}
+        />
       </Tabs>
       {!isOnline && (
         <View style={styles.offlineBannerAbsolute} pointerEvents="none">
