@@ -129,7 +129,7 @@
   5. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
 
 #### Frontend 1 (UI/UX)
-- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
 - [x] Build the "Upload Schedule" screen supporting file picker and camera capture.
 - [x] Build the "Review Your Schedule" screen — display AI-extracted events in an editable list.
 - [x] Integrate inline subject creation: if the AI detects a new subject, trigger the inline subject creation flow built in Week 3.
@@ -148,12 +148,28 @@
 #### Week 4 Additional Tasks (Admin System & Set A/B Scheduling Logic)
 - [x] **Backend**: Update Prisma `User` model with `role` Enum (`STUDENT`, `ADMIN`). Create global config models (`SemesterRule`, `ProgramMapping`, `Holiday`). Update PowerSync sync rules to sync these global tables to all clients (read-only for students).
 - [x] **Backend**: Update the Gemini AI parsing pipeline. The prompt should receive the user's Set (A or B) and extract only the relevant room for that set from the class schedule image, keeping the `ClassSchedule` database model simple (single `room` field).
-- [ ] **Frontend 1 (UI/UX)**: Build a hidden "Admin Dashboard" accessible only if `user.role === 'ADMIN'`. This includes UI for defining the Semester's alternating Saturday schedules, Exam Weeks, Holidays, and viewing comprehensive analytics (e.g., total user count, active tasks, scanned schedules, user distribution by program).
+- [x] **Frontend 1 (UI/UX)**: Build a hidden "Admin Dashboard" accessible only if `user.role === 'ADMIN'`. This includes UI for defining the Semester's alternating Set A/B schedules, Exam Weeks, Holidays, and viewing comprehensive analytics (e.g., total user count, active tasks, scanned schedules, user distribution by program).
   - *Requirement*: Strictly utilize modular React components to prevent massive, unmaintainable files (avoid long lines of code).
   - *Requirement*: Adhere strictly to established UI/UX standards (spacing, typography, feedback states) matching the rest of the application.
-- [ ] **Frontend 1 (UI/UX)**: Add "Department/Program Selection" to both the Initial Onboarding Flow (mandatory) and the Settings Screen (editable).
-- [ ] **Frontend 2 (State & Integration)**: Create `scheduleResolver.ts` utility. This function dynamically merges the student's personal `ClassSchedule` with the global `SemesterRule` and `Holiday` tables from the local PowerSync database to determine if a specific date is Face-to-Face or Online.
-- [ ] **Frontend 2 (State & Integration)**: Bind the new global tables to the PowerSync stream so the calendar UI reacts instantly to any Admin changes.
+- [x] **Frontend 1 (UI/UX)**: Add "Department/Program Selection" to both the Initial Onboarding Flow (mandatory) and the Settings Screen (editable).
+- [x] **Frontend 2 (State & Integration)**: Create `scheduleResolver.ts` utility. This function dynamically merges the student's personal `ClassSchedule` with the global `SemesterRule` and `Holiday` tables from the local PowerSync database to determine if a specific date is Face-to-Face or Online.
+- [x] **Frontend 2 (State & Integration)**: Bind the new global tables to the PowerSync stream so the calendar UI reacts instantly to any Admin changes.
+
+#### Week 4 Additional Tasks (Dynamic Programs & Admin-Only Exam Weeks)
+- [x] **Frontend 1 & 2**: Wipe out hardcoded programs list in Onboarding (`app/onboarding.tsx`) and Settings (`app/(app)/settings.tsx`). Populate options dynamically from admin-created `ProgramMapping` local database entries.
+- [x] **Frontend 1 & 2**: Restrict `ExamWeek` creation and editing capabilities exclusively to users with `user.role === 'ADMIN'`. Remove "Add Exam Week" from student Calendar options (`app/(app)/calendar.tsx`) and disable/omit exam week modification during schedule scan confirmation (`app/(app)/schedule-confirm.tsx`).
+
+#### Week 4 Additional Tasks (Auth Flow, Onboarding Routing & Admin Portal Layout)
+- [x] **Frontend 1 & 2 (Student Onboarding Routing)**: Redirect fresh student users to the mandatory Onboarding flow (`app/onboarding.tsx`) immediately upon login/signup if onboarding has not been completed.
+- [x] **Frontend 1 & 2 (Admin Routing & Dedicated Portal Layout)**: Prevent `ADMIN` role users from encountering student onboarding. Automatically redirect admins to a dedicated Admin layout containing admin management tabs (Analytics, Saturday Rules, Program Mappings, Exam Weeks, Holidays) rather than student tabs (Home, Calendar, Tasks, Notebook).
+- [x] **Frontend 1 & 2 (Auth Error State Clearing)**: Reset auth error state banners (e.g., "Invalid credentials") whenever switching between Login and Signup screens.
+- [x] **Frontend 1 & 2 (Admin Editing & Direct API Sync)**: Added edit buttons (`Pencil` icon) to edit existing Program Mappings and Saturday Rules via `PUT` endpoints. Integrated direct API fallback fetching to ensure newly created/updated mappings and rules display on screen immediately.
+
+#### Week 4 Additional Tasks (Blockers Fix, Universal Dates, Feature-Scoped Admin AI Scanners & Student Exam Schedule Filtering)
+- [x] **Fix Calendar Blockers**: Debug and fix Exam Week, Special Holidays, and Class Suspensions blockers so they correctly block/override class schedules on affected dates.
+- [x] **Universal Start & End Date Setter in Parsed Schedule**: Add an optional universal start and end date input controls to the review parsed schedule screen (`schedule-confirm.tsx`). When filled, it overrides each schedule's start and end date; when left blank, individual parsed schedule dates are retained.
+- [x] **Feature-Scoped Admin AI Scanners**: Implement dedicated AI scanners across admin management features (Set A/B, Program Mapping, Exam Weeks, Special Holidays, Suspensions). Each scanner must be strictly tailored to the specific scope of that admin feature and must not extract data outside its scope.
+- [x] **Student Calendar Exam Schedule Scanner Filter**: Enhance the schedule scanner option in the student calendar to handle exam schedules. Ensure it does not pick up multi-day exam weeks (reject multi-day exams) and only accepts single-day/one-off exam schedules.
 
 ---
 

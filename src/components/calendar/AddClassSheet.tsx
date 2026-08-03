@@ -351,78 +351,78 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             </Pressable>
             {showSubjectPicker && (
               <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
-                  <View style={styles.subjectListContainer}>
-                    {subjects.map((s) => (
-                      <View key={s.id} style={styles.pickerItemWrapper}>
-                        <Pressable
-                          style={styles.pickerItem}
-                          onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
-                        >
-                          <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                          <Text style={styles.pickerItemText}>{s.name}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.deleteSubjectBtn}
-                          onPress={() => handleDeleteSubject(s.id)}
-                        >
-                          <X size={16} color="#94A3B8" />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-
-                  {!isCreatingSubject ? (
-                    <Pressable
-                      style={styles.newSubjectBtn}
-                      onPress={() => setIsCreatingSubject(true)}
-                    >
-                      <Text style={styles.newSubjectBtnText}>+ New Subject</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.newSubjectForm}>
-                      <TextInput
-                        style={styles.newSubjectInput}
-                        placeholder="Subject Name"
-                        placeholderTextColor="#94A3B8"
-                        value={newSubjectName}
-                        onChangeText={setNewSubjectName}
-                        autoFocus
-                      />
-                      <View style={styles.newSubjectColors}>
-                        {PRESET_COLORS.map((color) => (
-                          <Pressable
-                            key={color}
-                            style={[
-                              styles.newSubjectColorSwatch,
-                              { backgroundColor: color },
-                              newSubjectColor === color && styles.newSubjectColorSelected
-                            ]}
-                            onPress={() => setNewSubjectColor(color)}
-                          />
-                        ))}
-                      </View>
-                      <View style={styles.newSubjectActions}>
-                        <Pressable
-                          style={styles.newSubjectCancel}
-                          onPress={() => setIsCreatingSubject(false)}
-                        >
-                          <Text style={styles.newSubjectCancelText}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.newSubjectSave}
-                          onPress={handleCreateSubject}
-                        >
-                          {isSavingSubject ? (
-                            <ActivityIndicator size="small" color="#6C8EFF" />
-                          ) : (
-                            <Text style={styles.newSubjectSaveText}>Save</Text>
-                          )}
-                        </Pressable>
-                      </View>
+                {/* Scrollable subject list — capped height so button always shows */}
+                <ScrollView nestedScrollEnabled style={styles.subjectScroll} showsVerticalScrollIndicator={false}>
+                  {subjects.map((s) => (
+                    <View key={s.id} style={styles.pickerItemWrapper}>
+                      <Pressable
+                        style={styles.pickerItem}
+                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.deleteSubjectBtn}
+                        onPress={() => handleDeleteSubject(s.id)}
+                      >
+                        <X size={16} color="#94A3B8" />
+                      </Pressable>
                     </View>
-                  )}
+                  ))}
                 </ScrollView>
+
+                {/* Always-visible action at bottom — either "+ New Subject" or the creation form */}
+                {!isCreatingSubject ? (
+                  <Pressable
+                    style={styles.newSubjectBtn}
+                    onPress={() => setIsCreatingSubject(true)}
+                  >
+                    <Text style={styles.newSubjectBtnText}>+ New Subject</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.newSubjectForm}>
+                    <TextInput
+                      style={styles.newSubjectInput}
+                      placeholder="Subject Name"
+                      placeholderTextColor="#94A3B8"
+                      value={newSubjectName}
+                      onChangeText={setNewSubjectName}
+                      autoFocus
+                    />
+                    <View style={styles.newSubjectColors}>
+                      {PRESET_COLORS.map((color) => (
+                        <Pressable
+                          key={color}
+                          style={[
+                            styles.newSubjectColorSwatch,
+                            { backgroundColor: color },
+                            newSubjectColor === color && styles.newSubjectColorSelected
+                          ]}
+                          onPress={() => setNewSubjectColor(color)}
+                        />
+                      ))}
+                    </View>
+                    <View style={styles.newSubjectActions}>
+                      <Pressable
+                        style={styles.newSubjectCancel}
+                        onPress={() => setIsCreatingSubject(false)}
+                      >
+                        <Text style={styles.newSubjectCancelText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.newSubjectSave}
+                        onPress={handleCreateSubject}
+                      >
+                        {isSavingSubject ? (
+                          <ActivityIndicator size="small" color="#6C8EFF" />
+                        ) : (
+                          <Text style={styles.newSubjectSaveText}>Save</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -861,8 +861,8 @@ const styles = StyleSheet.create({
   addButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
 
   // Inline new subject form
-  subjectListContainer: {
-    maxHeight: 180,
+  subjectScroll: {
+    maxHeight: 200,
   },
   newSubjectBtn: {
     paddingVertical: 12,

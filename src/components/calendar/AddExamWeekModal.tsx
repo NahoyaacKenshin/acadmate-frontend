@@ -14,8 +14,17 @@ function generateId(): string {
   });
 }
 
-export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function AddExamWeekModal({
+  visible,
+  onClose,
+  initialData,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  initialData?: { id: string; title: string; startDate: string; endDate: string } | null;
+}) {
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState<'EXAM' | 'HOLIDAY' | 'SUSPENSION'>('EXAM');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [activePickerField, setActivePickerField] = useState<'startDate' | 'endDate' | null>(null);
@@ -24,6 +33,29 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
 
   const powerSync = usePowerSync();
   const userId = useAuthStore((s: any) => s.user?.id);
+
+  React.useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title);
+      if (initialData.startDate) {
+        const parts = initialData.startDate.split('T')[0].split('-');
+        if (parts.length === 3) {
+          setStartDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+        }
+      }
+      if (initialData.endDate) {
+        const parts = initialData.endDate.split('T')[0].split('-');
+        if (parts.length === 3) {
+          setEndDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+        }
+      }
+    } else {
+      setTitle('');
+      setCategory('EXAM');
+      setStartDate(new Date());
+      setEndDate(new Date());
+    }
+  }, [initialData, visible]);
 
   const formatDate = (d: Date) => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -38,7 +70,7 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
 
   const handleSave = async () => {
     if (!title.trim() || !userId) {
-      setError('Please provide a title for the exam week.');
+      setError('Please provide a title for the entry.');
       return;
     }
     if (endDate < startDate) {
@@ -49,23 +81,37 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
     setIsLoading(true);
     setError(null);
     try {
-      const id = generateId();
       const now = new Date().toISOString();
       const sd = startDate.toISOString().split('T')[0];
       const ed = endDate.toISOString().split('T')[0];
 
-      await powerSync.execute(
-        `INSERT INTO ExamWeek (id, title, startDate, endDate, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, title.trim(), sd, ed, now, now, userId]
-      );
-      
+      // Format clean title with category tag prefix if not already present
+      let formattedTitle = title.trim();
+      if (category === 'HOLIDAY' && !formattedTitle.toLowerCase().includes('holiday')) {
+        formattedTitle = `🏖️ ${formattedTitle}`;
+      } else if (category === 'SUSPENSION' && !formattedTitle.toLowerCase().includes('suspension')) {
+        formattedTitle = `⚠️ ${formattedTitle}`;
+      } else if (category === 'EXAM' && !formattedTitle.toLowerCase().includes('exam')) {
+        formattedTitle = `🎓 ${formattedTitle}`;
+      }
+
+      if (initialData?.id) {
+        await powerSync.execute(
+          `UPDATE ExamWeek SET title = ?, startDate = ?, endDate = ?, updatedAt = ? WHERE id = ?`,
+          [formattedTitle, sd, ed, now, initialData.id]
+        );
+      } else {
+        const id = generateId();
+        await powerSync.execute(
+          `INSERT INTO ExamWeek (id, title, startDate, endDate, createdAt, updatedAt, userId) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [id, formattedTitle, sd, ed, now, now, userId]
+        );
+      }
+
       setTitle('');
-      setStartDate(new Date());
-      setEndDate(new Date());
       onClose();
-    } catch (err) {
-      console.error('[AddExamWeek] SQLite insert failed:', err);
-      setError('Failed to add exam week.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save event period.');
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +123,7 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
       <View style={styles.centeredView}>
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Add Exam Week</Text>
+            <Text style={styles.headerTitle}>{initialData ? 'Edit Period / Holiday' : 'Add Period / Holiday'}</Text>
             <Pressable onPress={onClose} style={styles.closeBtn}>
               <X size={20} color="#94A3B8" />
             </Pressable>
@@ -85,11 +131,38 @@ export function AddExamWeekModal({ visible, onClose }: { visible: boolean; onClo
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+          {/* Type Selector */}
+          {!initialData && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Category Type</Text>
+              <View style={styles.categoryRow}>
+                <Pressable
+                  style={[styles.categoryPill, category === 'EXAM' && styles.categoryPillExam]}
+                  onPress={() => setCategory('EXAM')}
+                >
+                  <Text style={[styles.categoryText, category === 'EXAM' && styles.categoryTextActive]}>🎓 Exam</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.categoryPill, category === 'HOLIDAY' && styles.categoryPillHoliday]}
+                  onPress={() => setCategory('HOLIDAY')}
+                >
+                  <Text style={[styles.categoryText, category === 'HOLIDAY' && styles.categoryTextActive]}>🏖️ Holiday</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.categoryPill, category === 'SUSPENSION' && styles.categoryPillSuspension]}
+                  onPress={() => setCategory('SUSPENSION')}
+                >
+                  <Text style={[styles.categoryText, category === 'SUSPENSION' && styles.categoryTextActive]}>⚠️ Suspension</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Title</Text>
+            <Text style={styles.label}>Title / Event Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. Midterms, Finals Week"
+              placeholder={category === 'EXAM' ? 'e.g. Midterms Week' : category === 'HOLIDAY' ? 'e.g. Foundation Day' : 'e.g. Weather Suspension'}
               placeholderTextColor="#94A3B8"
               value={title}
               onChangeText={setTitle}
@@ -182,6 +255,42 @@ const styles = StyleSheet.create({
   },
   closeBtn: { padding: 4 },
   formGroup: { marginBottom: 16 },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  categoryPill: {
+    flex: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#10131C',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryPillExam: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: '#F59E0B',
+  },
+  categoryPillHoliday: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
+  },
+  categoryPillSuspension: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: '#EF4444',
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  categoryTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
   label: { fontSize: 13, color: '#94A3B8', marginBottom: 8 },
   input: {
     backgroundColor: '#10131C',

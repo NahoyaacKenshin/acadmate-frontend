@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -239,7 +239,8 @@ export default function ScheduleConfirmScreen() {
   const params = useLocalSearchParams<{ payload?: string }>();
   const { subjects } = useSubjects();
   const powerSync = usePowerSync();
-  const userId = useAuthStore((s) => s.user?.id);
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id;
   const [isSaving, setIsSaving] = useState(false);
 
   const initialData = useMemo(() => {
@@ -255,9 +256,23 @@ export default function ScheduleConfirmScreen() {
     }
   }, [params.payload]);
 
+  const filteredInitialExams = useMemo(() => {
+    if (user?.role === 'ADMIN') return initialData.examWeeks;
+    // Student scanner filter: reject multi-day exam weeks, only accept single/one-off day exams
+    return initialData.examWeeks.filter((ex) => {
+      const startDay = ex.startDate.split('T')[0];
+      const endDay = ex.endDate.split('T')[0];
+      return startDay === endDay;
+    });
+  }, [initialData.examWeeks, user]);
+
   const [classes, setClasses] = useState<ParsedClassSchedule[]>(initialData.classSchedules);
   const [events, setEvents] = useState<ParsedCalendarEvent[]>(initialData.calendarEvents);
-  const [exams, setExams] = useState<ParsedExamWeek[]>(initialData.examWeeks);
+  const [exams, setExams] = useState<ParsedExamWeek[]>(filteredInitialExams);
+
+  // Universal date override fields (optional)
+  const [universalStartDate, setUniversalStartDate] = useState<string>("");
+  const [universalEndDate, setUniversalEndDate] = useState<string>("");
 
   const [resolvedSubjects, setResolvedSubjects] = useState<Record<string, { id: string; color: string }>>({});
   const [editingClassIndex, setEditingClassIndex] = useState<number | null>(null);
@@ -318,11 +333,18 @@ export default function ScheduleConfirmScreen() {
       for (const c of resolvedClasses) {
         if (!c.resolvedSubjectId) continue;
         const id = generateId();
+        const effectiveStartDate = universalStartDate.trim()
+          ? (universalStartDate.includes("T") ? universalStartDate.trim() : `${universalStartDate.trim()}T00:00:00.000Z`)
+          : (c.startDate ?? null);
+        const effectiveEndDate = universalEndDate.trim()
+          ? (universalEndDate.includes("T") ? universalEndDate.trim() : `${universalEndDate.trim()}T00:00:00.000Z`)
+          : (c.endDate ?? null);
+
         queries.push(
           powerSync.execute(
             `INSERT INTO ClassSchedule (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, c.dayOfWeek, c.startTime, c.endTime, c.startDate ?? null, c.endDate ?? null, c.room ?? null, c.modality ?? null, c.setType ?? null, userId, c.resolvedSubjectId, now, now]
+            [id, c.dayOfWeek, c.startTime, c.endTime, effectiveStartDate, effectiveEndDate, c.room ?? null, c.modality ?? null, c.setType ?? null, userId, c.resolvedSubjectId, now, now]
           )
         );
       }
@@ -338,15 +360,30 @@ export default function ScheduleConfirmScreen() {
         );
       }
 
-      for (const ex of exams) {
-        const id = generateId();
-        queries.push(
-          powerSync.execute(
-            `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, ex.title, ex.startDate, ex.endDate, userId, now, now]
-          )
-        );
+      if (user?.role === 'ADMIN') {
+        // Admins: save exam weeks as global school-wide blocks
+        for (const ex of exams) {
+          const id = generateId();
+          queries.push(
+            powerSync.execute(
+              `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [id, ex.title, ex.startDate, ex.endDate, userId, now, now]
+            )
+          );
+        }
+      } else {
+        // Students: save parsed exam schedules as personal CalendarEvents
+        for (const ex of exams) {
+          const id = generateId();
+          queries.push(
+            powerSync.execute(
+              `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [id, ex.title, '🎓 Exam Schedule', ex.startDate, ex.endDate ?? ex.startDate, 0, null, '#F59E0B', userId, null, now, now]
+            )
+          );
+        }
       }
 
       await Promise.all(queries);
@@ -366,7 +403,7 @@ export default function ScheduleConfirmScreen() {
       <SafeAreaView style={styles.safe}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
+          <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/calendar')} hitSlop={8}>
             <ChevronLeft size={22} color="#94A3B8" />
           </Pressable>
           <View style={{ flex: 1 }}>
@@ -378,6 +415,39 @@ export default function ScheduleConfirmScreen() {
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Universal Start & End Date Override (Optional) */}
+          <View style={styles.universalCard}>
+            <View style={styles.universalHeader}>
+              <CalendarDays size={16} color="#6C8EFF" />
+              <Text style={styles.universalTitle}>Universal Semester Dates (Optional)</Text>
+            </View>
+            <Text style={styles.universalSub}>
+              Override all parsed class schedules with a unified semester start & end date. Leave blank to keep individual dates.
+            </Text>
+            <View style={styles.universalInputsRow}>
+              <View style={styles.universalInputGroup}>
+                <Text style={styles.universalInputLabel}>Start Date</Text>
+                <TextInput
+                  style={styles.universalInput}
+                  value={universalStartDate}
+                  onChangeText={setUniversalStartDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#64748B"
+                />
+              </View>
+              <View style={styles.universalInputGroup}>
+                <Text style={styles.universalInputLabel}>End Date</Text>
+                <TextInput
+                  style={styles.universalInput}
+                  value={universalEndDate}
+                  onChangeText={setUniversalEndDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#64748B"
+                />
+              </View>
+            </View>
+          </View>
+
           <Section icon={<BookOpen size={18} color="#10B981" />} title="Classes" count={classes.length} accentColor="#10B981">
             {classes.map((item, i) => (
               <ClassScheduleRow
@@ -402,7 +472,12 @@ export default function ScheduleConfirmScreen() {
             ))}
           </Section>
 
-          <Section icon={<GraduationCap size={18} color="#F59E0B" />} title="Exam Periods" count={exams.length} accentColor="#F59E0B">
+          <Section
+            icon={<GraduationCap size={18} color="#F59E0B" />}
+            title={user?.role === 'ADMIN' ? "Exam Periods" : "My Exam Schedule"}
+            count={exams.length}
+            accentColor="#F59E0B"
+          >
             {exams.map((item, i) => (
               <ExamWeekRow
                 key={`exam-${i}`}
@@ -422,15 +497,8 @@ export default function ScheduleConfirmScreen() {
           )}
         </ScrollView>
 
-        {/* Bottom actions */}
+        {/* Bottom actions — vertically stacked */}
         <View style={styles.footer}>
-          <Pressable style={styles.cancelBtn} onPress={() => router.back()}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-          <Pressable style={styles.scanAnotherBtn} onPress={() => setShowScanSheet(true)}>
-            <ScanLine size={15} color="#8B5CF6" />
-            <Text style={styles.scanAnotherText}>Scan Another</Text>
-          </Pressable>
           <Button
             style={[styles.confirmBtn, (isEmpty || isSaving) && styles.confirmBtnDisabled]}
             onPress={handleConfirm}
@@ -441,6 +509,13 @@ export default function ScheduleConfirmScreen() {
               {isSaving ? "Saving..." : "Add to My Calendar"}
             </Text>
           </Button>
+          <Pressable style={styles.scanAnotherBtn} onPress={() => setShowScanSheet(true)}>
+            <ScanLine size={15} color="#8B5CF6" />
+            <Text style={styles.scanAnotherText}>Scan Another File</Text>
+          </Pressable>
+          <Pressable style={styles.cancelBtn} onPress={() => router.replace('/(app)/calendar')}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
 
@@ -534,12 +609,12 @@ const styles = StyleSheet.create({
   noticeBanner: { backgroundColor: "rgba(245, 158, 11, 0.08)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(245, 158, 11, 0.25)", padding: 14, marginTop: 4, marginBottom: 8 },
   noticeText: { fontSize: 13, color: "#94A3B8", lineHeight: 19 },
   noticeHighlight: { color: "#F59E0B", fontWeight: "700" },
-  footer: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: Platform.OS === "android" ? 20 : 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#1A1F2E", backgroundColor: "#10131C" },
-  cancelBtn: { flex: 1, backgroundColor: "#161A26", borderRadius: 14, borderWidth: 1, borderColor: "#2A3143", height: 56, alignItems: "center", justifyContent: "center" },
+  footer: { flexDirection: "column", gap: 10, paddingHorizontal: 16, paddingBottom: Platform.OS === "android" ? 20 : 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#1A1F2E", backgroundColor: "#10131C" },
+  cancelBtn: { backgroundColor: "#161A26", borderRadius: 14, borderWidth: 1, borderColor: "#2A3143", height: 50, alignItems: "center", justifyContent: "center" },
   cancelText: { fontSize: 13, fontWeight: "600", color: "#94A3B8" },
-  scanAnotherBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(139,92,246,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(139,92,246,0.3)", paddingHorizontal: 14, height: 56 },
+  scanAnotherBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "rgba(139,92,246,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(139,92,246,0.3)", height: 50 },
   scanAnotherText: { fontSize: 13, fontWeight: "600", color: "#8B5CF6" },
-  confirmBtn: { flex: 2, backgroundColor: "#6C8EFF", borderRadius: 14, height: 56, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  confirmBtn: { backgroundColor: "#6C8EFF", borderRadius: 14, height: 56, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   confirmBtnDisabled: { backgroundColor: "#1A1F2E", borderWidth: 1, borderColor: "#2A3143" },
   confirmText: { fontSize: 13, fontWeight: "700", color: "#ffffff" },
   confirmTextDisabled: { color: "#64748B" },
@@ -549,4 +624,53 @@ const styles = StyleSheet.create({
   successSub: { fontSize: 14, color: "#94A3B8", textAlign: "center", marginBottom: 24, lineHeight: 20 },
   successBtn: { width: "100%", backgroundColor: "#6C8EFF" },
   successBtnText: { color: "#ffffff", fontWeight: "600" },
+  universalCard: {
+    backgroundColor: "#161A26",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2A3143",
+    padding: 16,
+    marginBottom: 16,
+  },
+  universalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  universalTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  universalSub: {
+    fontSize: 12,
+    color: "#94A3B8",
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  universalInputsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  universalInputGroup: {
+    flex: 1,
+  },
+  universalInputLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  universalInput: {
+    backgroundColor: "#10131C",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2A3143",
+    color: "#ffffff",
+    fontSize: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
 });

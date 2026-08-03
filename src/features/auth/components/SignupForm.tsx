@@ -1,5 +1,5 @@
-import { Link, useRouter, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useRouter, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, TextInput, View, Pressable } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '@/src/components/ui/button';
@@ -8,11 +8,15 @@ import { Eye, EyeOff } from 'lucide-react-native';
 
 export function SignupForm() {
   const router = useRouter();
-  const { signup, isLoading, error } = useAuthStore();
+  const { signup, isLoading, error, clearError } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    clearError();
+  }, []);
 
   const handleSubmit = async () => {
     const result = await signup({ name: name.trim(), email: email.trim(), password });
@@ -20,6 +24,11 @@ export function SignupForm() {
     if (result === 'verification-required') {
       router.replace({ pathname: '/verify-email', params: { email: email.trim() } } as unknown as Href);
     }
+  };
+
+  const handleGoToLogin = () => {
+    clearError();
+    router.push('/login' as Href);
   };
 
   return (
@@ -90,9 +99,11 @@ export function SignupForm() {
         </Button>
       </View>
 
-      <Link href={'/login' as Href} className="mt-8 text-center text-primary font-bold font-sans text-base">
-        Already have an account? Log in
-      </Link>
+      <Pressable onPress={handleGoToLogin} className="mt-8">
+        <Text className="text-center text-primary font-bold font-sans text-base">
+          Already have an account? Log in
+        </Text>
+      </Pressable>
     </View>
   );
 }

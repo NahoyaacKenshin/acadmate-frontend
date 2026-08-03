@@ -59,13 +59,42 @@ export const ExamWeek = new Table({
   userId: column.text
 });
 
+// ── Week 4 Additional: Admin & Set A/B Global Config ───────────────────────
+
+export const SemesterRule = new Table({
+  startDate: column.text,
+  endDate: column.text,
+  dayOfWeek: column.integer,
+  setType: column.text,
+  label: column.text,
+  createdAt: column.text,
+  updatedAt: column.text
+});
+
+export const ProgramMapping = new Table({
+  programName: column.text,
+  studentSet: column.text,
+  createdAt: column.text,
+  updatedAt: column.text
+});
+
+export const PhilippineHoliday = new Table({
+  date: column.text,
+  name: column.text,
+  type: column.text
+});
+
 export const AppSchema = new Schema({
   Subject,
   Task,
   ClassSchedule,
   CalendarEvent,
   ExamWeek,
+  SemesterRule,
+  ProgramMapping,
+  PhilippineHoliday
 });
 
 export type Database = (typeof AppSchema)['types'];
+
 

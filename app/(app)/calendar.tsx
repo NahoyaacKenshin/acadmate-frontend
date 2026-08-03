@@ -21,6 +21,8 @@ import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedul
 import { useTasks } from '@/src/hooks/useTasks';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 
+import { useAuthStore } from '@/src/features/auth/auth.store';
+
 // Holidays will be fetched from the API
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -41,6 +43,7 @@ function addDays(date: Date, days: number): Date {
 
 export default function CalendarScreen() {
   const today = startOfDay(new Date());
+  const { user } = useAuthStore();
 
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [displayYear, setDisplayYear] = useState(today.getFullYear());
@@ -190,17 +193,21 @@ export default function CalendarScreen() {
                 </View>
               </Pressable>
 
-              <View style={styles.actionMenuDivider} />
+              {user?.role === 'ADMIN' && (
+                <>
+                  <View style={styles.actionMenuDivider} />
 
-              <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
-                <View style={styles.actionMenuIcon}>
-                  <GraduationCap size={18} color="#F59E0B" />
-                </View>
-                <View>
-                  <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
-                  <Text style={styles.actionMenuSub}>Block off exam / holiday periods</Text>
-                </View>
-              </Pressable>
+                  <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
+                    <View style={styles.actionMenuIcon}>
+                      <GraduationCap size={18} color="#F59E0B" />
+                    </View>
+                    <View>
+                      <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
+                      <Text style={styles.actionMenuSub}>Block off exam / holiday periods</Text>
+                    </View>
+                  </Pressable>
+                </>
+              )}
 
               <View style={styles.actionMenuDivider} />
 

@@ -74,8 +74,8 @@ function getDayDots(
     const ht = holidays.find((h) => isSameDay(new Date(h.date), date))?.type;
     colors.push(ht === 'REGULAR' ? '#EF4444' : '#F59E0B');
   }
-  // Class schedule dot (recurring — respects bounds)
-  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks));
+  // Class schedule dot (recurring — respects bounds and blockers)
+  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
   for (const ev of events) {
     if (colors.length >= 3) break;

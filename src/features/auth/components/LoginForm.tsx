@@ -1,5 +1,5 @@
-import { Link, type Href } from 'expo-router';
-import { useState } from 'react';
+import { Link, useRouter, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, TextInput, View, Pressable } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '@/src/components/ui/button';
@@ -7,13 +7,23 @@ import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff } from 'lucide-react-native';
 
 export function LoginForm() {
-  const { login, isLoading, error } = useAuthStore();
+  const router = useRouter();
+  const { login, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  useEffect(() => {
+    clearError();
+  }, []);
+
   const handleSubmit = async () => {
     await login({ email: email.trim(), password });
+  };
+
+  const handleGoToSignup = () => {
+    clearError();
+    router.push('/signup' as Href);
   };
 
   return (
@@ -73,9 +83,11 @@ export function LoginForm() {
         </Button>
       </View>
 
-      <Link href={'/signup' as Href} className="mt-8 text-center text-primary font-bold font-sans text-base">
-        Don't have an account? Sign up
-      </Link>
+      <Pressable onPress={handleGoToSignup} className="mt-8">
+        <Text className="text-center text-primary font-bold font-sans text-base">
+          Don't have an account? Sign up
+        </Text>
+      </Pressable>
     </View>
   );
 }

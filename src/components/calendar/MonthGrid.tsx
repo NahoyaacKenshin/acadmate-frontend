@@ -77,8 +77,8 @@ function getDotColors(
     colors.push(holidayType === 'REGULAR' ? '#EF4444' : '#F59E0B');
   }
 
-  // Class schedule dot (recurring — respects bounds)
-  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks));
+  // Class schedule dot (recurring — respects bounds and blockers)
+  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
   if (activeClass && colors.length < 3) {
     colors.push(activeClass.subject_color ?? '#6C8EFF');
   }
