@@ -19,6 +19,17 @@ export function parseDateLocal(dateStr: string | null | undefined): Date | null 
   return new Date(year, month - 1, day); // local midnight
 }
 
+/**
+ * Formats a Date object as 'YYYY-MM-DD' in LOCAL timezone (avoiding UTC offset shifts).
+ */
+export function formatDateLocal(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+
 export interface SimpleHoliday {
   date: string;
   name?: string;

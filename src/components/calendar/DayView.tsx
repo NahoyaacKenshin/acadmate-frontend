@@ -24,7 +24,7 @@ import { SemesterRuleRow, useSemesterRules } from '@/src/hooks/useSemesterRules'
 import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
 import { Holiday } from './MonthGrid';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
 import { useUserStore } from '@/src/store/userStore';
 
 interface DayViewProps {
@@ -262,16 +262,18 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
 
   // Holiday / Suspension for this date
   const dayHoliday = combinedHolidays.find((h) => {
-    const hd = new Date(h.date);
-    return isSameDay(hd, selectedDate);
+    const hd = parseDateLocal(h.date);
+    return hd ? isSameDay(hd, selectedDate) : false;
   });
 
   // Exam week active on this date
-  const targetDateStr = selectedDate.toISOString().split('T')[0];
   const activeExamWeek = examWeeks.find((ew) => {
-    const startStr = ew.startDate.split('T')[0];
-    const endStr = ew.endDate.split('T')[0];
-    return targetDateStr >= startStr && targetDateStr <= endStr;
+    const ewStart = parseDateLocal(ew.startDate);
+    const ewEnd = parseDateLocal(ew.endDate);
+    if (!ewStart || !ewEnd) return false;
+    const target = new Date(selectedDate);
+    target.setHours(0, 0, 0, 0);
+    return target >= ewStart && target <= ewEnd;
   });
 
   const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activeExamWeek;
@@ -306,27 +308,21 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
           styles.holidayBanner,
           dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
             ? { backgroundColor: 'rgba(236, 72, 153, 0.12)', borderColor: 'rgba(236, 72, 153, 0.3)' }
-            : dayHoliday.type === 'REGULAR'
-              ? styles.holidayBannerRegular
-              : styles.holidayBannerSpecial,
+            : styles.holidayBannerRegular,
         ]}>
           <CalendarDays
             size={14}
             color={
               dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
                 ? '#EC4899'
-                : dayHoliday.type === 'REGULAR'
-                  ? '#EF4444'
-                  : '#F59E0B'
+                : '#EF4444'
             }
           />
           <Text style={[
             styles.holidayText,
             dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
               ? { color: '#EC4899' }
-              : dayHoliday.type === 'REGULAR'
-                ? styles.holidayTextRegular
-                : styles.holidayTextSpecial,
+              : styles.holidayTextRegular,
           ]}>
             {dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
               ? 'Class Suspension'

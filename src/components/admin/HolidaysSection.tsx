@@ -79,13 +79,13 @@ export function HolidaysSection() {
               <View key={h.id || `${h.date}-${h.name}`} style={styles.holidayCard}>
                 <View style={styles.cardLeft}>
                   <View style={styles.holidayHeader}>
-                    <Flag size={16} color={isRegular ? '#EF4444' : '#F59E0B'} />
+                    <Flag size={16} color="#EF4444" />
                     <Text style={styles.holidayName}>{h.name}</Text>
                   </View>
                   <Text style={styles.holidayDate}>{dateClean}</Text>
                 </View>
-                <View style={[styles.typeBadge, isRegular ? styles.badgeRegular : styles.badgeSpecial]}>
-                  <Text style={[styles.typeText, isRegular ? styles.textRegular : styles.textSpecial]}>
+                <View style={[styles.typeBadge, styles.badgeRegular]}>
+                  <Text style={[styles.typeText, styles.textRegular]}>
                     {isRegular ? 'REGULAR' : 'SPECIAL'}
                   </Text>
                 </View>

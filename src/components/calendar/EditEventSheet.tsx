@@ -18,6 +18,7 @@ import { X, ChevronDown, Calendar, MapPin, Clock, Trash2 } from 'lucide-react-na
 import { usePowerSync } from '@powersync/react';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
+import { formatDateLocal } from '@/src/utils/scheduleUtils';
 
 interface EditEventSheetProps {
   visible: boolean;
@@ -156,8 +157,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
         [
           title.trim(),
           description.trim() || null,
-          allDay ? startDate.toISOString().split('T')[0] : startDate.toISOString(),
-          endDate ? (allDay ? endDate.toISOString().split('T')[0] : endDate.toISOString()) : null,
+          allDay ? formatDateLocal(startDate) : startDate.toISOString(),
+          endDate ? (allDay ? formatDateLocal(endDate) : endDate.toISOString()) : null,
           allDay ? 1 : 0,
           location.trim() || null,
           selectedColor,

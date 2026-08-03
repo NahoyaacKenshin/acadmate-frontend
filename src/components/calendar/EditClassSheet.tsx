@@ -18,6 +18,7 @@ import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { formatDateLocal } from '@/src/utils/scheduleUtils';
 
 interface EditClassSheetProps {
   visible: boolean;
@@ -159,8 +160,8 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
           selectedDay,
           startTime,
           endTime,
-          startDate.toISOString().split('T')[0],
-          endDate ? endDate.toISOString().split('T')[0] : null,
+          formatDateLocal(startDate),
+          endDate ? formatDateLocal(endDate) : null,
           room.trim() || null,
           modality,
           setType,

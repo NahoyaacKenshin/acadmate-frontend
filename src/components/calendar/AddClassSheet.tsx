@@ -18,6 +18,7 @@ import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { useClassSchedules } from '@/src/hooks/useClassSchedules';
 import { AddExamWeekModal } from './AddExamWeekModal';
+import { formatDateLocal } from '@/src/utils/scheduleUtils';
 
 interface AddClassSheetProps {
   visible: boolean;
@@ -257,8 +258,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               generateId(), day, startTime, endTime,
-              startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+              formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               roomSetA.trim() || null,
               modalitySetA, 'A',
               selectedSubjectId, userId, now, now,
@@ -272,9 +273,9 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             [
               generateId(), day, startTime, endTime,
               startsWithSet === 'A'
-                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })()
-                : startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return formatDateLocal(d); })()
+                : formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               roomSetB.trim() || null,
               modalitySetB, 'B',
               selectedSubjectId, userId, now, now,
@@ -290,8 +291,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               generateId(), day, startTime, endTime,
-              startDate.toISOString().split('T')[0],
-              endDate ? endDate.toISOString().split('T')[0] : null,
+              formatDateLocal(startDate),
+              endDate ? formatDateLocal(endDate) : null,
               room.trim() || null,
               modality, null,
               selectedSubjectId, userId, now, now,

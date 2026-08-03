@@ -99,7 +99,7 @@ export function resolveScheduleForDate(
       effectiveRoom: null,
       reason: isSuspension ? `Suspension: ${holiday.name}` : `Holiday: ${holiday.name}`,
       badgeText: isSuspension ? 'SUSPENSION' : isRegular ? 'REGULAR HOLIDAY' : 'SPECIAL HOLIDAY',
-      badgeColor: isSuspension ? '#EC4899' : isRegular ? '#EF4444' : '#F59E0B',
+      badgeColor: isSuspension ? '#EC4899' : '#EF4444',
     };
   }
 

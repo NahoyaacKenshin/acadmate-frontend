@@ -67,14 +67,30 @@ function getDotColors(
 ): string[] {
   const colors: string[] = [];
 
-  // Holiday dot
+  // Holiday dot (Danger Red for all holidays)
   const isHoliday = holidays.some((h) => {
     const hd = new Date(h.date);
     return isSameDay(hd, date);
   });
-  const holidayType = holidays.find((h) => isSameDay(new Date(h.date), date))?.type;
   if (isHoliday) {
-    colors.push(holidayType === 'REGULAR' ? '#EF4444' : '#F59E0B');
+    colors.push('#EF4444');
+  }
+
+  // Exam week dot (Amber)
+  const isExamWeek = examWeeks.some((ew) => {
+    const ewStart = ew.startDate ? new Date(ew.startDate) : null;
+    const ewEnd = ew.endDate ? new Date(ew.endDate) : ewStart;
+    if (!ewStart || !ewEnd) return false;
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    const start = new Date(ewStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(ewEnd);
+    end.setHours(23, 59, 59, 999);
+    return target >= start && target <= end;
+  });
+  if (isExamWeek && colors.length < 3) {
+    colors.push('#F59E0B');
   }
 
   // Class schedule dot (recurring — respects bounds and blockers)

@@ -39,12 +39,59 @@ import { ScanAnotherSheet } from "@/src/components/schedule/ScanAnotherSheet";
 import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
 import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
+import { useExamWeeks, ExamWeekRow as AdminExamWeekRow } from "@/src/hooks/useExamWeeks";
 import { usePowerSync } from "@powersync/react";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import ColorPicker, { HueSlider, Preview } from "reanimated-color-picker";
 import { runOnJS } from "react-native-reanimated";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Given a dayOfWeek (0=Sun..6=Sat) and a list of admin ExamWeek blocks,
+ * find the matching calendar date within the first applicable block.
+ * Returns an ISO date string like "2026-08-04" or null if not found.
+ */
+function resolveExamDate(
+  dayOfWeek: number,
+  examWeekId: string | null | undefined,
+  adminExamWeeks: AdminExamWeekRow[]
+): string | null {
+  // Prefer the specific exam week block if one is pinned
+  const candidates = examWeekId
+    ? adminExamWeeks.filter((ew) => ew.id === examWeekId)
+    : adminExamWeeks;
+
+  for (const ew of candidates) {
+    const start = new Date(ew.startDate);
+    const end = new Date(ew.endDate);
+    // Iterate each day in the range
+    const cur = new Date(start);
+    while (cur <= end) {
+      if (cur.getDay() === dayOfWeek) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  return null;
+}
+
+/** Build a full ISO datetime string from a date part and optional HH:MM time */
+function buildISODateTime(datePart: string, hhmm?: string | null): string {
+  if (!hhmm) return `${datePart}T00:00:00.000Z`;
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = new Date(`${datePart}T00:00:00.000Z`);
+  // Use local time construction to avoid UTC offset shift
+  return new Date(
+    d.getFullYear(), d.getMonth(), d.getDate(),
+    isNaN(h) ? 0 : h, isNaN(m) ? 0 : m, 0, 0
+  ).toISOString();
+}
+
 
 function generateId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -243,6 +290,9 @@ export default function ScheduleConfirmScreen() {
   const userId = user?.id;
   const [isSaving, setIsSaving] = useState(false);
 
+  // Admin-set ExamWeek blocks (used to resolve student exam dates)
+  const { examWeeks: adminExamWeeks } = useExamWeeks();
+
   const initialData = useMemo(() => {
     if (!params.payload) return { classSchedules: [], calendarEvents: [], examWeeks: [] };
     try {
@@ -258,17 +308,44 @@ export default function ScheduleConfirmScreen() {
 
   const filteredInitialExams = useMemo(() => {
     if (user?.role === 'ADMIN') return initialData.examWeeks;
-    // Student scanner filter: reject multi-day exam weeks, only accept single/one-off day exams
-    return initialData.examWeeks.filter((ex) => {
-      const startDay = ex.startDate.split('T')[0];
-      const endDay = ex.endDate.split('T')[0];
-      return startDay === endDay;
-    });
+    // Students: keep all exams — both specific-date ones and day-of-week-only ones
+    // (day-of-week-only will be resolved against admin ExamWeek blocks)
+    return initialData.examWeeks;
   }, [initialData.examWeeks, user]);
 
   const [classes, setClasses] = useState<ParsedClassSchedule[]>(initialData.classSchedules);
   const [events, setEvents] = useState<ParsedCalendarEvent[]>(initialData.calendarEvents);
   const [exams, setExams] = useState<ParsedExamWeek[]>(filteredInitialExams);
+
+  // Auto-resolve exam dates from admin ExamWeek blocks when they load
+  React.useEffect(() => {
+    if (!adminExamWeeks || adminExamWeeks.length === 0) return;
+    if (user?.role === 'ADMIN') return;
+    setExams((prev) =>
+      prev.map((ex) => {
+        // Already has a resolved date — skip
+        if (ex.startDate) return ex;
+        // Needs resolution: has dayOfWeek
+        if (ex.dayOfWeek == null) return ex;
+        const datePart = resolveExamDate(ex.dayOfWeek, ex.resolvedFromExamWeekId, adminExamWeeks);
+        if (!datePart) return ex;
+        const resolvedStart = buildISODateTime(datePart, ex.startTime);
+        const resolvedEnd = buildISODateTime(datePart, ex.endTime ?? ex.startTime);
+        // Pin to the first matching exam week block
+        const matchedBlock = adminExamWeeks.find((ew) => {
+          const s = new Date(ew.startDate), e = new Date(ew.endDate);
+          const d = new Date(datePart);
+          return d >= s && d <= e;
+        });
+        return {
+          ...ex,
+          startDate: resolvedStart,
+          endDate: resolvedEnd,
+          resolvedFromExamWeekId: ex.resolvedFromExamWeekId ?? matchedBlock?.id ?? null,
+        };
+      })
+    );
+  }, [adminExamWeeks, user?.role]);
 
   // Universal date override fields (optional)
   const [universalStartDate, setUniversalStartDate] = useState<string>("");
@@ -373,14 +450,14 @@ export default function ScheduleConfirmScreen() {
           );
         }
       } else {
-        // Students: save parsed exam schedules as personal CalendarEvents
+        // Students: save parsed exam schedules as personal CalendarEvents with Purple (#8B5CF6) accent
         for (const ex of exams) {
           const id = generateId();
           queries.push(
             powerSync.execute(
               `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [id, ex.title, '🎓 Exam Schedule', ex.startDate, ex.endDate ?? ex.startDate, 0, null, '#F59E0B', userId, null, now, now]
+              [id, ex.title, '🎓 Exam Schedule', ex.startDate, ex.endDate ?? ex.startDate, 0, null, '#8B5CF6', userId, null, now, now]
             )
           );
         }
@@ -473,10 +550,10 @@ export default function ScheduleConfirmScreen() {
           </Section>
 
           <Section
-            icon={<GraduationCap size={18} color="#F59E0B" />}
+            icon={<GraduationCap size={18} color={user?.role === 'ADMIN' ? "#F59E0B" : "#8B5CF6"} />}
             title={user?.role === 'ADMIN' ? "Exam Periods" : "My Exam Schedule"}
             count={exams.length}
-            accentColor="#F59E0B"
+            accentColor={user?.role === 'ADMIN' ? "#F59E0B" : "#8B5CF6"}
           >
             {exams.map((item, i) => (
               <ExamWeekRow
@@ -553,6 +630,7 @@ export default function ScheduleConfirmScreen() {
       <EditParsedExamSheet
         visible={editingExamIndex !== null}
         item={editingExamIndex !== null ? exams[editingExamIndex] : null}
+        adminExamWeeks={adminExamWeeks ?? []}
         onClose={() => setEditingExamIndex(null)}
         onSave={(updated) => {
           if (editingExamIndex === null) return;

@@ -6,6 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '../ui/button';
+import { formatDateLocal, parseDateLocal } from '@/src/utils/scheduleUtils';
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -38,16 +39,12 @@ export function AddExamWeekModal({
     if (initialData) {
       setTitle(initialData.title);
       if (initialData.startDate) {
-        const parts = initialData.startDate.split('T')[0].split('-');
-        if (parts.length === 3) {
-          setStartDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
-        }
+        const parsed = parseDateLocal(initialData.startDate);
+        if (parsed) setStartDate(parsed);
       }
       if (initialData.endDate) {
-        const parts = initialData.endDate.split('T')[0].split('-');
-        if (parts.length === 3) {
-          setEndDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
-        }
+        const parsed = parseDateLocal(initialData.endDate);
+        if (parsed) setEndDate(parsed);
       }
     } else {
       setTitle('');
@@ -82,8 +79,8 @@ export function AddExamWeekModal({
     setError(null);
     try {
       const now = new Date().toISOString();
-      const sd = startDate.toISOString().split('T')[0];
-      const ed = endDate.toISOString().split('T')[0];
+      const sd = formatDateLocal(startDate);
+      const ed = formatDateLocal(endDate);
 
       // Format clean title with category tag prefix if not already present
       let formattedTitle = title.trim();
