@@ -222,10 +222,10 @@
 - [x] Create `GET /api/notebooks/:notebookId/chat/history` endpoint (stub, persistence planned for Week 7).
 
 #### Frontend 1 (UI/UX)
-- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
-- [ ] Build the AI Chat interface (message bubbles, typing indicators, send buttons).
-- [ ] Incorporate source citations inside the message bubble UI showing exactly which document the answer came from.
-- [ ] Build chat history side-drawers or views.
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Build the AI Chat interface (message bubbles, typing indicators, send buttons).
+- [x] Incorporate source citations inside the message bubble UI showing exactly which document the answer came from.
+- [x] Build chat history side-drawers or views.
 
 #### Frontend 2 (State & Integration)
 - [ ] Implement Zustand store for message states.

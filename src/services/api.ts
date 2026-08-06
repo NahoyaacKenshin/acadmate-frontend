@@ -132,4 +132,23 @@ export const ApiService = {
       return handleResponse(response);
     },
   },
+
+  // --- Notebook Chat (RAG) ---
+  chat: {
+    send: async (notebookId: string, message: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ message }),
+      });
+      return handleResponse(response);
+    },
+    history: async (notebookId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+  },
 };
