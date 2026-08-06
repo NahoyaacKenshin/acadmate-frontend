@@ -83,8 +83,18 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
           </View>
         </View>
 
-        {/* Chevron */}
-        <View style={styles.chevronWrap}>
+        {/* Actions */}
+        <View style={styles.actionsWrap}>
+          <Pressable
+            style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleLongPress();
+            }}
+            hitSlop={8}
+          >
+            <Trash2 size={16} color="#EF4444" />
+          </Pressable>
           <ChevronRight size={18} color="#4A5568" />
         </View>
       </View>
@@ -186,8 +196,16 @@ const styles = StyleSheet.create({
     color: '#3A4455',
     marginLeft: 'auto',
   },
-  chevronWrap: {
-    width: 24,
+  actionsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239,68,68,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },

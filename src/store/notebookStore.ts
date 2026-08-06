@@ -27,7 +27,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     if (!silent) set({ isLoadingNotebooks: true, notebooksError: null });
     try {
       const data = await ApiService.notebooks.list();
-      const list: any[] = Array.isArray(data) ? data : (data?.notebooks ?? []);
+      const list: any[] = Array.isArray(data) ? data : (data?.data ?? data?.notebooks ?? []);
       const mapped: Notebook[] = list.map((n: any) => ({
         id: n.id,
         title: n.title,
@@ -49,7 +49,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
   createNotebook: async (title, description) => {
     const newNotebook = await ApiService.notebooks.create({ title, description: description || undefined });
-    const nb = newNotebook.notebook ?? newNotebook;
+    const nb = newNotebook?.data ?? newNotebook?.notebook ?? newNotebook;
     const mapped: Notebook = {
       id: nb.id ?? '',
       title: nb.title ?? title,
@@ -71,7 +71,8 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   fetchSources: async (notebookId, silent = false) => {
     try {
       const data = await ApiService.notebooks.get(notebookId);
-      const list: any[] = data?.sources ?? data?.notebook?.sources ?? [];
+      const notebookObj = data?.data ?? data?.notebook ?? data;
+      const list: any[] = Array.isArray(notebookObj?.sources) ? notebookObj.sources : [];
       const mapped: Source[] = list.map((s: any) => ({
         id: s.id,
         fileName: s.fileName,

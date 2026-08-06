@@ -64,7 +64,7 @@ export default function NotebookScreen() {
   // ─── Navigation ───────────────────────────────────────────────────────────
 
   const handleOpenNotebook = (notebook: Notebook) => {
-    router.push({ pathname: '/(app)/notebook' as any, params: { id: notebook.id, title: notebook.title } });
+    router.push({ pathname: '/(app)/notebook/[id]' as any, params: { id: notebook.id, title: notebook.title } });
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
