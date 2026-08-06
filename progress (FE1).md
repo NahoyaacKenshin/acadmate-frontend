@@ -390,3 +390,17 @@
 otebooksError, and stores sourcesByNotebook efficiently. Automatically sorts notebooks and sources by createdAt descending.
   - **UI Integration**: Refactored pp/(app)/notebook.tsx and pp/(app)/notebook/[id].tsx to consume data, loading states, and error handling entirely from useNotebookStore. Retained the auto-polling logic to fetch updates from the backend whenever any source status is PENDING or PROCESSING.
   - **File Upload Streams & Progress** (UploadSourceSheet.tsx): Replaced the mocked setInterval progress bar with FileSystem.createUploadTask from expo-file-system. The UI now updates its progress bar using true, byte-level tracking during multipart uploads (	otalBytesSent / totalBytesExpectedToSend). Retained image compression and error boundaries for large files (413) or invalid formats (415).
+
+## 2026-08-06
+- **Bug Fixes (Week 5) — Notebook Persistence & Navigation**:
+  - **Notebook Vanishing on Refresh**: Fixed `notebookStore.ts` to correctly parse `data?.data` from `{ status: 'success', data: [...] }` backend response envelopes. Previously `fetchNotebooks` fell back to `[]` on every refresh, erasing all notebooks from the UI despite them existing in PostgreSQL.
+  - **Notebook Card Tap Navigation**: Fixed `notebook.tsx` route path from `/(app)/notebook` to `/(app)/notebook/[id]`. Tapping a card now correctly navigates to the detail screen.
+  - **Explicit Trash Button**: Added a red Trash2 icon button to `NotebookCard.tsx` alongside the chevron so users can delete notebooks with a single tap without long-pressing.
+  - **PDF Processing Failure**: Fixed `notebook.service.ts` and `schedule-parser.service.ts` to use the `PDFParse` class from `pdf-parse` v2.4.5 instead of the legacy CommonJS `require()` that returned the module object. Added Gemini Vision OCR fallback for scanned/image-based PDFs.
+  - **Embedding Model 404**: Migrated `generateEmbedding()` in `gemini.ts` from deprecated `text-embedding-004` to `gemini-embedding-001` (with fallback to `gemini-embedding-2`). Explicitly set `outputDimensionality: 768` to match the PostgreSQL `vector(768)` column schema.
+
+- **Backend (Week 6) — RAG Pipeline & Notebook Chat Endpoints**:
+  - **RAG Service** (`src/services/rag.service.ts`): Full Retrieval-Augmented Generation pipeline. `searchSimilarChunks()` executes raw SQL with pgvector cosine distance operator (`<=>`) to retrieve the top-5 most semantically relevant `SourceChunk` rows (filtered to READY sources only). `executeNotebookChat()` orchestrates: notebook ownership validation ? 768-dim question embedding via `gemini-embedding-001` ? pgvector similarity search ? context-grounded system prompt construction ? Gemini generation with model-cascade fallback ? structured citation metadata extraction (`sourceId`, `fileName`, `chunkIndex`, `snippet`, `similarity`).
+  - **Notebook Chat Controller** (`src/controllers/notebook-chat.controller.ts`): Handles `POST /api/notebooks/:notebookId/chat` with message validation (non-empty, max 2000 chars), ownership-aware error routing (404 vs 500), and structured JSON response. Implements `GET /api/notebooks/:notebookId/chat/history` stub returning empty array with a Week 7 note.
+  - **Routes** (`src/routes/notebook.routes.ts`): Registered both `POST /:notebookId/chat` and `GET /:notebookId/chat/history` under `/api/notebooks`, protected by `AuthMiddleware`.
+  - **TypeScript**: `npm run typecheck` passes with zero errors.

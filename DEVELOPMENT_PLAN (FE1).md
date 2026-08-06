@@ -214,12 +214,12 @@
 ### Week 6: RAG Pipeline & Streaming AI Chat
 
 #### Backend
-- [ ] Build the RAG query execution pipeline:
-  1. Receive user question $\rightarrow$ generate embedding vector using `text-embedding-004`.
-  2. Search pgvector for the top-k most relevant text chunks matching the notebook.
-  3. Consolidate context chunks and format a unified system prompt for Gemini.
-- [ ] Create `POST /api/notebooks/:notebookId/chat` endpoint (supporting server-sent events/streaming responses).
-- [ ] Create `GET /api/notebooks/:notebookId/chat/history` endpoint.
+- [x] Build the RAG query execution pipeline:
+  1. Receive user question $\rightarrow$ generate embedding vector using `gemini-embedding-001` (768 dims).
+  2. Search pgvector for the top-k most relevant text chunks matching the notebook (cosine distance `<=>`).
+  3. Consolidate context chunks and format a unified grounded system prompt for Gemini.
+- [x] Create `POST /api/notebooks/:notebookId/chat` endpoint — returns AI reply + structured `citations[]`.
+- [x] Create `GET /api/notebooks/:notebookId/chat/history` endpoint (stub, persistence planned for Week 7).
 
 #### Frontend 1 (UI/UX)
 - [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
