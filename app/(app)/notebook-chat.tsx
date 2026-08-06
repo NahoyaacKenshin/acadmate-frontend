@@ -24,6 +24,7 @@ import { ChatInputBar } from '@/src/components/notebook/chat/ChatInputBar';
 import { ChatHistoryDrawer } from '@/src/components/notebook/chat/ChatHistoryDrawer';
 import { ApiService } from '@/src/services/api';
 import { useSystemStore } from '@/src/store/systemStore';
+import { useChatStore } from '@/src/store/chatStore';
 
 // ── Prompt chip suggestion data ─────────────────────────────────────────────
 const SUGGESTION_CHIPS = [
@@ -33,21 +34,13 @@ const SUGGESTION_CHIPS = [
   'Explain the main topic simply',
 ];
 
-// ── Unique ID generator ──────────────────────────────────────────────────────
-let _idCounter = 0;
-function genId(): string {
-  _idCounter += 1;
-  return `msg_${Date.now()}_${_idCounter}`;
-}
-
 export default function NotebookChatScreen() {
   const router = useRouter();
   const { id: notebookId, title: notebookTitle } =
     useLocalSearchParams<{ id: string; title: string }>();
   const { isOnline } = useSystemStore();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { messages, isLoading, sendMessage, clearMessages } = useChatStore();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
@@ -63,43 +56,9 @@ export default function NotebookChatScreen() {
   const handleSend = useCallback(
     async (text: string) => {
       if (!notebookId || isLoading) return;
-
-      const userMsg: ChatMessage = {
-        id: genId(),
-        role: 'user',
-        content: text,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, userMsg]);
-      setIsLoading(true);
-
-      try {
-        const res = await ApiService.chat.send(notebookId, text);
-        // Backend returns { status, data: { reply, citations[] } }
-        const payload = res?.data ?? res;
-        const assistantMsg: ChatMessage = {
-          id: genId(),
-          role: 'assistant',
-          content: payload?.reply ?? 'I could not generate a response. Please try again.',
-          citations: Array.isArray(payload?.citations) ? payload.citations : [],
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      } catch (err: any) {
-        const errMsg: ChatMessage = {
-          id: genId(),
-          role: 'assistant',
-          content: `Sorry, an error occurred: ${err?.message ?? 'Unknown error'}. Please check your connection and try again.`,
-          citations: [],
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
-      } finally {
-        setIsLoading(false);
-      }
+      await sendMessage(notebookId, text);
     },
-    [notebookId, isLoading]
+    [notebookId, isLoading, sendMessage]
   );
 
   // ── New chat ──────────────────────────────────────────────────────────────
@@ -113,11 +72,11 @@ export default function NotebookChatScreen() {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => setMessages([]),
+          onPress: () => clearMessages(),
         },
       ]
     );
-  }, [messages]);
+  }, [messages, clearMessages]);
 
   // ── Suggestion chip handler ───────────────────────────────────────────────
   const handleChipPress = (chip: string) => {

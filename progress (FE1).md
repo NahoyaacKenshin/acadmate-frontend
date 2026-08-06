@@ -423,3 +423,10 @@ otebook/[id].tsx**: Added "Ask AI" pill button (MessageSquare icon + label) in t
   - **src/services/api.ts**: Added ApiService.chat.send(notebookId, message) and ApiService.chat.history(notebookId) methods targeting the Week 6 backend RAG endpoints.
   - **TypeScript**: 
 px tsc --noEmit passes with zero errors across all new files.
+
+- **Frontend 2 (Week 6) - Chat State Management**:
+  - **Zustand Store** (src/store/chatStore.ts): Implemented a centralized store for managing chat state. Includes messages array, isLoading flag, and error handling.
+  - **API Integration**: Connected sendMessage action to ApiService.chat.send(notebookId, text). Handled success and failure states, dynamically appending assistant response and citations.
+  - **Offline Resilience**: Integrated with systemStore's isOnline flag. Chat operations gracefully block and error out when the device loses network connectivity, preserving the user experience.
+  - **UI Refactoring** (
+otebook-chat.tsx): Replaced local state arrays with useChatStore. Simplified message flow and explicitly handled the loading/typing states natively through the store.

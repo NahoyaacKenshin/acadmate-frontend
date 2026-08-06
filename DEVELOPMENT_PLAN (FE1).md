@@ -228,10 +228,10 @@
 - [x] Build chat history side-drawers or views.
 
 #### Frontend 2 (State & Integration)
-- [ ] Implement Zustand store for message states.
-- [ ] Connect chat UI to the query API.
-- [ ] Handle UI streaming text assemblies or loading blocks cleanly.
-- [ ] Explicitly block/disable input when the device loses network connectivity, prompting an explicit offline notice (RAG requires active connection).
+- [x] Implement Zustand store for message states.
+- [x] Connect chat UI to the query API.
+- [x] Handle UI streaming text assemblies or loading blocks cleanly.
+- [x] Explicitly block/disable input when the device loses network connectivity, prompting an explicit offline notice (RAG requires active connection).
 
 ---
 
