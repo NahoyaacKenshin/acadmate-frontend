@@ -198,16 +198,16 @@
 - [x] TypeScript type-checked (`tsc --noEmit`) — **zero errors**.
 
 #### Frontend 1 (UI/UX)
-- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
-- [ ] Build the Notebook/Subjects list screen (card-based layout showing material count).
-- [ ] Build the "Inside a Notebook" screen (list of uploaded sources: PDFs, images, notes).
-- [ ] Build file upload UI components with native progress bars.
-- [ ] Build a simple plain-text editor for direct note generation.
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Build the Notebook/Subjects list screen (card-based layout showing material count).
+- [x] Build the "Inside a Notebook" screen (list of uploaded sources: PDFs, images, notes).
+- [x] Build file upload UI components with native progress bars.
+- [x] Build a simple plain-text editor for direct note generation.
 
 #### Frontend 2 (State & Integration)
-- [ ] Implement Zustand store for notebooks metadata.
-- [ ] Handle file uploading streams, compression, and error states.
-- [ ] Render processing/indexing status tags next to documents (e.g., "Processing" $\rightarrow$ "Ready").
+- [x] Implement Zustand store for notebooks metadata.
+- [x] Handle file uploading streams, compression, and error states.
+- [x] Render processing/indexing status tags next to documents (e.g., "Processing" -> "Ready").
 
 ---
 

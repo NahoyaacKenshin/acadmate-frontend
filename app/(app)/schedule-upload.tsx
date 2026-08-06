@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   StyleSheet,
@@ -39,7 +39,7 @@ export default function ScheduleUploadScreen() {
     const data = await uploadAndParse();
     if (!data) return;
     router.push({
-      pathname: "/(app)/schedule-confirm",
+      pathname: "/(app)/schedule-confirm" as any,
       params: { payload: JSON.stringify(data) },
     });
     setTimeout(() => clearFile(), 500);

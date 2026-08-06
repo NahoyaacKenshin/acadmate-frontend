@@ -88,4 +88,48 @@ export const ApiService = {
       return handleResponse(response);
     }
   },
+
+  // --- Notebooks ---
+  notebooks: {
+    list: async () => {
+      const response = await fetch(`${ENV.API_URL}/notebooks`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    create: async (data: { title: string; description?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    get: async (id: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${id}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    delete: async (id: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+  },
+
+  // --- Notebook Sources ---
+  sources: {
+    delete: async (notebookId: string, sourceId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/sources/${sourceId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+  },
 };
