@@ -253,7 +253,7 @@
 - [ ] Add sleek confirmation modals for destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
 - [ ] Add onboarding/introductory screens for new users highlighting key features and benefits.
 - [ ] Clean up duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header).
-- [ ] Replace the default Expo splash screen logo with the custom AcadMate logo.
+- [ ] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
 - [ ] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
 - [ ] Resolve visual alignment bugs and inconsistencies across all newly built components.
 - [ ] **Code Refactoring**: Break down excessively large files (e.g., `calendar.tsx`, `schedule-upload.tsx`, `ParsedItemRow.tsx`) into smaller, reusable UI components and extract logic to custom hooks.
