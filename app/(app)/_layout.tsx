@@ -83,6 +83,10 @@ export default function AppLayout() {
           name="notebook/[id]"
           options={{ href: null, headerShown: false, title: 'Notebook' }}
         />
+        <Tabs.Screen
+          name="notebook-chat"
+          options={{ href: null, headerShown: false, title: 'AI Notebook Chat' }}
+        />
       </Tabs>
       {!isOnline && (
         <View style={styles.offlineBannerAbsolute} pointerEvents="none">

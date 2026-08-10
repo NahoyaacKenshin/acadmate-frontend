@@ -26,6 +26,7 @@ import {
   PenLine,
   BookOpen,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react-native';
 
 export default function NotebookDetailScreen() {
@@ -219,7 +220,7 @@ export default function NotebookDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/notebook' as any)}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -231,6 +232,18 @@ export default function NotebookDetailScreen() {
               <RefreshCw size={16} color="#6C8EFF" />
             </Pressable>
           )}
+          {/* Ask AI button */}
+          <Pressable
+            style={({ pressed }) => [styles.askAiBtn, pressed && { opacity: 0.75 }]}
+            onPress={() =>
+              router.push(
+                `/(app)/notebook-chat?id=${id}&title=${encodeURIComponent(notebookTitle ?? 'Notebook')}` as any
+              )
+            }
+          >
+            <MessageSquare size={16} color="#6C8EFF" />
+            <Text style={styles.askAiLabel}>Ask AI</Text>
+          </Pressable>
           <Pressable
             style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
             onPress={() => setIsActionMenuOpen((v) => !v)}
@@ -363,6 +376,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(108,142,255,0.3)',
+  },
+  askAiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(108,142,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(108,142,255,0.3)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  askAiLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C8EFF',
   },
   // ── Action Menu ───────────────────────────────────────────────────────────
   actionMenu: {

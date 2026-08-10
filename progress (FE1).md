@@ -404,3 +404,29 @@ otebooksError, and stores sourcesByNotebook efficiently. Automatically sorts not
   - **Notebook Chat Controller** (`src/controllers/notebook-chat.controller.ts`): Handles `POST /api/notebooks/:notebookId/chat` with message validation (non-empty, max 2000 chars), ownership-aware error routing (404 vs 500), and structured JSON response. Implements `GET /api/notebooks/:notebookId/chat/history` stub returning empty array with a Week 7 note.
   - **Routes** (`src/routes/notebook.routes.ts`): Registered both `POST /:notebookId/chat` and `GET /:notebookId/chat/history` under `/api/notebooks`, protected by `AuthMiddleware`.
   - **TypeScript**: `npm run typecheck` passes with zero errors.
+
+## 2026-08-06 (continued)
+- **Frontend 1 (Week 6) - RAG AI Notebook Chat Interface**:
+  - *Requirement*: All tasks strictly adhere to established UI/UX design standards and componentization.
+  - **ChatTypingIndicator.tsx** (src/components/notebook/chat/ChatTypingIndicator.tsx): Animated three-dot bounce indicator displayed as a left-aligned AI bubble while the RAG pipeline generates a response. Uses Animated.loop with staggered 	ranslateY and opacity for a smooth pulse effect.
+  - **ChatMessageCitations.tsx** (src/components/notebook/chat/ChatMessageCitations.tsx): Renders a horizontal row of tappable citation chip badges under each AI response bubble. Chips are color-coded by file type (PDF=red, Image=purple, Text/DOCX=green), show the filename and similarity percentage, and accept an onPress callback to open the detail modal.
+  - **CitationDetailModal.tsx** (src/components/notebook/chat/CitationDetailModal.tsx): Bottom-sheet modal triggered by tapping a citation chip. Displays: source filename, inferred file type label, chunk index, an animated gradient similarity progress bar (amber < 60%, blue 60-80%, green 80%+), and the raw extracted text snippet from the SourceChunk. Includes a Done button to dismiss.
+  - **ChatMessageBubble.tsx** (src/components/notebook/chat/ChatMessageBubble.tsx): Core message bubble component. User messages: right-aligned, solid #6C8EFF background, white text, rounded bottom-right trimmed. AI messages: left-aligned, #161A26 dark surface, #E2E8F0 text, rounded bottom-left trimmed, Sparkles avatar, ChatMessageCitations embedded below content. Both show HH:MM timestamp.
+  - **ChatInputBar.tsx** (src/components/notebook/chat/ChatInputBar.tsx): Sticky bottom input bar with a multi-line TextInput (max 2000 chars, live countdown warning at 1800+), animated send button (activates with glow shadow only when text is present, online, and not loading), and an offline amber banner strip that disables the input when isOnline === false.
+  - **ChatHistoryDrawer.tsx** (src/components/notebook/chat/ChatHistoryDrawer.tsx): Slide-up bottom sheet showing current session summary (first user message, message count, "Active" tag), a "New Conversation" CTA button that triggers a clear-confirmation Alert, and a list of past sessions (stubbed for Week 7 persistence) with relative timestamps.
+  - **
+otebook-chat.tsx** (pp/(app)/notebook-chat.tsx): Full AI Chat screen. Header shows notebook title, RAG badge, live online/offline dot, and History button. Empty state shows Sparkles icon, descriptive subtitle, and four contextual suggestion chips (e.g., "Summarize this notebook"). On send: appends user bubble instantly, shows ChatTypingIndicator, calls POST /api/notebooks/:id/chat, then appends AI bubble with citations. Error handling appends an error-message bubble. New Chat clears messages with an Alert confirmation.
+  - **Navigation** (pp/(app)/_layout.tsx): Registered 
+otebook-chat as a hidden tab screen (href: null, headerShown: false).
+  - **
+otebook/[id].tsx**: Added "Ask AI" pill button (MessageSquare icon + label) in the Notebook Detail header. Tapping navigates to /(app)/notebook-chat with id and 	itle params.
+  - **src/services/api.ts**: Added ApiService.chat.send(notebookId, message) and ApiService.chat.history(notebookId) methods targeting the Week 6 backend RAG endpoints.
+  - **TypeScript**: 
+px tsc --noEmit passes with zero errors across all new files.
+
+- **Frontend 2 (Week 6) - Chat State Management**:
+  - **Zustand Store** (src/store/chatStore.ts): Implemented a centralized store for managing chat state. Includes messages array, isLoading flag, and error handling.
+  - **API Integration**: Connected sendMessage action to ApiService.chat.send(notebookId, text). Handled success and failure states, dynamically appending assistant response and citations.
+  - **Offline Resilience**: Integrated with systemStore's isOnline flag. Chat operations gracefully block and error out when the device loses network connectivity, preserving the user experience.
+  - **UI Refactoring** (
+otebook-chat.tsx): Replaced local state arrays with useChatStore. Simplified message flow and explicitly handled the loading/typing states natively through the store.
