@@ -220,7 +220,7 @@ export default function NotebookDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/notebook' as any)}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
         <View style={styles.headerCenter}>

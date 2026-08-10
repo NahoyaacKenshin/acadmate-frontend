@@ -241,9 +241,11 @@
 - [ ] Test AI prompt quality and tune system boundaries to prevent hallucination.
 - [ ] Rigorously check file extraction pipelines against large or multi-page documents.
 - [ ] Verify rate limit fallback middleware functions flawlessly under artificial heavy loads.
+- [ ] Implement AI chat / conversation history persistence endpoint (`GET /api/notebooks/:notebookId/chat/history`) and schema models to store past chat sessions and messages per notebook.
 
 #### Frontend 1 (UI/UX)
 - [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [ ] Make AI Chat / conversation history drawer fully functional (render saved conversation sessions, session selection, and new session creation).
 - [ ] **Homepage Redesign**: Build a minimal and clean dashboard layout focused on reducing clutter.
   - Prioritize "Urgent Tasks" at the very top of the screen (max 3 items to maintain a clean aesthetic).
   - Add a highly condensed, scrolling "Today's Timeline" for classes and events.
@@ -258,6 +260,7 @@
 - [ ] **Retroactive UI/UX Redesign**: Audit and redesign all UI components, modals, and screens built in Weeks 1 through 3 to ensure they are visually consistent with the premium design standards established in Week 4.
 
 #### Frontend 2 (State & Integration)
+- [ ] Connect the AI Chat conversation history API & store to `ChatHistoryDrawer`, loading past session message streams dynamically upon selection.
 - [ ] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
 
 ---

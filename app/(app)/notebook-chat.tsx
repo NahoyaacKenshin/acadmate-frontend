@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -51,6 +52,31 @@ export default function NotebookChatScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
     }
   }, [messages, isLoading]);
+
+  // ── Handle Back Navigation ────────────────────────────────────────────────
+  const handleBack = useCallback(() => {
+    if (isHistoryOpen) {
+      setIsHistoryOpen(false);
+      return true;
+    }
+    if (notebookId) {
+      router.replace({
+        pathname: '/(app)/notebook/[id]' as any,
+        params: { id: notebookId, title: notebookTitle ?? 'Notebook' },
+      });
+    } else {
+      router.replace('/(app)/notebook' as any);
+    }
+    return true;
+  }, [router, notebookId, notebookTitle, isHistoryOpen]);
+
+  useEffect(() => {
+    const backSubscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleBack
+    );
+    return () => backSubscription.remove();
+  }, [handleBack]);
 
   // ── Send a message ────────────────────────────────────────────────────────
   const handleSend = useCallback(
@@ -136,7 +162,7 @@ export default function NotebookChatScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
+        <Pressable style={styles.backBtn} onPress={handleBack} hitSlop={8}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
 
