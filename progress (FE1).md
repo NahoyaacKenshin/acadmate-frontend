@@ -430,3 +430,16 @@ px tsc --noEmit passes with zero errors across all new files.
   - **Offline Resilience**: Integrated with systemStore's isOnline flag. Chat operations gracefully block and error out when the device loses network connectivity, preserving the user experience.
   - **UI Refactoring** (
 otebook-chat.tsx): Replaced local state arrays with useChatStore. Simplified message flow and explicitly handled the loading/typing states natively through the store.
+
+## 2026-08-10
+- **Backend (Week 7) - AI Chat History Persistence, RAG Prompt Tuning, Resiliency**:
+  - **Prisma Schema** (prisma/schema.prisma): Added ChatRole enum (USER, ASSISTANT), ChatSession model (scoped per notebook + user, title derived from first user message, cascade delete), and ChatMessageHistory model (role, content, JSON citations field). Added chatSessions relation on Notebook and User models. Applied via 
+px prisma db push against Neon Postgres. Regenerated Prisma client with 
+pm run db:generate.
+  - **NotebookChatHistoryService** (src/services/notebook-chat-history.service.ts): New service class managing createSession, ppendMessage, listSessions, getSessionMessages, and deleteSession. Handles ownership validation on all read/delete operations. JSON citation field cast safely via s unknown as ChatCitation[].
+  - **Notebook Chat Controller** (src/controllers/notebook-chat.controller.ts): Full rewrite. POST /api/notebooks/:notebookId/chat now accepts optional sessionId in request body, auto-creates or reuses a validated ChatSession, persists the user message before RAG execution, and persists the AI reply + citations after. Returns sessionId in response. New handlers: listHistory (GET .../chat/history), getSession (GET .../chat/history/:sessionId), deleteSession (DELETE .../chat/history/:sessionId). Legacy history alias preserved for backward compatibility.
+  - **RAG System Prompt Tuning** (src/services/rag.service.ts): Rewrote uildSystemPrompt() with 5 numbered strict rules — context-only grounding, exact refusal phrasing when information is absent, explicit prohibition of fabricated facts, file citation guidance, and educational tone. Calls generateWithFallback(..., 0.2) to set temperature 0.2 for more deterministic, hallucination-resistant responses.
+  - **Gemini Utility** (src/utils/gemini.ts): Added optional 	emperature parameter (default 1.0) to generateWithFallback. Passed via generationConfig: { temperature } to each model in the cascade chain. Logs selected temperature per attempt.
+  - **Routes** (src/routes/notebook.routes.ts): Registered GET /:notebookId/chat/history, GET /:notebookId/chat/history/:sessionId, and DELETE /:notebookId/chat/history/:sessionId above POST /:notebookId/chat to avoid Express route shadowing. All four routes protected by AuthMiddleware.
+  - **TypeScript**: 
+pm run typecheck passes with zero errors.

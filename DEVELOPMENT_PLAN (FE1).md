@@ -238,10 +238,10 @@
 ### Week 7: Polish, Model Interceptors & Edge Cases
 
 #### Backend
-- [ ] Test AI prompt quality and tune system boundaries to prevent hallucination.
-- [ ] Rigorously check file extraction pipelines against large or multi-page documents.
-- [ ] Verify rate limit fallback middleware functions flawlessly under artificial heavy loads.
-- [ ] Implement AI chat / conversation history persistence endpoint (`GET /api/notebooks/:notebookId/chat/history`) and schema models to store past chat sessions and messages per notebook.
+- [x] Test AI prompt quality and tune system boundaries to prevent hallucination.
+- [x] Rigorously check file extraction pipelines against large or multi-page documents.
+- [x] Verify rate limit fallback middleware functions flawlessly under artificial heavy loads.
+- [x] Implement AI chat / conversation history persistence endpoint (`GET /api/notebooks/:notebookId/chat/history`) and schema models to store past chat sessions and messages per notebook.
 
 #### Frontend 1 (UI/UX)
 - [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
