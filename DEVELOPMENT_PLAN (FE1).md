@@ -250,10 +250,12 @@
   - Prioritize "Urgent Tasks" at the very top of the screen (max 3 items to maintain a clean aesthetic).
   - Add a highly condensed, scrolling "Today's Timeline" for classes and events.
   - Add a premium "AI Study Hub" quick-access button section.
-- [ ] Add sleek confirmation modals for destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
+- [ ] Add sleek confirmation modals for all destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
 - [ ] Add onboarding/introductory screens for new users highlighting key features and benefits.
-- [ ] Clean up duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header).
+- [ ] Clean up all duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header and adjust spaces).
 - [ ] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
+- [ ] **Animated Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `splash-icon` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
+- [ ] **Main Logo Integration**: Integrate the official main AcadMate logo (`assets/images/logo.png`) across key branding points in the app (e.g., auth/login screens, onboarding header, and navigation sidebar/header).
 - [ ] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
 - [ ] Resolve visual alignment bugs and inconsistencies across all newly built components.
 - [ ] **Code Refactoring**: Break down excessively large files (e.g., `calendar.tsx`, `schedule-upload.tsx`, `ParsedItemRow.tsx`) into smaller, reusable UI components and extract logic to custom hooks.
@@ -269,19 +271,27 @@
 
 **Goal:** Ensure users never miss a milestone using 100% offline, locally-scheduled push notifications that trigger independently of network status.
 
-### Week 8: Local Notification Orchestration
+### Week 8: Local Notification Orchestration & Study Reminders
 
 #### Frontend 1 (UI/UX)
 - [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
-- [ ] Build Notification Settings management layout (toggles for event reminders, task reminders).
-- [ ] Design custom in-app notification pop-ups/toasts for foreground alerts.
+- [ ] **Notification Settings Screen**: Build a clean preferences layout with granular toggles (Class Reminders, Task Due Reminders, Exam Alerts, and Notebook Study Reminders).
+- [ ] **Notebook Study & Review Scheduler Modal**: Design a sleek modal in the Notebook viewer/editor allowing students to schedule a dedicated study session or spaced-repetition review (with date-time picker, reminder lead-time selection, and custom study note prompt).
+- [ ] **In-App Toast Banner**: Design custom top-floating banner alerts for foreground notifications when the app is currently open.
 
 #### Frontend 2 (State & Integration)
-- [ ] Set up `expo-notifications` and handle user permission configurations.
-- [ ] Implement **Local Offline Reminders**:
-  - Whenever local PowerSync database listeners detect a newly synced task/event (or when an item is created locally), natively schedule a companion notification alert (e.g., 1 hour before due time) using `scheduleNotificationAsync`.
-  - Automatically cancel old local notifications and reschedule when a task date changes.
-- [ ] Configure notification response listeners to deep-link the user straight to the target screen upon tap (injecting type identifiers like `{"type": "task", "id": "xxx"}`).
+- [ ] Set up `expo-notifications` with native android channel configurations and handle user permission request flows.
+- [ ] **Comprehensive Local Offline Reminders Engine**:
+  - Automatically schedule companion local notifications (`scheduleNotificationAsync`) across all core features:
+    - **Class Schedules**: Recurring notifications before upcoming classes (e.g., 15 mins before start time).
+    - **Tasks & Exams**: Due-date alerts (e.g., 1 day before & 1 hour before due time).
+    - **Notebook Study Sessions**: Scheduled study/review reminders created from notebooks.
+  - Automatically cancel and reschedule notifications when tasks, class times, or study sessions are updated or deleted.
+- [ ] **Notebook Study Scheduler Integration**: Connect the Notebook Study & Review modal to PowerSync / local notifications engine to schedule study alerts linked directly to that specific notebook.
+- [ ] **Notification Deep-Linking**: Configure notification response tap handlers to deep-link directly to target screens:
+  - Tapping a class notification -> opens **Schedule / Class Detail**.
+  - Tapping a task/exam notification -> opens **Task Detail**.
+  - Tapping a notebook study notification -> opens the specific **Notebook & AI Chat**.
 
 ---
 
