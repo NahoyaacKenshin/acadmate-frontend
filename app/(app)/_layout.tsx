@@ -15,6 +15,7 @@ export default function AppLayout() {
     <>
       <Tabs
         screenOptions={{
+          headerShown: false,
           headerStyle: {
             backgroundColor: '#10131C',
           },

@@ -6,6 +6,8 @@ import { Button } from '@/src/components/ui/button';
 import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff } from 'lucide-react-native';
 
+import { Image } from 'react-native';
+
 export function LoginForm() {
   const router = useRouter();
   const { login, isLoading, error, clearError } = useAuthStore();
@@ -28,10 +30,15 @@ export function LoginForm() {
 
   return (
     <View className="flex-1 justify-center bg-background px-8">
-      <View className="mb-10 items-center">
-        <Text className="text-4xl font-bold text-foreground font-sans">Welcome Back</Text>
-        <Text className="mt-3 text-center text-base text-muted-foreground font-sans">
-          Log in to continue your journey with Acadmate.
+      <View className="mb-8 items-center">
+        <Image
+          source={require('../../../../assets/images/logo.png')}
+          style={{ width: 90, height: 90, marginBottom: 12 }}
+          resizeMode="contain"
+        />
+        <Text className="text-3xl font-bold text-foreground font-sans">Welcome Back</Text>
+        <Text className="mt-2 text-center text-sm text-muted-foreground font-sans">
+          Log in to continue your journey with AcadMate.
         </Text>
       </View>
 

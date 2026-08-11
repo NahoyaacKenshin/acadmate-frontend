@@ -135,17 +135,31 @@ export const ApiService = {
 
   // --- Notebook Chat (RAG) ---
   chat: {
-    send: async (notebookId: string, message: string) => {
+    send: async (notebookId: string, message: string, sessionId?: string | null) => {
       const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, sessionId: sessionId ?? undefined }),
       });
       return handleResponse(response);
     },
     history: async (notebookId: string) => {
       const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history`, {
         method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    getSession: async (notebookId: string, sessionId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history/${sessionId}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    deleteSession: async (notebookId: string, sessionId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history/${sessionId}`, {
+        method: 'DELETE',
         headers: getHeaders(),
       });
       return handleResponse(response);

@@ -443,3 +443,20 @@ pm run db:generate.
   - **Routes** (src/routes/notebook.routes.ts): Registered GET /:notebookId/chat/history, GET /:notebookId/chat/history/:sessionId, and DELETE /:notebookId/chat/history/:sessionId above POST /:notebookId/chat to avoid Express route shadowing. All four routes protected by AuthMiddleware.
   - **TypeScript**: 
 pm run typecheck passes with zero errors.
+
+## 2026-08-11
+- **Frontend 1 & 2 (Week 7) — AI Chat History Integration**:
+  - **API Service** (src/services/api.ts): Updated ApiService.chat.send to accept optional sessionId. Added getSession (GET /api/notebooks/:notebookId/chat/history/:sessionId) and deleteSession (DELETE /api/notebooks/:notebookId/chat/history/:sessionId) methods targeting backend Week 7 persistence endpoints.
+  - **Chat Store** (src/store/chatStore.ts): Added sessionId, sessions[], etchSessions, loadSession, and deleteSession actions. Handled automatic sessionId assignment on new message sending and session switching.
+  - **ChatHistoryDrawer** (src/components/notebook/chat/ChatHistoryDrawer.tsx): Updated to map real sessions data (title, preview message, relative timestamp, message count). Added interactive session row press handler and inline deleteBtn to delete chat sessions.
+  - **Notebook Chat Screen** (pp/(app)/notebook-chat.tsx): Connected ChatHistoryDrawer directly to chatStore. Fetches session history dynamically, loads past conversation threads into the view on selection, and supports prompt clearing for new conversations.
+
+
+- **Frontend 1 (Week 7) - Polish, Redesign, Branding & UI/UX Audit**:
+  - **Homepage Redesign** (pp/(app)/index.tsx): Rebuilt main student dashboard with a greeting hero header, offline/online live dot indicator, quick stats bar (Pending Tasks, Classes Today, Events Today), an Urgent Tasks strip (top 3 overdue/due-today tasks from PowerSync with subject color accents & status badges), a horizontally scrolling Today Timeline (merging classes & events sorted by start time), and an AI Study Hub 2x2 action card grid (Ask AI, Upload Material, Scan Schedule, Notebooks). Runs 100% offline from local PowerSync streams with zero REST API calls.
+  - **Reusable Confirmation Modal** (src/components/common/ConfirmModal.tsx): Created a sleek bottom-sheet confirmation modal supporting danger, warning, and info variants with Reanimated ZoomIn/ZoomOut transitions. Integrated into 	asks.tsx for task deletions.
+  - **Splash Screen Polish & Animated Transition** (pp.json, pp/_layout.tsx): Configured static dark background splash (#10131C) with official logo in pp.json. Built a smooth custom animated splash overlay in RootLayout featuring a logo pulse scale followed by a gentle fade-zoom transition into the main dashboard.
+  - **Main Logo Integration** (src/features/auth/components/LoginForm.tsx, src/features/auth/components/SignupForm.tsx): Integrated the official AcadMate logo (ssets/images/logo.png) prominently on login and signup screens.
+  - **Intro / Onboarding Carousel** (pp/intro.tsx): Built a multi-slide feature highlight onboarding screen for fresh users showcasing Smart Academic Scheduling, AI Study Notebook, and 100% Offline Sync with animated slide transitions and skip/continue controls.
+  - **Page Title Cleanup & Header Alignment** (pp/(app)/_layout.tsx): Disabled duplicate native headers (headerShown: false) across main tab screens to establish the in-screen custom headers as the single source of truth.
+  - **Retroactive UI/UX Audit & Refactoring**: Audited all screen padding, card borders, badge typography, and visual alignments across tasks, calendar, settings, and auth forms.

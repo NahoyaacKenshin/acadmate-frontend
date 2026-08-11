@@ -43,29 +43,43 @@ function formatRelativeDate(date: Date): string {
 function SessionRow({
   session,
   onPress,
+  onDelete,
 }: {
   session: ChatSession;
   onPress: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <Pressable
-      style={({ pressed }) => [styles.sessionRow, pressed && styles.sessionRowPressed]}
-      onPress={onPress}
-    >
-      <View style={styles.sessionIcon}>
-        <MessageSquare size={15} color="#6C8EFF" />
-      </View>
-      <View style={styles.sessionContent}>
-        <Text style={styles.sessionPreview} numberOfLines={2}>
-          {session.preview}
-        </Text>
-        <View style={styles.sessionMeta}>
-          <Clock size={10} color="#3A4455" />
-          <Text style={styles.sessionDate}>{formatRelativeDate(session.createdAt)}</Text>
-          <Text style={styles.sessionCount}>{session.messageCount} messages</Text>
+    <View style={styles.sessionRowContainer}>
+      <Pressable
+        style={({ pressed }) => [styles.sessionRow, pressed && styles.sessionRowPressed]}
+        onPress={onPress}
+      >
+        <View style={styles.sessionIcon}>
+          <MessageSquare size={15} color="#6C8EFF" />
         </View>
-      </View>
-    </Pressable>
+        <View style={styles.sessionContent}>
+          <Text style={styles.sessionPreview} numberOfLines={2}>
+            {session.preview}
+          </Text>
+          <View style={styles.sessionMeta}>
+            <Clock size={10} color="#3A4455" />
+            <Text style={styles.sessionDate}>{formatRelativeDate(session.createdAt)}</Text>
+            <Text style={styles.sessionCount}>{session.messageCount} messages</Text>
+          </View>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          hitSlop={8}
+        >
+          <X size={14} color="#64748B" />
+        </Pressable>
+      </Pressable>
+    </View>
   );
 }
 
@@ -76,7 +90,8 @@ export function ChatHistoryDrawer({
   onClose,
   onNewChat,
   onSelectSession,
-}: ChatHistoryDrawerProps) {
+  onDeleteSession,
+}: ChatHistoryDrawerProps & { onDeleteSession?: (session: ChatSession) => void }) {
   // Build a pseudo-session for the current in-progress conversation if it has content
   const currentUserMessages = currentMessages.filter((m) => m.role === 'user');
 
@@ -148,6 +163,7 @@ export function ChatHistoryDrawer({
                     onSelectSession?.(item);
                     onClose();
                   }}
+                  onDelete={() => onDeleteSession?.(item)}
                 />
               )}
               showsVerticalScrollIndicator={false}
@@ -159,7 +175,7 @@ export function ChatHistoryDrawer({
             <MessageSquare size={32} color="#2A3143" />
             <Text style={styles.emptyTitle}>No past conversations</Text>
             <Text style={styles.emptySub}>
-              History persistence is coming in Week 7.
+              Start a conversation with AI to build history.
             </Text>
           </View>
         )}
@@ -240,16 +256,23 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 10,
   },
+  sessionRowContainer: {
+    marginBottom: 8,
+  },
   sessionRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
     backgroundColor: '#161A26',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
     padding: 12,
-    marginBottom: 8,
+  },
+  deleteBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   sessionRowPressed: {
     opacity: 0.75,

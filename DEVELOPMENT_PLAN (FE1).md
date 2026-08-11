@@ -244,25 +244,25 @@
 - [x] Implement AI chat / conversation history persistence endpoint (`GET /api/notebooks/:notebookId/chat/history`) and schema models to store past chat sessions and messages per notebook.
 
 #### Frontend 1 (UI/UX)
-- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
-- [ ] Make AI Chat / conversation history drawer fully functional (render saved conversation sessions, session selection, and new session creation).
-- [ ] **Homepage Redesign**: Build a minimal and clean dashboard layout focused on reducing clutter.
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Make AI Chat / conversation history drawer fully functional (render saved conversation sessions, session selection, and new session creation).
+- [x] **Homepage Redesign**: Build a minimal and clean dashboard layout focused on reducing clutter.
   - Prioritize "Urgent Tasks" at the very top of the screen (max 3 items to maintain a clean aesthetic).
   - Add a highly condensed, scrolling "Today's Timeline" for classes and events.
   - Add a premium "AI Study Hub" quick-access button section.
-- [ ] Add sleek confirmation modals for all destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
-- [ ] Add onboarding/introductory screens for new users highlighting key features and benefits.
-- [ ] Clean up all duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header and adjust spaces).
-- [ ] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
-- [ ] **Animated Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `splash-icon` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
-- [ ] **Main Logo Integration**: Integrate the official main AcadMate logo (`assets/images/logo.png`) across key branding points in the app (e.g., auth/login screens, onboarding header, and navigation sidebar/header).
-- [ ] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
-- [ ] Resolve visual alignment bugs and inconsistencies across all newly built components.
-- [ ] **Code Refactoring**: Break down excessively large files (e.g., `calendar.tsx`, `schedule-upload.tsx`, `ParsedItemRow.tsx`) into smaller, reusable UI components and extract logic to custom hooks.
-- [ ] **Retroactive UI/UX Redesign**: Audit and redesign all UI components, modals, and screens built in Weeks 1 through 3 to ensure they are visually consistent with the premium design standards established in Week 4.
+- [x] Add sleek confirmation modals for all destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
+- [x] Add onboarding/introductory screens for new users highlighting key features and benefits.
+- [x] Clean up all duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header and adjust spaces).
+- [x] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
+- [x] **Animated Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `splash-icon` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
+- [x] **Main Logo Integration**: Integrate the official main AcadMate logo (`assets/images/logo.png`) across key branding points in the app (e.g., auth/login screens, onboarding header, and navigation sidebar/header).
+- [x] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
+- [x] Resolve visual alignment bugs and inconsistencies across all newly built components.
+- [x] **Code Refactoring**: Break down excessively large files (e.g., `calendar.tsx`, `schedule-upload.tsx`, `ParsedItemRow.tsx`) into smaller, reusable UI components and extract logic to custom hooks.
+- [x] **Retroactive UI/UX Redesign**: Audit and redesign all UI components, modals, and screens built in Weeks 1 through 3 to ensure they are visually consistent with the premium design standards established in Week 4.
 
 #### Frontend 2 (State & Integration)
-- [ ] Connect the AI Chat conversation history API & store to `ChatHistoryDrawer`, loading past session message streams dynamically upon selection.
+- [x] Connect the AI Chat conversation history API & store to `ChatHistoryDrawer`, loading past session message streams dynamically upon selection.
 - [ ] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
 
 ---

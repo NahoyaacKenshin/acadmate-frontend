@@ -41,10 +41,55 @@ export default function NotebookChatScreen() {
     useLocalSearchParams<{ id: string; title: string }>();
   const { isOnline } = useSystemStore();
 
-  const { messages, isLoading, sendMessage, clearMessages } = useChatStore();
+  const { messages, sessionId, sessions, isLoading, sendMessage, fetchSessions, loadSession, deleteSession, clearMessages } = useChatStore();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+
+  // Fetch session history when drawer opens or screen mounts
+  useEffect(() => {
+    if (notebookId) {
+      fetchSessions(notebookId);
+    }
+  }, [notebookId, fetchSessions]);
+
+  const handleOpenHistory = useCallback(() => {
+    if (notebookId) {
+      fetchSessions(notebookId);
+    }
+    setIsHistoryOpen(true);
+  }, [notebookId, fetchSessions]);
+
+  const handleSelectSession = useCallback(
+    async (session: any) => {
+      if (!notebookId || !session?.id) return;
+      await loadSession(notebookId, session.id);
+    },
+    [notebookId, loadSession]
+  );
+
+  const handleDeleteSession = useCallback(
+    (session: any) => {
+      if (!notebookId || !session?.id) return;
+      Alert.alert('Delete Conversation', 'Are you sure you want to delete this session?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteSession(notebookId, session.id),
+        },
+      ]);
+    },
+    [notebookId, deleteSession]
+  );
+
+  // Format sessions for drawer
+  const formattedSessions = sessions.map((s: any) => ({
+    id: s.id,
+    preview: s.title || s.messages?.[0]?.content || 'Chat Session',
+    messageCount: s._count?.messages || s.messages?.length || 0,
+    createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
+  }));
 
   // Auto-scroll to bottom on new messages or typing indicator
   useEffect(() => {
@@ -89,10 +134,10 @@ export default function NotebookChatScreen() {
 
   // ── New chat ──────────────────────────────────────────────────────────────
   const handleNewChat = useCallback(() => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 && !sessionId) return;
     Alert.alert(
       'Start New Conversation',
-      'This will clear the current conversation. Continue?',
+      'This will clear the active conversation in view. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -102,7 +147,7 @@ export default function NotebookChatScreen() {
         },
       ]
     );
-  }, [messages, clearMessages]);
+  }, [messages, sessionId, clearMessages]);
 
   // ── Suggestion chip handler ───────────────────────────────────────────────
   const handleChipPress = (chip: string) => {
@@ -186,7 +231,7 @@ export default function NotebookChatScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.historyBtn, pressed && { opacity: 0.7 }]}
-          onPress={() => setIsHistoryOpen(true)}
+          onPress={handleOpenHistory}
           hitSlop={8}
         >
           <History size={18} color="#6C8EFF" />
@@ -223,10 +268,12 @@ export default function NotebookChatScreen() {
       {/* ── History drawer ── */}
       <ChatHistoryDrawer
         visible={isHistoryOpen}
-        sessions={[]} // stub — Week 7 will persist sessions
+        sessions={formattedSessions}
         currentMessages={messages}
         onClose={() => setIsHistoryOpen(false)}
         onNewChat={handleNewChat}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
       />
     </SafeAreaView>
   );

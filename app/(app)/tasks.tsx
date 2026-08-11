@@ -13,6 +13,8 @@ import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useSubjects } from '@/src/hooks/useSubjects';
 
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
+
 export default function TasksScreen() {
   const powerSync = usePowerSync();
   const { tasks, isLoading } = useTasks();
@@ -20,6 +22,7 @@ export default function TasksScreen() {
 
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+  const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
   const handleCompleteTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
@@ -38,11 +41,18 @@ export default function TasksScreen() {
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const handleDeleteTask = (id: string) => {
+    setTaskToDeleteId(id);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDeleteId) return;
     try {
-      await powerSync.execute(`DELETE FROM Task WHERE id = ?`, [id]);
+      await powerSync.execute(`DELETE FROM Task WHERE id = ?`, [taskToDeleteId]);
     } catch (err) {
       console.error('[Tasks] Delete failed:', err);
+    } finally {
+      setTaskToDeleteId(null);
     }
   };
 
@@ -117,6 +127,16 @@ export default function TasksScreen() {
           task={editingTask}
           subjects={subjects}
           onClose={() => setEditingTask(null)}
+        />
+
+        <ConfirmModal
+          visible={taskToDeleteId !== null}
+          title="Delete Task?"
+          description="Are you sure you want to delete this task? This action cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={confirmDeleteTask}
+          onCancel={() => setTaskToDeleteId(null)}
         />
       </SafeAreaView>
     </GestureHandlerRootView>
