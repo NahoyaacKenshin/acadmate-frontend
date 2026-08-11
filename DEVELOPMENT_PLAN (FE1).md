@@ -1,0 +1,311 @@
+```markdown
+# AcadMate — Full Project Development Plan (Revised)
+
+> **Timeline:** 3 Months (10 Weeks)
+> **Team:** 3 Members (1 Backend, 2 Frontend)
+> **Start Date:** Week of June 23, 2026
+
+---
+
+## Team Roles
+
+| Role | Responsibility |
+|---|---|
+| **Backend Developer (You)** | Database architecture (Prisma/Neon Postgres), REST API development, AI pipelines (Gemini), file storage (Supabase), PowerSync configuration & JWT auth, Expo push notifications server-side. |
+| **Frontend Developer 1 (UI/UX)** | Screen design & layout, navigation, UI components, animations, and visual polish, Using Uniwind and React Native Reusables. |
+| **Frontend Developer 2 (State & Integration)** | Zustand state management, API service layer (Write-path), PowerSync/SQLite local queries (Read-path), Expo Notifications client-side, file upload logic. |
+
+---
+
+## Technology Decisions (Locked In)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| **AI Provider** | Google Gemini (Free tier models) | Free, generous rate limits. Can rotate between `gemini-2.0-flash` and `gemini-2.5-flash` when one exhausts. |
+| **File Storage** | Supabase Storage (Free tier) | 1GB storage, 2GB bandwidth/month. No credit card. Dead-simple SDK. |
+| **Vector Database** | pgvector on Neon Postgres | Already using Neon — just enable the extension. No extra service to manage. |
+| **Push Notifications** | Expo Notifications (`expo-notifications`) | Handles FCM/APNs under the hood. Simple token-based API. No Firebase setup needed. |
+| **Offline Sync** | PowerSync + SQLite | Installed in the frontend. Syncs local SQLite ↔ Neon Postgres automatically. |
+
+---
+
+## Phase 1: Foundation, PowerSync & To-Do List (Weeks 1–2, June 23, 2026 - July 6, 2026)
+
+**Goal:** Establish the offline-first architecture day one, authenticate clients, and implement a fully synchronized task manager.
+
+### Week 1: Project Setup, PowerSync Sync Rules & Core Architecture
+
+#### Backend
+- [x] Finalize Prisma schema for `User`, `Token`, `Subject`, `Task`.
+- [x] Generate and apply database migrations.
+- [x] Connect PowerSync Cloud to Neon Postgres and define initial **Sync Rules** for `tasks` and `subjects`.
+- [x] Implement the PowerSync JWT authentication endpoint (`/api/auth/powersync-token`) to securely authorize clients.
+- [x] Build **Write-Path** REST APIs for Subjects (`POST/PUT/DELETE /api/subjects`).
+- [x] Build **Write-Path** REST APIs for Tasks (`POST/PUT/DELETE /api/tasks`).
+- [x] Document strict JSON response contracts for all endpoints (including mocked AI schemas) in Postman/Thunder Client for the frontend team.
+
+#### Frontend 1 (UI/UX)
+- [x] Finalize the app's design system: color palette, typography, spacing, component library.
+- [x] Build the bottom tab navigation layout (Home, Calendar, Tasks, Notebook, Settings).
+- [x] Design the Login and Signup screens (polish existing ones).
+
+#### Frontend 2 (State & Integration)
+- [x] Initialize PowerSync client SDK with the local SQLite database matching the Postgres schema.
+- [x] Set up a centralized API service layer (`src/services/api.ts`) dedicated exclusively to **Write operations**.
+- [x] Implement Zustand stores for auth state and system statuses.
+- [x] Connect the Login/Signup screens to the backend API.
+- [x] Establish the local PowerSync stream reader context so UI components can subscribe to local data immediately.
+
+---
+
+### Week 2: Task Manager Feature (Native Offline-First)
+
+#### Backend
+- [x] Add backend validation for task edge cases (empty titles, invalid dates, duplicate subjects).
+- [x] Add a `GET /api/tasks/stats` analytical endpoint (total tasks, completed count, overdue count).
+
+#### Frontend 1 (UI/UX)
+- [x] Build the main Task List screen (subscribing to the local PowerSync SQLite database, grouped by subject, color-coded).
+- [x] Build the "Add Task" bottom sheet / modal (title, description, due date picker, subject selector).
+- [x] Build the "Edit Task" screen.
+- [x] Implement swipe-to-complete and swipe-to-delete gestures with animations.
+
+#### Frontend 2 (State & Integration)
+- [x] Bind the Task List UI directly to local PowerSync reactive queries (Reads require zero REST API calls).
+- [x] Connect Add/Edit/Delete Task actions to the backend Write REST API.
+- [x] Implement optimistic local UI updates if necessary, allowing PowerSync to reconcile downstream changes automatically.
+- [x] Test offline scenarios: create tasks offline $\rightarrow$ verify local database updates instantly $\rightarrow$ go online $\rightarrow$ verify upstream sync to Neon.
+
+---
+
+## Phase 2: Calendar & Scheduler (Weeks 3–4, July 7, 2026 - July 20, 2026)
+
+**Goal:** Build a calendar supporting automated local streams, Philippine holiday awareness, and AI-powered schedule parsing from uploaded documents.
+
+### Week 3: Calendar Core & Holidays
+
+#### Backend
+- [x] Design and migrate Prisma schema for `ClassSchedule` (recurring classes with Set A/B, F2F/Online) and `CalendarEvent` (one-off non-academic events).
+- [x] Update PowerSync Sync Rules to include `class_schedules` and `calendar_events`.
+- [x] Build Write-path REST APIs for ClassSchedules (`POST/PUT/DELETE /api/class-schedules`) and CalendarEvents (`POST/PUT/DELETE /api/events`).
+- [x] Seed a `philippine_holidays` table with official PH holidays (2026–2027) or integrate a public holidays API.
+- [x] Create a `GET /api/holidays?year=2026` cacheable endpoint.
+
+#### Frontend 1 (UI/UX)
+- [x] Build the Calendar screen with Monthly view (dots indicating events on each day).
+- [x] Build the Day view (list of events for a selected day).
+- [x] Build the "Add Event" modal (title, start/end time pickers, optional subject link).
+- [x] Build the "Add Class Schedule" manual entry modal (recurring day, time, modality, set type).
+- [x] Render Philippine holidays as special markers on the calendar.
+
+#### Week 3 Refinements (Data Model & UI Enhancements)
+- [x] **Backend**: Update `ClassSchedule` in `schema.prisma` to include `startDate` and `endDate` (DateTime). Run Prisma migrations, update Zod validation schemas (`src/schema/class-schedule.ts`), and update PowerSync sync rules/schema definitions.
+- [x] **Frontend 1**: Update `AddClassSheet` UI to include Start Date and End Date pickers (so classes don't recur infinitely).
+- [x] **Backend**: Create an `ExamWeek` model in Prisma (with title, startDate, endDate) to represent global semester exams (Prelims, Midterms, etc.), run migrations, and update PowerSync Sync Rules to sync exam weeks to clients.
+- [x] **Frontend 1**: Build an "Add Exam Week" UI/modal inside "Add Class" sheet to let users define global exam date ranges.
+- [x] **Frontend 1**: Update `isScheduleActiveOnDate` in `scheduleUtils.ts` to query local `ExamWeek` records, return false if a class falls on an exam week, and subtract the number of past exam weeks from the `diffWeeks` calculation so Set A and Set B alternating classes resume correctly.
+
+
+#### Frontend 2 (State & Integration)
+- [x] Bind Calendar screen views directly to PowerSync local SQLite query streams, merging `class_schedules`, `calendar_events`, and `tasks` (by dueDate).
+- [x] Fix PowerSync token auto-refresh logic to silently attempt a refresh on 401 instead of blocking sync.
+- [x] Verify all calendar creations/modifications (including `ExamWeek`) are correctly writing locally to PowerSync (`powerSync.execute`).
+- [x] Update backend `sync.controller.ts` to whitelist the `ExamWeek` table in `ALLOWED_TABLES` so that local writes can sync upstream.
+- [x] Build an offline status banner that gracefully alerts the user if cloud features (like AI scheduling) are momentarily unreachable.
+- [x] Fetch Philippine holidays via `GET /api/holidays?year=YYYY` and populate the `PLACEHOLDER_HOLIDAYS` array in `calendar.tsx`.
+
+---
+
+### Week 4: AI Schedule Parsing
+
+#### Backend
+- [x] Set up **Gemini API** integration (`@google/generative-ai` SDK). Install `pdf-parse` and `mammoth` for PDF/DOCX text extraction.
+- [x] Build defensive utility handler to catch `429` rate limit errors and automatically cascade through the model fallback chain: `gemini-2.5-pro` → `gemini-2.5-flash` → `gemini-2.5-flash-lite`. All three models use the same single API key.
+- [x] Build the AI schedule parsing pipeline:
+  1. Accept an uploaded file (PDF, DOCX) or image (Camera/Gallery).
+  2. Extract text from the source format (`pdf-parse` for PDFs, `mammoth` for DOCX, base64 for images via Gemini Vision).
+  3. Attempt parsing with `gemini-pro-latest` first for maximum accuracy. On `429`, cascade to `gemini-flash-latest`, then `gemini-flash-lite-latest` as last resort.
+  4. Send to Gemini with a structured prompt that enforces a JSON schema matching Week 3 models. (Extract `ExamWeek` date ranges, map standard holidays to `CalendarEvent`s, and recurring study loads as `ClassSchedule`s).
+  5. Ensure strict ISO-8601 date formatting validation is applied before returning the payload.
+
+#### Frontend 1 (UI/UX)
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Build the "Upload Schedule" screen supporting file picker and camera capture.
+- [x] Build the "Review Your Schedule" screen — display AI-extracted events in an editable list.
+- [x] Integrate inline subject creation: if the AI detects a new subject, trigger the inline subject creation flow built in Week 3.
+- [x] Add loading/progress animations while AI is reading the document.
+
+#### Frontend 2 (State & Integration)
+- [x] Handle multipart file upload form data and basic text compression client-side.
+- [x] Connect the upload screen to the parse API and handle error boundaries gracefully.
+- [x] Write the returned `ClassSchedule`, `CalendarEvent`, and `ExamWeek` arrays locally via `powerSync.execute()` (optimistic offline-first) rather than direct POST requests.
+
+#### Week 4 Additional Tasks (Deep Editing Capabilities)
+- [x] **Frontend 1 (UI/UX)**: Build deep inline editing for the "Review Your Schedule" screen (`schedule-confirm.tsx`). Users must be able to tap on any parsed item (`ClassSchedule`, `CalendarEvent`, `ExamWeek`) to open a dedicated edit sheet/modal to fix AI hallucinations.
+- [x] **Frontend 1 (UI/UX)**: Re-use or adapt existing form components (like `AddClassSheet`, `AddEventSheet`) to let users modify titles, start/end dates, times, and recurrence rules before finalizing.
+- [x] **Frontend 2 (State & Integration)**: Update the temporary `parsedData` state in memory when a user saves their edits, ensuring the list reflects changes *before* committing to PowerSync.
+
+#### Week 4 Additional Tasks (Admin System & Set A/B Scheduling Logic)
+- [x] **Backend**: Update Prisma `User` model with `role` Enum (`STUDENT`, `ADMIN`). Create global config models (`SemesterRule`, `ProgramMapping`, `Holiday`). Update PowerSync sync rules to sync these global tables to all clients (read-only for students).
+- [x] **Backend**: Update the Gemini AI parsing pipeline. The prompt should receive the user's Set (A or B) and extract only the relevant room for that set from the class schedule image, keeping the `ClassSchedule` database model simple (single `room` field).
+- [x] **Frontend 1 (UI/UX)**: Build a hidden "Admin Dashboard" accessible only if `user.role === 'ADMIN'`. This includes UI for defining the Semester's alternating Set A/B schedules, Exam Weeks, Holidays, and viewing comprehensive analytics (e.g., total user count, active tasks, scanned schedules, user distribution by program).
+  - *Requirement*: Strictly utilize modular React components to prevent massive, unmaintainable files (avoid long lines of code).
+  - *Requirement*: Adhere strictly to established UI/UX standards (spacing, typography, feedback states) matching the rest of the application.
+- [x] **Frontend 1 (UI/UX)**: Add "Department/Program Selection" to both the Initial Onboarding Flow (mandatory) and the Settings Screen (editable).
+- [x] **Frontend 2 (State & Integration)**: Create `scheduleResolver.ts` utility. This function dynamically merges the student's personal `ClassSchedule` with the global `SemesterRule` and `Holiday` tables from the local PowerSync database to determine if a specific date is Face-to-Face or Online.
+- [x] **Frontend 2 (State & Integration)**: Bind the new global tables to the PowerSync stream so the calendar UI reacts instantly to any Admin changes.
+
+#### Week 4 Additional Tasks (Dynamic Programs & Admin-Only Exam Weeks)
+- [x] **Frontend 1 & 2**: Wipe out hardcoded programs list in Onboarding (`app/onboarding.tsx`) and Settings (`app/(app)/settings.tsx`). Populate options dynamically from admin-created `ProgramMapping` local database entries.
+- [x] **Frontend 1 & 2**: Restrict `ExamWeek` creation and editing capabilities exclusively to users with `user.role === 'ADMIN'`. Remove "Add Exam Week" from student Calendar options (`app/(app)/calendar.tsx`) and disable/omit exam week modification during schedule scan confirmation (`app/(app)/schedule-confirm.tsx`).
+
+#### Week 4 Additional Tasks (Auth Flow, Onboarding Routing & Admin Portal Layout)
+- [x] **Frontend 1 & 2 (Student Onboarding Routing)**: Redirect fresh student users to the mandatory Onboarding flow (`app/onboarding.tsx`) immediately upon login/signup if onboarding has not been completed.
+- [x] **Frontend 1 & 2 (Admin Routing & Dedicated Portal Layout)**: Prevent `ADMIN` role users from encountering student onboarding. Automatically redirect admins to a dedicated Admin layout containing admin management tabs (Analytics, Saturday Rules, Program Mappings, Exam Weeks, Holidays) rather than student tabs (Home, Calendar, Tasks, Notebook).
+- [x] **Frontend 1 & 2 (Auth Error State Clearing)**: Reset auth error state banners (e.g., "Invalid credentials") whenever switching between Login and Signup screens.
+- [x] **Frontend 1 & 2 (Admin Editing & Direct API Sync)**: Added edit buttons (`Pencil` icon) to edit existing Program Mappings and Saturday Rules via `PUT` endpoints. Integrated direct API fallback fetching to ensure newly created/updated mappings and rules display on screen immediately.
+
+#### Week 4 Additional Tasks (Blockers Fix, Universal Dates, Feature-Scoped Admin AI Scanners & Student Exam Schedule Filtering)
+- [x] **Fix Calendar Blockers**: Debug and fix Exam Week, Special Holidays, and Class Suspensions blockers so they correctly block/override class schedules on affected dates.
+- [x] **Universal Start & End Date Setter in Parsed Schedule**: Add an optional universal start and end date input controls to the review parsed schedule screen (`schedule-confirm.tsx`). When filled, it overrides each schedule's start and end date; when left blank, individual parsed schedule dates are retained.
+- [x] **Feature-Scoped Admin AI Scanners**: Implement dedicated AI scanners across admin management features (Set A/B, Program Mapping, Exam Weeks, Special Holidays, Suspensions). Each scanner must be strictly tailored to the specific scope of that admin feature and must not extract data outside its scope.
+- [x] **Student Calendar Exam Schedule Scanner Filter**: Enhance the schedule scanner option in the student calendar to handle exam schedules. Ensure it does not pick up multi-day exam weeks (reject multi-day exams) and only accepts single-day/one-off exam schedules.
+
+---
+
+## Phase 3: AI Notebook & Study Tool (Weeks 5–7, July 21, 2026 - August 10, 2026)
+
+**Goal:** Build an isolated knowledge base where users upload materials and safely chat with an AI that references their documents using a RAG pipeline.
+
+### Week 5: File Upload & Automated Processing Pipeline
+
+#### Backend
+- [x] Set up **Supabase Storage** bucket (`notebook-sources`) for user-uploaded files (PDFs, images, DOCX, text).
+- [x] Design and migrate Prisma schema: `Notebook`, `Source` (with `SourceFileType` & `SourceStatus` enums), `SourceChunk` (pgvector `vector(768)`). Applied via `prisma db push`. `pgvector` enabled on Neon.
+- [x] Build full Notebook CRUD API (`GET/POST /api/notebooks`, `GET/DELETE /api/notebooks/:id`) — protected by `AuthMiddleware`.
+- [x] Build `POST /api/notebooks/:notebookId/sources` file upload endpoint (multer memory-storage, 20MB limit, PDF/DOCX/TXT/image).
+- [x] Build `DELETE /api/notebooks/:notebookId/sources/:sourceId` — deletes from Supabase Storage and cascades DB rows.
+- [x] Implement combined, asynchronous background processing workflow (fires after upload returns `201`):
+  1. Extract text: PDF → `pdf-parse`, DOCX → `mammoth`, Image → Gemini Vision OCR, TXT → raw buffer.
+  2. Normalize text (strip non-printable chars, collapse whitespace/blank lines).
+  3. Chunk text into overlapping ~500-word segments (50-word overlap).
+  4. Generate 768-dimensional embeddings via Gemini `text-embedding-004` for each chunk.
+  5. Batch-insert `SourceChunk` rows with pgvector embeddings via `prisma.$executeRaw`.
+  6. Update `Source.status` to `READY` (or `FAILED` on error), persist `rawText`.
+- [x] Added `generateEmbedding()` to `src/utils/gemini.ts` using `text-embedding-004`.
+- [x] Created `src/lib/supabase.ts` — service-role Supabase client singleton.
+- [x] Registered `router.use("/notebooks", notebookRoutes)` in `src/routes/index.ts`.
+- [x] TypeScript type-checked (`tsc --noEmit`) — **zero errors**.
+
+#### Frontend 1 (UI/UX)
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Build the Notebook/Subjects list screen (card-based layout showing material count).
+- [x] Build the "Inside a Notebook" screen (list of uploaded sources: PDFs, images, notes).
+- [x] Build file upload UI components with native progress bars.
+- [x] Build a simple plain-text editor for direct note generation.
+
+#### Frontend 2 (State & Integration)
+- [x] Implement Zustand store for notebooks metadata.
+- [x] Handle file uploading streams, compression, and error states.
+- [x] Render processing/indexing status tags next to documents (e.g., "Processing" -> "Ready").
+
+---
+
+### Week 6: RAG Pipeline & Streaming AI Chat
+
+#### Backend
+- [x] Build the RAG query execution pipeline:
+  1. Receive user question $\rightarrow$ generate embedding vector using `gemini-embedding-001` (768 dims).
+  2. Search pgvector for the top-k most relevant text chunks matching the notebook (cosine distance `<=>`).
+  3. Consolidate context chunks and format a unified grounded system prompt for Gemini.
+- [x] Create `POST /api/notebooks/:notebookId/chat` endpoint — returns AI reply + structured `citations[]`.
+- [x] Create `GET /api/notebooks/:notebookId/chat/history` endpoint (stub, persistence planned for Week 7).
+
+#### Frontend 1 (UI/UX)
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] Build the AI Chat interface (message bubbles, typing indicators, send buttons).
+- [x] Incorporate source citations inside the message bubble UI showing exactly which document the answer came from.
+- [x] Build chat history side-drawers or views.
+
+#### Frontend 2 (State & Integration)
+- [x] Implement Zustand store for message states.
+- [x] Connect chat UI to the query API.
+- [x] Handle UI streaming text assemblies or loading blocks cleanly.
+- [x] Explicitly block/disable input when the device loses network connectivity, prompting an explicit offline notice (RAG requires active connection).
+
+---
+
+### Week 7: Polish, Model Interceptors & Edge Cases
+
+#### Backend
+- [x] Test AI prompt quality and tune system boundaries to prevent hallucination.
+- [x] Rigorously check file extraction pipelines against large or multi-page documents.
+- [x] Verify rate limit fallback middleware functions flawlessly under artificial heavy loads.
+- [x] Implement AI chat / conversation history persistence endpoint (`GET /api/notebooks/:notebookId/chat/history`) and schema models to store past chat sessions and messages per notebook.
+
+#### Frontend 1 (UI/UX)
+- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [ ] Make AI Chat / conversation history drawer fully functional (render saved conversation sessions, session selection, and new session creation).
+- [ ] **Homepage Redesign**: Build a minimal and clean dashboard layout focused on reducing clutter.
+  - Prioritize "Urgent Tasks" at the very top of the screen (max 3 items to maintain a clean aesthetic).
+  - Add a highly condensed, scrolling "Today's Timeline" for classes and events.
+  - Add a premium "AI Study Hub" quick-access button section.
+- [ ] Add sleek confirmation modals for all destructive or major actions (e.g., delete, add, edit) to prevent accidental data loss.
+- [ ] Add onboarding/introductory screens for new users highlighting key features and benefits.
+- [ ] Clean up all duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header and adjust spaces).
+- [ ] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
+- [ ] **Animated Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `splash-icon` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
+- [ ] **Main Logo Integration**: Integrate the official main AcadMate logo (`assets/images/logo.png`) across key branding points in the app (e.g., auth/login screens, onboarding header, and navigation sidebar/header).
+- [ ] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
+- [ ] Resolve visual alignment bugs and inconsistencies across all newly built components.
+- [ ] **Code Refactoring**: Break down excessively large files (e.g., `calendar.tsx`, `schedule-upload.tsx`, `ParsedItemRow.tsx`) into smaller, reusable UI components and extract logic to custom hooks.
+- [ ] **Retroactive UI/UX Redesign**: Audit and redesign all UI components, modals, and screens built in Weeks 1 through 3 to ensure they are visually consistent with the premium design standards established in Week 4.
+
+#### Frontend 2 (State & Integration)
+- [ ] Connect the AI Chat conversation history API & store to `ChatHistoryDrawer`, loading past session message streams dynamically upon selection.
+- [ ] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
+
+---
+
+## Phase 4: Notifications & Reminders (Week 8, Aug 11 – Aug 17, 2026)
+
+**Goal:** Ensure users never miss a milestone using 100% offline, locally-scheduled push notifications that trigger independently of network status.
+
+### Week 8: Local Notification Orchestration & Study Reminders
+
+#### Frontend 1 (UI/UX)
+- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [ ] **Notification Settings Screen**: Build a clean preferences layout with granular toggles (Class Reminders, Task Due Reminders, Exam Alerts, and Notebook Study Reminders).
+- [ ] **Notebook Study & Review Scheduler Modal**: Design a sleek modal in the Notebook viewer/editor allowing students to schedule a dedicated study session or spaced-repetition review (with date-time picker, reminder lead-time selection, and custom study note prompt).
+- [ ] **In-App Toast Banner**: Design custom top-floating banner alerts for foreground notifications when the app is currently open.
+
+#### Frontend 2 (State & Integration)
+- [ ] Set up `expo-notifications` with native android channel configurations and handle user permission request flows.
+- [ ] **Comprehensive Local Offline Reminders Engine**:
+  - Automatically schedule companion local notifications (`scheduleNotificationAsync`) across all core features:
+    - **Class Schedules**: Recurring notifications before upcoming classes (e.g., 15 mins before start time).
+    - **Tasks & Exams**: Due-date alerts (e.g., 1 day before & 1 hour before due time).
+    - **Notebook Study Sessions**: Scheduled study/review reminders created from notebooks.
+  - Automatically cancel and reschedule notifications when tasks, class times, or study sessions are updated or deleted.
+- [ ] **Notebook Study Scheduler Integration**: Connect the Notebook Study & Review modal to PowerSync / local notifications engine to schedule study alerts linked directly to that specific notebook.
+- [ ] **Notification Deep-Linking**: Configure notification response tap handlers to deep-link directly to target screens:
+  - Tapping a class notification -> opens **Schedule / Class Detail**.
+  - Tapping a task/exam notification -> opens **Task Detail**.
+  - Tapping a notebook study notification -> opens the specific **Notebook & AI Chat**.
+
+---
+
+## Phase 5: Final Polish, Testing & Deployment (Weeks 9–10, August 18, 2026 - August 31, 2026)
+
+**Goal:** Complete comprehensive end-to-end multi-device testing, optimize synchronization workflows, and bundle production release APKs.
+
+### Week 9–10: Final Sprint & Presentation Prep
+
+#### All Team Members
+- [ ] Conduct end-to-end user-acceptance testing on physical devices (Android/iOS).
+- [ ] Run rigorous offline-to-online reconciliation testing to verify PowerSync handles complex multi-device edits gracefully.
+- [ ] Run performance audits targeting screen loading performance, excessive local queries, and memory leaks.
+- [ ] Generate a production release build utilizing EAS Build (`eas build --platform android`).
+- [ ] Document project architecture diagrams and build the demonstration pipeline for presentation day.
+
+```
