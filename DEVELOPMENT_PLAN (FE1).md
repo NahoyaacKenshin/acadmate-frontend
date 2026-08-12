@@ -263,7 +263,7 @@
 
 #### Frontend 2 (State & Integration)
 - [x] Connect the AI Chat conversation history API & store to `ChatHistoryDrawer`, loading past session message streams dynamically upon selection.
-- [ ] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
+- [x] Connect the new Homepage UI directly to PowerSync streams (`useTasks`, `useClassSchedules`), filtering in-memory for 'today' to ensure instant 0ms offline loads.
 
 ---
 
@@ -274,21 +274,21 @@
 ### Week 8: Local Notification Orchestration & Study Reminders
 
 #### Frontend 1 (UI/UX)
-- [ ] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
-- [ ] **Notification Settings Screen**: Build a clean preferences layout with granular toggles (Class Reminders, Task Due Reminders, Exam Alerts, and Notebook Study Reminders).
-- [ ] **Notebook Study & Review Scheduler Modal**: Design a sleek modal in the Notebook viewer/editor allowing students to schedule a dedicated study session or spaced-repetition review (with date-time picker, reminder lead-time selection, and custom study note prompt).
-- [ ] **In-App Toast Banner**: Design custom top-floating banner alerts for foreground notifications when the app is currently open.
+- [x] *Requirement*: All tasks must strictly adhere to established UI/UX design standards and componentization.
+- [x] **Notification Settings Screen**: Build a clean preferences layout with granular toggles (Class Reminders, Task Due Reminders, Exam Alerts, and Notebook Study Reminders).
+- [x] **Notebook Study & Review Scheduler Modal**: Design a sleek modal in the Notebook viewer/editor allowing students to schedule a dedicated study session or spaced-repetition review (with date-time picker, reminder lead-time selection, and custom study note prompt).
+- [x] **In-App Toast Banner**: Design custom top-floating banner alerts for foreground notifications when the app is currently open.
 
 #### Frontend 2 (State & Integration)
-- [ ] Set up `expo-notifications` with native android channel configurations and handle user permission request flows.
-- [ ] **Comprehensive Local Offline Reminders Engine**:
+- [x] Set up `expo-notifications` with native android channel configurations and handle user permission request flows.
+- [x] **Comprehensive Local Offline Reminders Engine**:
   - Automatically schedule companion local notifications (`scheduleNotificationAsync`) across all core features:
     - **Class Schedules**: Recurring notifications before upcoming classes (e.g., 15 mins before start time).
     - **Tasks & Exams**: Due-date alerts (e.g., 1 day before & 1 hour before due time).
     - **Notebook Study Sessions**: Scheduled study/review reminders created from notebooks.
   - Automatically cancel and reschedule notifications when tasks, class times, or study sessions are updated or deleted.
-- [ ] **Notebook Study Scheduler Integration**: Connect the Notebook Study & Review modal to PowerSync / local notifications engine to schedule study alerts linked directly to that specific notebook.
-- [ ] **Notification Deep-Linking**: Configure notification response tap handlers to deep-link directly to target screens:
+- [x] **Notebook Study Scheduler Integration**: Connect the Notebook Study & Review modal to PowerSync / local notifications engine to schedule study alerts linked directly to that specific notebook.
+- [x] **Notification Deep-Linking**: Configure notification response tap handlers to deep-link directly to target screens:
   - Tapping a class notification -> opens **Schedule / Class Detail**.
   - Tapping a task/exam notification -> opens **Task Detail**.
   - Tapping a notebook study notification -> opens the specific **Notebook & AI Chat**.

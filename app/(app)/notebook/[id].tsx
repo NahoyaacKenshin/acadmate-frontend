@@ -14,6 +14,7 @@ import { Text } from '@/src/components/ui/text';
 import { SourceListItem, Source } from '@/src/components/notebook/SourceListItem';
 import { UploadSourceSheet } from '@/src/components/notebook/UploadSourceSheet';
 import { NoteEditor } from '@/src/components/notebook/NoteEditor';
+import { StudySchedulerModal } from '@/src/components/notebook/StudySchedulerModal';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/src/config/env';
@@ -27,6 +28,7 @@ import {
   BookOpen,
   RefreshCw,
   MessageSquare,
+  Bell,
 } from 'lucide-react-native';
 
 export default function NotebookDetailScreen() {
@@ -41,6 +43,7 @@ export default function NotebookDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isUploadVisible, setIsUploadVisible] = useState(false);
   const [isNoteEditorVisible, setIsNoteEditorVisible] = useState(false);
+  const [isSchedulerVisible, setIsSchedulerVisible] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
 
@@ -232,6 +235,13 @@ export default function NotebookDetailScreen() {
               <RefreshCw size={16} color="#6C8EFF" />
             </Pressable>
           )}
+          {/* Schedule study session button */}
+          <Pressable
+            style={styles.refreshBtn}
+            onPress={() => setIsSchedulerVisible(true)}
+          >
+            <Bell size={16} color="#A78BFA" />
+          </Pressable>
           {/* Ask AI button */}
           <Pressable
             style={({ pressed }) => [styles.askAiBtn, pressed && { opacity: 0.75 }]}
@@ -319,6 +329,16 @@ export default function NotebookDetailScreen() {
         onClose={() => setIsNoteEditorVisible(false)}
         onSave={handleSaveNote}
       />
+
+      {/* Study Scheduler Modal */}
+      {id && (
+        <StudySchedulerModal
+          visible={isSchedulerVisible}
+          onClose={() => setIsSchedulerVisible(false)}
+          notebookId={id}
+          notebookTitle={notebookTitle ?? 'Notebook'}
+        />
+      )}
     </SafeAreaView>
   );
 }

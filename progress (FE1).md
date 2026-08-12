@@ -460,3 +460,17 @@ pm run typecheck passes with zero errors.
   - **Intro / Onboarding Carousel** (pp/intro.tsx): Built a multi-slide feature highlight onboarding screen for fresh users showcasing Smart Academic Scheduling, AI Study Notebook, and 100% Offline Sync with animated slide transitions and skip/continue controls.
   - **Page Title Cleanup & Header Alignment** (pp/(app)/_layout.tsx): Disabled duplicate native headers (headerShown: false) across main tab screens to establish the in-screen custom headers as the single source of truth.
   - **Retroactive UI/UX Audit & Refactoring**: Audited all screen padding, card borders, badge typography, and visual alignments across tasks, calendar, settings, and auth forms.
+
+
+## $date
+- **Frontend 2 (Week 7 Carry-Over) - Homepage Schedule Resolvers**:
+  - Bound the new homepage index.tsx schedule filtering logic to the robust isScheduleActiveOnDate() calendar utilities. Now, the homepage accurately reflects Set A/B, Exam Weeks, and Holidays for the today-timeline using in-memory filters over PowerSync streams.
+
+- **Frontend 1 & 2 (Week 8) - Local Offline-First Notifications Engine**:
+  - **Dependencies**: Installed and integrated expo-notifications module.
+  - **NotificationService** (src/services/notificationService.ts): Orchestrates local permissions, Android notification channels, and custom deterministic schedulers for Class schedules (weekly recurring, parameterized lead time), Tasks (1 day before, 1 hour before), and notebook Study sessions.
+  - **Zustand Preferences Store** (src/store/notificationStore.ts): Manages user notification settings, persisting preferences locally using expo-secure-store.
+  - **Deep Linking Hooks** (src/hooks/useNotificationDeepLink.ts): Adds global response handlers routing taps on Class, Task, and Study reminders to their target routes.
+  - **Settings UI Integrations** (pp/(app)/settings.tsx): Built customized settings panel toggles for Class reminders (with 5/10/15/30m options), Task alerts, and Notebook study reminders.
+  - **Study Scheduler Dialog** (src/components/notebook/StudySchedulerModal.tsx): Built and wired a custom dialog allowing users to pick times, dates, and focus notes to schedule study reminders directly from the Notebook details header button.
+  - **Type Checking**: Validated compilation passes cleanly with zero errors.

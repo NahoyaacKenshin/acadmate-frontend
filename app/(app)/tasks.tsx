@@ -14,6 +14,7 @@ import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useSubjects } from '@/src/hooks/useSubjects';
 
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
+import { NotificationService } from '@/src/services/notificationService';
 
 export default function TasksScreen() {
   const powerSync = usePowerSync();
@@ -48,6 +49,10 @@ export default function TasksScreen() {
   const confirmDeleteTask = async () => {
     if (!taskToDeleteId) return;
     try {
+      // Cancel local notifications
+      await NotificationService.cancelNotification(`task_${taskToDeleteId}_day`);
+      await NotificationService.cancelNotification(`task_${taskToDeleteId}_hour`);
+
       await powerSync.execute(`DELETE FROM Task WHERE id = ?`, [taskToDeleteId]);
     } catch (err) {
       console.error('[Tasks] Delete failed:', err);

@@ -20,12 +20,14 @@ import {
 
 import { useProgramMappings } from '@/src/hooks/useProgramMappings';
 import { AdminApiService } from '@/src/services/admin.api';
+import { useNotificationStore } from '@/src/store/notificationStore';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuthStore();
   const { programName, studentSet, nickname, setProgram, setStudentSet, setNickname } = useUserStore();
   const { programMappings: localMappings, isLoading: isMappingsLoading } = useProgramMappings();
+  const { prefs, updatePrefs } = useNotificationStore();
   const [nicknameInput, setNicknameInput] = useState(nickname ?? '');
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [apiMappings, setApiMappings] = React.useState<{ id: string; program_name: string; student_set: 'A' | 'B' }[]>([]);
@@ -144,13 +146,78 @@ export default function SettingsScreen() {
 
         {/* Settings Options */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Preferences</Text>
+          <Text style={styles.sectionHeader}>Preferences & Notifications</Text>
 
-          <View style={styles.tile}>
-            <Bell size={20} color="#6C8EFF" />
-            <Text style={styles.tileTitleFlex}>Push Notifications</Text>
-            <Text style={styles.tileValueSub}>Enabled</Text>
-          </View>
+          {/* Class Reminders Toggle */}
+          <Pressable
+            style={styles.tile}
+            onPress={() => updatePrefs({ classReminders: !prefs.classReminders })}
+          >
+            <Bell size={20} color={prefs.classReminders ? '#6C8EFF' : '#94A3B8'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>Class Reminders</Text>
+              <Text style={styles.tileValueSub}>
+                {prefs.classReminders ? `Active (${prefs.classLeadMinutes}m before)` : 'Disabled'}
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, prefs.classReminders && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, prefs.classReminders && styles.switchThumbActive]} />
+            </View>
+          </Pressable>
+
+          {/* Class Lead Time Option (Visible only when class reminders are on) */}
+          {prefs.classReminders && (
+            <View style={styles.leadMinutesRow}>
+              {[5, 10, 15, 30].map((mins) => {
+                const isSel = prefs.classLeadMinutes === mins;
+                return (
+                  <Pressable
+                    key={mins}
+                    style={[styles.leadMinutesPill, isSel && styles.leadMinutesPillActive]}
+                    onPress={() => updatePrefs({ classLeadMinutes: mins })}
+                  >
+                    <Text style={[styles.leadMinutesText, isSel && styles.leadMinutesTextActive]}>
+                      {mins}m
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Task Reminders Toggle */}
+          <Pressable
+            style={styles.tile}
+            onPress={() => updatePrefs({ taskReminders: !prefs.taskReminders })}
+          >
+            <Bell size={20} color={prefs.taskReminders ? '#10B981' : '#94A3B8'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>Task Due Alerts</Text>
+              <Text style={styles.tileValueSub}>
+                {prefs.taskReminders ? '1 day & 1 hour before' : 'Disabled'}
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, prefs.taskReminders && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, prefs.taskReminders && styles.switchThumbActive]} />
+            </View>
+          </Pressable>
+
+          {/* Study Reminders Toggle */}
+          <Pressable
+            style={styles.tile}
+            onPress={() => updatePrefs({ studyReminders: !prefs.studyReminders })}
+          >
+            <Bell size={20} color={prefs.studyReminders ? '#A78BFA' : '#94A3B8'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>Notebook Study Reminders</Text>
+              <Text style={styles.tileValueSub}>
+                {prefs.studyReminders ? 'Enabled' : 'Disabled'}
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, prefs.studyReminders && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, prefs.studyReminders && styles.switchThumbActive]} />
+            </View>
+          </Pressable>
 
           <View style={styles.tile}>
             <Info size={20} color="#6C8EFF" />
@@ -449,6 +516,56 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   modalItemTextSelected: {
+    color: '#6C8EFF',
+  },
+  // Switch styling
+  switchTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#2A3143',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchTrackActive: {
+    backgroundColor: '#6C8EFF',
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#94A3B8',
+  },
+  switchThumbActive: {
+    backgroundColor: '#ffffff',
+    alignSelf: 'flex-end',
+  },
+  leadMinutesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  leadMinutesPill: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#161A26',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leadMinutesPillActive: {
+    backgroundColor: 'rgba(108,142,255,0.12)',
+    borderColor: '#6C8EFF',
+  },
+  leadMinutesText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  leadMinutesTextActive: {
     color: '#6C8EFF',
   },
 });

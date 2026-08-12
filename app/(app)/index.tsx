@@ -30,6 +30,10 @@ import { useSystemStore } from '@/src/store/systemStore';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
+import { useExamWeeks } from '@/src/hooks/useExamWeeks';
+import { useHolidays } from '@/src/hooks/useHolidays';
+import { useSemesterRules } from '@/src/hooks/useSemesterRules';
+import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 
 import AdminDashboardScreen from './admin';
 
@@ -195,6 +199,8 @@ export default function HomeScreen() {
   const { tasks } = useTasks();
   const { schedules } = useClassSchedules();
   const { events } = useCalendarEvents();
+  const { examWeeks = [] } = useExamWeeks();
+  const { holidays = [] } = useHolidays();
 
   // Urgent tasks: incomplete, due today or overdue — max 3
   const urgentTasks = useMemo<TaskRow[]>(() => {
@@ -208,8 +214,9 @@ export default function HomeScreen() {
 
   // Today's classes
   const todayClasses = useMemo(() => {
-    return schedules.filter((s) => s.day_of_week === todayDOW);
-  }, [schedules, todayDOW]);
+    const today = new Date();
+    return schedules.filter((s) => isScheduleActiveOnDate(s, today, examWeeks, holidays));
+  }, [schedules, examWeeks, holidays]);
 
   // Today's events
   const todayEvents = useMemo<CalendarEventRow[]>(() => {
