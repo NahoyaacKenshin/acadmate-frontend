@@ -74,11 +74,11 @@ export default function NotebookScreen() {
       {/* Hero section */}
       <View style={styles.hero}>
         <View style={styles.heroIconWrap}>
-          <Sparkles size={28} color="#6C8EFF" />
+          <BookOpen size={22} color="#6C8EFF" />
         </View>
-        <Text style={styles.heroTitle}>AI Notebook</Text>
+        <Text style={styles.heroTitle}>Course Notebooks</Text>
         <Text style={styles.heroSubtitle}>
-          Upload documents, images, or type notes. Ask your AI anything about them.
+          Upload lecture slides, notes, and study resources for grounded AI review.
         </Text>
       </View>
 
@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
+    lineHeight: 36,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -237,13 +238,13 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 28,
-    gap: 8,
+    paddingVertical: 20,
+    gap: 6,
   },
   heroIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -252,39 +253,41 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
   },
   heroSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 280,
+    lineHeight: 18,
+    maxWidth: 300,
   },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
+    paddingBottom: 10,
+    gap: 8,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sectionCount: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#6C8EFF',
     backgroundColor: 'rgba(108,142,255,0.12)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 6,
   },
   // ── Empty State ───────────────────────────────────────────────────────────
   emptyState: {
@@ -296,25 +299,25 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     backgroundColor: '#161A26',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#2A3143',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#4A5568',
+    fontSize: 13,
+    color: '#64748B',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
 });

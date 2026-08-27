@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
@@ -84,9 +84,7 @@ function formatTime12(hhmm: string): string {
 
 function dateFromHHMM(hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d;
+  return new Date(2000, 0, 1, h, m, 0, 0);
 }
 
 function formatDate(date: Date): string {
@@ -212,19 +210,45 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
   const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
-    setActivePickerField(field);
+    if (Platform.OS === 'android') {
+      if (field === 'startTime' || field === 'endTime') {
+        const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'time',
+          is24Hour: false,
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const hhmm = toHHMM(selectedDate);
+            if (field === 'startTime') setStartTime(hhmm);
+            else setEndTime(hhmm);
+          },
+        });
+      } else {
+        const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'date',
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            if (field === 'startDate') setStartDate(selectedDate);
+            else setEndDate(selectedDate);
+          },
+        });
+      }
+    } else {
+      setActivePickerField(field);
+    }
   };
 
-  const handleTimeChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     const hhmm = toHHMM(selected);
     if (activePickerField === 'startTime') setStartTime(hhmm);
     else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
     else if (activePickerField === 'endDate') setEndDate(selected);
@@ -501,24 +525,6 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             </View>
           </View>
 
-          {/* Android picker dialogs */}
-          {Platform.OS === 'android' && activePickerField !== null && (
-            <DateTimePicker
-              value={
-                activePickerField === 'startTime' || activePickerField === 'endTime'
-                  ? dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)
-                  : (activePickerField === 'startDate' ? startDate : (endDate ?? startDate))
-              }
-              mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
-              display="default"
-              onValueChange={
-                activePickerField === 'startTime' || activePickerField === 'endTime'
-                  ? handleTimeChange
-                  : handleDateChange
-              }
-            />
-          )}
-
           {/* iOS inline spinners */}
           {Platform.OS === 'ios' && activePickerField !== null && (
             <View style={styles.iosPickerWrapper}>
@@ -530,7 +536,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 }
                 mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
                 display="spinner"
-                onValueChange={
+                onChange={
                   activePickerField === 'startTime' || activePickerField === 'endTime'
                     ? handleTimeChange
                     : handleDateChange

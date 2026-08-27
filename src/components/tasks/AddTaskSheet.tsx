@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar } from 'lucide-react-native';
@@ -64,41 +64,41 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
 
   const handleOpenDatePicker = () => {
     setShowSubjectPicker(false);
-    if (Platform.OS === 'ios') {
-      // iOS uses a single datetime spinner inside the sheet
-      setDatePickerStep('date');
+    if (Platform.OS === 'android') {
+      const base = dueDate ?? new Date();
+      DateTimePickerAndroid.open({
+        value: base,
+        mode: 'date',
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+          // Chain to time picker on Android
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                setDueDate(merged);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              setDueDate(finalDate);
+            },
+          });
+        },
+      });
     } else {
-      // Android shows a native dialog; start with date, then chain to time
+      // iOS uses a single datetime spinner inside the sheet
       setDatePickerStep('date');
     }
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (!selected) {
-      // User dismissed the picker on Android
-      setDatePickerStep(null);
-      return;
-    }
-
-    if (Platform.OS === 'android') {
-      if (datePickerStep === 'date') {
-        // Merge chosen date with existing time (or now)
-        const base = dueDate ?? new Date();
-        const merged = new Date(selected);
-        merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-        setDueDate(merged);
-        // Chain directly to time picker
-        setDatePickerStep('time');
-      } else {
-        // time step: merge chosen time into existing date
-        const base = dueDate ?? new Date();
-        const merged = new Date(base);
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep(null);
-      }
-    } else {
-      // iOS: single call, update directly
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) {
       setDueDate(selected);
     }
   };
@@ -211,7 +211,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
                   value={dueDate ?? new Date()}
                   mode="datetime"
                   display="spinner"
-                  onValueChange={handleDateChange}
+                  onChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -220,16 +220,6 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
                   <Text style={styles.iosDoneBtnText}>Done</Text>
                 </Pressable>
               </View>
-            )}
-
-            {/* Android native dialogs (date then time) */}
-            {Platform.OS === 'android' && datePickerStep !== null && (
-              <DateTimePicker
-                value={dueDate ?? new Date()}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
-              />
             )}
           </View>
 

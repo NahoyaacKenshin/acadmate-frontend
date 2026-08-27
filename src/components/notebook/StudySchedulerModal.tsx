@@ -11,7 +11,7 @@ import {
 import { Text } from '@/src/components/ui/text';
 import { Button } from '@/src/components/ui/button';
 import { X, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NotificationService } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
 
@@ -30,12 +30,50 @@ export function StudySchedulerModal({
 }: StudySchedulerModalProps) {
   const { prefs } = useNotificationStore();
   const [date, setDate] = useState<Date>(new Date());
+  const [leadMinutes, setLeadMinutes] = useState<number>(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [focusText, setFocusText] = useState(`Review study material for ${notebookTitle}`);
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
+  const openDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'date',
+        minimumDate: new Date(),
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const updated = new Date(date);
+          updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          setDate(updated);
+        },
+      });
+    } else {
+      setShowTimePicker(false);
+      setShowDatePicker(true);
+    }
+  };
+
+  const openTimePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'time',
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedTime?: Date) => {
+          if (event.type === 'dismissed' || !selectedTime) return;
+          const updated = new Date(date);
+          updated.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+          setDate(updated);
+        },
+      });
+    } else {
+      setShowDatePicker(false);
+      setShowTimePicker(true);
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (selectedDate) {
       const updated = new Date(date);
       updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -43,8 +81,7 @@ export function StudySchedulerModal({
     }
   };
 
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(false);
+  const handleTimeChange = (_event: DateTimePickerEvent, selectedTime?: Date) => {
     if (selectedTime) {
       const updated = new Date(date);
       updated.setHours(selectedTime.getHours(), selectedTime.getMinutes());
@@ -61,8 +98,9 @@ export function StudySchedulerModal({
       return;
     }
 
-    if (date.getTime() <= Date.now()) {
-      Alert.alert('Invalid Time', 'Please choose a future date and time.');
+    const alertTime = new Date(date.getTime() - leadMinutes * 60 * 1000);
+    if (alertTime.getTime() <= Date.now()) {
+      Alert.alert('Invalid Time', 'The scheduled reminder time must be in the future.');
       return;
     }
 
@@ -71,11 +109,13 @@ export function StudySchedulerModal({
       notebookTitle,
       focusText,
       dateTime: date,
+      leadMinutes,
     });
 
+    const leadText = leadMinutes > 0 ? ` (${leadMinutes} mins lead time)` : '';
     Alert.alert(
       'Reminder Scheduled',
-      `Study reminder set for ${date.toLocaleString()}`,
+      `Study reminder set for ${date.toLocaleString()}${leadText}`,
       [{ text: 'OK', onPress: onClose }]
     );
   };
@@ -114,7 +154,7 @@ export function StudySchedulerModal({
           <View style={styles.row}>
             <Pressable
               style={styles.pickerButton}
-              onPress={() => setShowDatePicker(true)}
+              onPress={openDatePicker}
             >
               <CalendarIcon size={18} color="#6C8EFF" />
               <View>
@@ -125,7 +165,7 @@ export function StudySchedulerModal({
 
             <Pressable
               style={styles.pickerButton}
-              onPress={() => setShowTimePicker(true)}
+              onPress={openTimePicker}
             >
               <Clock size={18} color="#6C8EFF" />
               <View>
@@ -137,24 +177,64 @@ export function StudySchedulerModal({
             </Pressable>
           </View>
 
-          {/* DateTime Pickers (Android popup/iOS inline spinner) */}
-          {showDatePicker && (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              minimumDate={new Date()}
-              onChange={handleDateChange}
-            />
+          {/* Lead Time Selection */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Reminder Lead Time</Text>
+            <View style={styles.leadTimeRow}>
+              {[
+                { label: 'At start', mins: 0 },
+                { label: '15m before', mins: 15 },
+                { label: '30m before', mins: 30 },
+                { label: '1h before', mins: 60 },
+              ].map((item) => {
+                const isSelected = leadMinutes === item.mins;
+                return (
+                  <Pressable
+                    key={item.mins}
+                    style={[styles.leadPill, isSelected && styles.leadPillActive]}
+                    onPress={() => setLeadMinutes(item.mins)}
+                  >
+                    <Text style={[styles.leadPillText, isSelected && styles.leadPillTextActive]}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* iOS inline spinners */}
+          {Platform.OS === 'ios' && showDatePicker && (
+            <View style={{ marginBottom: 12 }}>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={handleDateChange}
+                textColor="#ffffff"
+                themeVariant="dark"
+              />
+              <Button style={{ marginTop: 8 }} onPress={() => setShowDatePicker(false)}>
+                <Text>Done</Text>
+              </Button>
+            </View>
           )}
 
-          {showTimePicker && (
-            <DateTimePicker
-              value={date}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleTimeChange}
-            />
+          {Platform.OS === 'ios' && showTimePicker && (
+            <View style={{ marginBottom: 12 }}>
+              <DateTimePicker
+                value={date}
+                mode="time"
+                display="spinner"
+                onChange={handleTimeChange}
+                textColor="#ffffff"
+                themeVariant="dark"
+              />
+              <Button style={{ marginTop: 8 }} onPress={() => setShowTimePicker(false)}>
+                <Text>Done</Text>
+              </Button>
+            </View>
           )}
 
           {/* CTA */}
@@ -249,6 +329,32 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginTop: 2,
   },
+  leadTimeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  leadPill: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#10131C',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leadPillActive: {
+    backgroundColor: 'rgba(108, 142, 255, 0.15)',
+    borderColor: '#6C8EFF',
+  },
+  leadPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  leadPillTextActive: {
+    color: '#6C8EFF',
+  },
   ctaBtn: {
     backgroundColor: '#6C8EFF',
     borderRadius: 12,
@@ -262,3 +368,4 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 });
+

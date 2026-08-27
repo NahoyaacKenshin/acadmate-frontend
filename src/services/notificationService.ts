@@ -20,6 +20,7 @@ export interface StudyReminderPayload {
   notebookTitle: string;
   focusText: string;
   dateTime: Date;
+  leadMinutes?: number;
 }
 
 export const NotificationService = {
@@ -63,7 +64,7 @@ export const NotificationService = {
   },
 
   /**
-   * Helper to cancel a group of scheduled notifications by prefix/identifier.
+   * Helper to cancel a group of scheduled notifications by identifier.
    */
   cancelNotification: async (identifier: string) => {
     try {
@@ -83,19 +84,23 @@ export const NotificationService = {
   ): Promise<string[]> => {
     const identifiers: string[] = [];
     const { id, start_time, day_of_week, subject_name, room, modality } = schedule;
+    if (!start_time) return [];
 
     // Parse class time "HH:MM"
     const [hours, minutes] = start_time.split(':').map(Number);
     let totalMinutes = hours * 60 + minutes - leadMinutes;
+    let targetDayOfWeek = day_of_week;
+
     if (totalMinutes < 0) {
       totalMinutes += 24 * 60; // Wrap around to previous day
+      targetDayOfWeek = (day_of_week - 1 + 7) % 7;
     }
 
     const scheduledHour = Math.floor(totalMinutes / 60);
     const scheduledMinute = totalMinutes % 60;
 
     // Map 0-6 to expo-notifications WeeklyTrigger: 1 = Sun, 2 = Mon ... 7 = Sat
-    const triggerDay = day_of_week + 1;
+    const triggerWeekday = targetDayOfWeek + 1;
     const identifier = `class_${id}_${day_of_week}`;
 
     try {
@@ -108,15 +113,24 @@ export const NotificationService = {
           title: `Upcoming Class: ${subject_name || 'Class'}`,
           body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
           sound: true,
-          data: { type: 'class', scheduleId: id },
+          data: {
+            type: 'class',
+            scheduleId: id,
+            subjectName: subject_name || 'Class',
+            room: room || '',
+            modality: modality || '',
+            startTime: start_time,
+            dayOfWeek: day_of_week,
+            leadMinutes,
+          },
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
           channelId: 'classes',
-          weekday: triggerDay,
+          weekday: triggerWeekday,
           hour: scheduledHour,
           minute: scheduledMinute,
-          repeats: true,
-        } as any,
+        },
       });
 
       identifiers.push(identifier);
@@ -128,7 +142,7 @@ export const NotificationService = {
   },
 
   /**
-   * Schedules task reminders: 1 day before + 1 hour before.
+   * Schedules task reminders: 1 day before + 1 hour before + due now.
    */
   scheduleTaskReminders: async (task: TaskRow): Promise<string[]> => {
     const identifiers: string[] = [];
@@ -143,16 +157,23 @@ export const NotificationService = {
     if (dayBeforeTime > now) {
       const idDay = `task_${id}_day`;
       try {
-        await NotificationService.cancelNotification(idDay);
         await Notifications.scheduleNotificationAsync({
           identifier: idDay,
           content: {
             title: `Task Due Tomorrow`,
             body: `"${title}" is due tomorrow${subject_name ? ` for ${subject_name}` : ''}`,
             sound: true,
-            data: { type: 'task', taskId: id },
+            data: {
+              type: 'task',
+              taskId: id,
+              title,
+              dueDate: due_date,
+              subjectName: subject_name || '',
+              reminderType: 'day_before',
+            },
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
             channelId: 'tasks',
             date: new Date(dayBeforeTime),
           },
@@ -168,16 +189,23 @@ export const NotificationService = {
     if (hourBeforeTime > now) {
       const idHour = `task_${id}_hour`;
       try {
-        await NotificationService.cancelNotification(idHour);
         await Notifications.scheduleNotificationAsync({
           identifier: idHour,
           content: {
             title: `Task Due in 1 Hour`,
             body: `"${title}" is due soon. Make sure to complete it!`,
             sound: true,
-            data: { type: 'task', taskId: id },
+            data: {
+              type: 'task',
+              taskId: id,
+              title,
+              dueDate: due_date,
+              subjectName: subject_name || '',
+              reminderType: 'hour_before',
+            },
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
             channelId: 'tasks',
             date: new Date(hourBeforeTime),
           },
@@ -188,31 +216,72 @@ export const NotificationService = {
       }
     }
 
+    // Due time / due soon reminder (if created within the last hour before due date)
+    if (hourBeforeTime <= now && dueTime > now + 60 * 1000) {
+      const idDue = `task_${id}_due`;
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier: idDue,
+          content: {
+            title: `Task Due Soon`,
+            body: `"${title}" is due right now!`,
+            sound: true,
+            data: {
+              type: 'task',
+              taskId: id,
+              title,
+              dueDate: due_date,
+              subjectName: subject_name || '',
+              reminderType: 'due_now',
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks',
+            date: new Date(dueTime),
+          },
+        });
+        identifiers.push(idDue);
+      } catch (e) {
+        console.error('Failed to schedule task due-now reminder', e);
+      }
+    }
+
     return identifiers;
   },
 
   /**
-   * Schedules a one-off study session alert.
+   * Schedules a study session alert with optional lead-time.
    */
   scheduleStudyReminder: async (payload: StudyReminderPayload): Promise<string> => {
-    const { notebookId, notebookTitle, focusText, dateTime } = payload;
+    const { notebookId, notebookTitle, focusText, dateTime, leadMinutes = 0 } = payload;
+    const alertTime = new Date(dateTime.getTime() - leadMinutes * 60 * 1000);
     const identifier = `study_${notebookId}_${dateTime.getTime()}`;
 
     try {
       await NotificationService.cancelNotification(identifier);
 
-      if (dateTime.getTime() > Date.now()) {
+      if (alertTime.getTime() > Date.now()) {
+        const leadLabel = leadMinutes > 0 ? ` (in ${leadMinutes}m)` : '';
         await Notifications.scheduleNotificationAsync({
           identifier,
           content: {
-            title: `Time to Study: ${notebookTitle}`,
+            title: `Study Reminder: ${notebookTitle}${leadLabel}`,
             body: focusText || `Get ready for your scheduled study session!`,
             sound: true,
-            data: { type: 'study', notebookId },
+            data: {
+              type: 'study',
+              notebookId,
+              notebookTitle,
+              focusText: focusText || '',
+              dateTime: dateTime.toISOString(),
+              leadMinutes,
+            },
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
             channelId: 'study',
-            date: dateTime,
+            date: alertTime,
           },
         });
       }
@@ -224,39 +293,112 @@ export const NotificationService = {
   },
 
   /**
-   * Bulk helper to cancel and reschedule all class notifications.
+   * Schedules a quick test notification for immediate on-device verification.
    */
-  rescheduleAllClasses: async (schedules: ClassScheduleRow[], enabled: boolean, leadMinutes: number) => {
-    // 1. Cancel all scheduled classes matching trigger identifiers
-    const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const classReminders = allNotifications.filter(n => n.identifier.startsWith('class_'));
-    for (const notification of classReminders) {
-      await NotificationService.cancelNotification(notification.identifier);
-    }
+  sendTestNotification: async (delaySeconds = 3): Promise<string> => {
+    const identifier = `test_${Date.now()}`;
+    const triggerDate = new Date(Date.now() + delaySeconds * 1000);
 
-    if (!enabled) return;
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: {
+        title: 'AcadMate Local Notification',
+        body: 'Offline notification engine & in-app alerts are active and working!',
+        sound: true,
+        data: {
+          type: 'test',
+          timestamp: Date.now(),
+        },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        channelId: 'tasks',
+        date: triggerDate,
+      },
+    });
 
-    // 2. Schedule each active schedule
-    for (const schedule of schedules) {
-      await NotificationService.scheduleClassReminders(schedule, leadMinutes);
+    return identifier;
+  },
+
+  /**
+   * Bulk helper to synchronize class notifications without cancelling active ones unnecessarily.
+   */
+  rescheduleAllClasses: async (
+    schedules: ClassScheduleRow[],
+    enabled: boolean,
+    leadMinutes: number,
+    studentSet?: 'A' | 'B' | 'Standard' | null
+  ) => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingClassNotifs = allNotifications.filter((n) => n.identifier.startsWith('class_'));
+      const existingIds = new Set(existingClassNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingClassNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      // Filter for student set if set
+      const filtered = schedules.filter((s) => {
+        if (!studentSet || !s.set_type || s.set_type === 'BOTH') return true;
+        return s.set_type === studentSet;
+      });
+
+      const desiredIds = new Set<string>();
+
+      for (const schedule of filtered) {
+        if (!schedule.start_time) continue;
+        const identifier = `class_${schedule.id}_${schedule.day_of_week}`;
+        desiredIds.add(identifier);
+        await NotificationService.scheduleClassReminders(schedule, leadMinutes);
+      }
+
+      // Clean up orphaned/deleted class notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllClasses:', err);
     }
   },
 
   /**
-   * Bulk helper to cancel and reschedule all task notifications.
+   * Bulk helper to synchronize task notifications without cancelling active ones unnecessarily.
    */
   rescheduleAllTasks: async (tasks: TaskRow[], enabled: boolean) => {
-    const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const taskReminders = allNotifications.filter(n => n.identifier.startsWith('task_'));
-    for (const notification of taskReminders) {
-      await NotificationService.cancelNotification(notification.identifier);
-    }
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingTaskNotifs = allNotifications.filter((n) => n.identifier.startsWith('task_'));
+      const existingIds = new Set(existingTaskNotifs.map((n) => n.identifier));
 
-    if (!enabled) return;
+      if (!enabled) {
+        for (const notification of existingTaskNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
 
-    const incompleteTasks = tasks.filter(t => t.completed === 0);
-    for (const task of incompleteTasks) {
-      await NotificationService.scheduleTaskReminders(task);
+      const incompleteTasks = tasks.filter((t) => t.completed === 0 && !!t.due_date);
+      const desiredIds = new Set<string>();
+
+      for (const task of incompleteTasks) {
+        const scheduledIds = await NotificationService.scheduleTaskReminders(task);
+        scheduledIds.forEach((id) => desiredIds.add(id));
+      }
+
+      // Clean up orphaned task notifications (completed or deleted tasks)
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllTasks:', err);
     }
   },
 };

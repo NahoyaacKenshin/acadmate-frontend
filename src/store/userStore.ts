@@ -6,15 +6,17 @@ const STUDENT_SET_KEY = 'acadmate.studentSet';
 const ONBOARDING_KEY = 'acadmate.onboardingDone';
 const NICKNAME_KEY = 'acadmate.nickname';
 
+export type StudentSet = 'A' | 'B' | 'Standard';
+
 type UserState = {
   programName: string | null;
-  studentSet: 'A' | 'B' | null;
+  studentSet: StudentSet | null;
   nickname: string | null;
   hasCompletedOnboarding: boolean;
   isLoaded: boolean;
   loadUserPreferences: () => Promise<void>;
-  setProgram: (programName: string, studentSet?: 'A' | 'B' | null) => Promise<void>;
-  setStudentSet: (studentSet: 'A' | 'B') => Promise<void>;
+  setProgram: (programName: string, studentSet?: StudentSet | null) => Promise<void>;
+  setStudentSet: (studentSet: StudentSet) => Promise<void>;
   setNickname: (nickname: string) => Promise<void>;
   completeOnboarding: () => Promise<void>;
 };
@@ -33,7 +35,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       const onboardingRaw = await SecureStore.getItemAsync(ONBOARDING_KEY);
       const nickname = await SecureStore.getItemAsync(NICKNAME_KEY);
 
-      const studentSet = (studentSetRaw === 'A' || studentSetRaw === 'B') ? studentSetRaw : null;
+      const studentSet: StudentSet | null = (studentSetRaw === 'A' || studentSetRaw === 'B' || studentSetRaw === 'Standard') ? studentSetRaw : null;
       const hasCompletedOnboarding = onboardingRaw === 'true';
 
       set({

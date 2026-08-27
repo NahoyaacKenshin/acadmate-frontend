@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar } from 'lucide-react-native';
@@ -73,30 +73,41 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
   const handleOpenDatePicker = () => {
     setShowSubjectPicker(false);
-    setDatePickerStep('date');
+    if (Platform.OS === 'android') {
+      const base = dueDate ?? new Date();
+      DateTimePickerAndroid.open({
+        value: base,
+        mode: 'date',
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+          // Chain to time picker on Android
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                setDueDate(merged);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              setDueDate(finalDate);
+            },
+          });
+        },
+      });
+    } else {
+      // iOS uses a single datetime spinner inside the sheet
+      setDatePickerStep('date');
+    }
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (!selected) {
-      setDatePickerStep(null);
-      return;
-    }
-
-    if (Platform.OS === 'android') {
-      if (datePickerStep === 'date') {
-        const base = dueDate ?? new Date();
-        const merged = new Date(selected);
-        merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep('time');
-      } else {
-        const base = dueDate ?? new Date();
-        const merged = new Date(base);
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep(null);
-      }
-    } else {
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) {
       setDueDate(selected);
     }
   };
@@ -205,7 +216,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
                   value={dueDate ?? new Date()}
                   mode="datetime"
                   display="spinner"
-                  onValueChange={handleDateChange}
+                  onChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -214,16 +225,6 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
                   <Text style={styles.iosDoneBtnText}>Done</Text>
                 </Pressable>
               </View>
-            )}
-
-            {/* Android native dialogs (date then time) */}
-            {Platform.OS === 'android' && datePickerStep !== null && (
-              <DateTimePicker
-                value={dueDate ?? new Date()}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
-              />
             )}
           </View>
 

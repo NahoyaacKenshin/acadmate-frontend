@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar, MapPin, Clock, Trash2 } from 'lucide-react-native';
@@ -101,40 +101,53 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
 
   const openDatePicker = (field: DateField) => {
     setShowSubjectPicker(false);
-    setActiveDateField(field);
-    setDatePickerStep('date');
-  };
-
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (!selected) { setDatePickerStep(null); setActiveDateField(null); return; }
     if (Platform.OS === 'android') {
-      if (datePickerStep === 'date') {
-        if (activeDateField === 'start') {
-          const merged = new Date(selected);
-          merged.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
-          setStartDate(merged);
-        } else {
-          const base = endDate ?? new Date();
-          const merged = new Date(selected);
-          merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-          setEndDate(merged);
-        }
-        setDatePickerStep('time');
+      const baseDate = field === 'start' ? startDate : (endDate ?? new Date());
+      if (allDay) {
+        DateTimePickerAndroid.open({
+          value: baseDate,
+          mode: 'date',
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            if (field === 'start') setStartDate(selectedDate);
+            else setEndDate(selectedDate);
+          },
+        });
       } else {
-        if (activeDateField === 'start') {
-          const merged = new Date(startDate);
-          merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-          setStartDate(merged);
-        } else {
-          const base = endDate ?? new Date();
-          const merged = new Date(base);
-          merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-          setEndDate(merged);
-        }
-        setDatePickerStep(null);
-        setActiveDateField(null);
+        DateTimePickerAndroid.open({
+          value: baseDate,
+          mode: 'date',
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const merged = new Date(selectedDate);
+            merged.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+            DateTimePickerAndroid.open({
+              value: merged,
+              mode: 'time',
+              is24Hour: false,
+              onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+                if (timeEvent.type === 'dismissed' || !selectedTime) {
+                  if (field === 'start') setStartDate(merged);
+                  else setEndDate(merged);
+                  return;
+                }
+                const finalDate = new Date(merged);
+                finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+                if (field === 'start') setStartDate(finalDate);
+                else setEndDate(finalDate);
+              },
+            });
+          },
+        });
       }
     } else {
+      setActiveDateField(field);
+      setDatePickerStep('date');
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) {
       if (activeDateField === 'start') setStartDate(selected);
       else setEndDate(selected);
     }
@@ -286,7 +299,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   value={startDate}
                   mode={allDay ? 'date' : 'datetime'}
                   display="spinner"
-                  onValueChange={handleDateChange}
+                  onChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -295,14 +308,6 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   <Text style={styles.iosDoneBtnText}>Done</Text>
                 </Pressable>
               </View>
-            )}
-            {Platform.OS === 'android' && activeDateField === 'start' && datePickerStep !== null && (
-              <DateTimePicker
-                value={startDate}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
-              />
             )}
           </View>
 
@@ -321,7 +326,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   value={endDate ?? startDate}
                   mode={allDay ? 'date' : 'datetime'}
                   display="spinner"
-                  onValueChange={handleDateChange}
+                  onChange={handleDateChange}
                   textColor="#ffffff"
                   themeVariant="dark"
                   style={styles.iosPicker}
@@ -330,14 +335,6 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   <Text style={styles.iosDoneBtnText}>Done</Text>
                 </Pressable>
               </View>
-            )}
-            {Platform.OS === 'android' && activeDateField === 'end' && datePickerStep !== null && (
-              <DateTimePicker
-                value={endDate ?? startDate}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
-              />
             )}
           </View>
 

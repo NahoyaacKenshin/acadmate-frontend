@@ -74,8 +74,7 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
 
             {notebook.sourceCount === 0 && (
               <View style={styles.emptyBadge}>
-                <Sparkles size={11} color="#F59E0B" />
-                <Text style={styles.emptyBadgeText}>Ready to fill</Text>
+                <Text style={styles.emptyBadgeText}>0 files</Text>
               </View>
             )}
 
@@ -93,9 +92,9 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
             }}
             hitSlop={8}
           >
-            <Trash2 size={16} color="#EF4444" />
+            <Trash2 size={15} color="#EF4444" />
           </Pressable>
-          <ChevronRight size={18} color="#4A5568" />
+          <ChevronRight size={16} color="#4A5568" />
         </View>
       </View>
     </Pressable>
@@ -106,11 +105,11 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: '#161A26',
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   cardPressed: {
@@ -120,27 +119,27 @@ const styles = StyleSheet.create({
   accentStripe: {
     width: 4,
     backgroundColor: '#6C8EFF',
-    borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   body: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    padding: 13,
     gap: 12,
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 8,
     backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   content: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   title: {
     fontSize: 15,
@@ -148,12 +147,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   description: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   descriptionEmpty: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#3A4455',
     fontStyle: 'italic',
   },
@@ -161,16 +160,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 4,
+    marginTop: 3,
   },
   metaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(108,142,255,0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   metaText: {
     fontSize: 11,
@@ -182,14 +181,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(245,158,11,0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   emptyBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#F59E0B',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   dateText: {
     fontSize: 11,

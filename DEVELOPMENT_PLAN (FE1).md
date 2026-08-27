@@ -254,7 +254,7 @@
 - [x] Add onboarding/introductory screens for new users highlighting key features and benefits.
 - [x] Clean up all duplicate page titles across the app (e.g., removing redundant "Calendar" title from the body when it already exists in the header and adjust spaces).
 - [x] Replace the default Expo splash screen logo with the custom AcadMate logo and also make the splash screen bg dark like how the inside of the app looks like.
-- [x] **Animated Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `splash-icon` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
+- [x] **Animated Splash Screen**: Create an animated splash screen transition using `react-native-reanimated` / `expo-splash-screen` (smooth scale-up pulse of the `logo.png` with a gentle fade-out zoom into the main app dashboard for a high-end, premium startup feel).
 - [x] **Main Logo Integration**: Integrate the official main AcadMate logo (`assets/images/logo.png`) across key branding points in the app (e.g., auth/login screens, onboarding header, and navigation sidebar/header).
 - [x] Implement subtle micro-animations and transitions throughout the app to enhance the premium UI feel.
 - [x] Resolve visual alignment bugs and inconsistencies across all newly built components.

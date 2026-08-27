@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Modal, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useUserStore } from '@/src/store/userStore';
@@ -16,49 +17,24 @@ import {
   ChevronRight,
   Check,
   X,
+  Layers,
 } from 'lucide-react-native';
 
-import { useProgramMappings } from '@/src/hooks/useProgramMappings';
-import { AdminApiService } from '@/src/services/admin.api';
 import { useNotificationStore } from '@/src/store/notificationStore';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuthStore();
-  const { programName, studentSet, nickname, setProgram, setStudentSet, setNickname } = useUserStore();
-  const { programMappings: localMappings, isLoading: isMappingsLoading } = useProgramMappings();
+  const { studentSet, nickname, setStudentSet, setNickname } = useUserStore();
   const { prefs, updatePrefs } = useNotificationStore();
   const [nicknameInput, setNicknameInput] = useState(nickname ?? '');
   const [isEditingNickname, setIsEditingNickname] = useState(false);
-  const [apiMappings, setApiMappings] = React.useState<{ id: string; program_name: string; student_set: 'A' | 'B' }[]>([]);
-
-  React.useEffect(() => {
-    async function fetchApiPrograms() {
-      try {
-        const res = await AdminApiService.listProgramMappings();
-        if (res?.data && Array.isArray(res.data)) {
-          setApiMappings(
-            res.data.map((m: any) => ({
-              id: m.id,
-              program_name: m.programName,
-              student_set: m.studentSet,
-            }))
-          );
-        }
-      } catch (err) {
-        console.error('Failed to fetch fallback program mappings in settings', err);
-      }
-    }
-    fetchApiPrograms();
-  }, []);
-
-  const programMappings = localMappings.length > 0 ? localMappings : apiMappings;
-  const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
-
-  const isAdmin = user?.role === 'ADMIN';
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
@@ -72,19 +48,12 @@ export default function SettingsScreen() {
             <Text style={styles.profileEmail}>
               {user?.email ?? 'No email'}
             </Text>
-            {isAdmin && (
-              <View style={styles.adminBadge}>
-                <ShieldAlert size={12} color="#F59E0B" />
-                <Text style={styles.adminBadgeText}>System Administrator</Text>
-              </View>
-            )}
           </View>
         </View>
 
-        {/* Academic Configuration (Students Only) */}
-        {!isAdmin && (
-          <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Academic Configuration</Text>
+        {/* Academic Configuration */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Academic Configuration</Text>
 
             {/* Nickname Tile */}
             <View style={styles.tile}>
@@ -129,20 +98,34 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
 
-            {/* Program Picker Tile */}
-            <Pressable
-              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-              onPress={() => setIsProgramModalOpen(true)}
-            >
-              <GraduationCap size={20} color="#6C8EFF" />
+            {/* Schedule Modality / Set Tile */}
+            <View style={styles.tile}>
+              <Layers size={20} color="#6C8EFF" />
               <View style={styles.tileContent}>
-                <Text style={styles.tileTitle}>Degree Program</Text>
-                <Text style={styles.tileValue}>{programName ?? 'Not Selected'}</Text>
+                <Text style={styles.tileTitle}>Schedule Set</Text>
+                <Text style={styles.tileValue}>
+                  {studentSet === 'A' ? 'Set A – Alternating' : studentSet === 'B' ? 'Set B – Alternating' : 'Standard / Regular'}
+                </Text>
               </View>
-              <ChevronRight size={18} color="#94A3B8" />
-            </Pressable>
+            </View>
+            <View style={styles.setSelectorRow}>
+              {(['Standard', 'A', 'B'] as const).map((s) => {
+                const isSel = studentSet === s;
+                return (
+                  <Pressable
+                    key={s}
+                    style={[styles.setPill, isSel && styles.setPillActive, { flex: 1, alignItems: 'center' }]}
+                    onPress={() => setStudentSet(s)}
+                  >
+                    <Text style={[styles.setPillText, isSel && styles.setPillTextActive]}>
+                      {s === 'Standard' ? 'Standard' : `Set ${s}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        )}
+
 
         {/* Settings Options */}
         <View style={styles.section}>
@@ -202,6 +185,23 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
+          {/* Exam Alerts Toggle */}
+          <Pressable
+            style={styles.tile}
+            onPress={() => updatePrefs({ examAlerts: !prefs.examAlerts })}
+          >
+            <Bell size={20} color={prefs.examAlerts ? '#F59E0B' : '#94A3B8'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>Exam Week Alerts</Text>
+              <Text style={styles.tileValueSub}>
+                {prefs.examAlerts ? 'Active' : 'Disabled'}
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, prefs.examAlerts && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, prefs.examAlerts && styles.switchThumbActive]} />
+            </View>
+          </Pressable>
+
           {/* Study Reminders Toggle */}
           <Pressable
             style={styles.tile}
@@ -239,48 +239,7 @@ export default function SettingsScreen() {
           </Button>
         </View>
       </ScrollView>
-
-      {/* Program Selector Modal */}
-      <Modal visible={isProgramModalOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Degree Program</Text>
-              <Pressable onPress={() => setIsProgramModalOpen(false)}>
-                <X size={20} color="#94A3B8" />
-              </Pressable>
-            </View>
-            {programMappings.length === 0 ? (
-              <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
-                No programs configured by Admin yet.
-              </Text>
-            ) : (
-              programMappings.map((prog) => {
-                const isSelected = programName?.toUpperCase() === prog.program_name.toUpperCase();
-                return (
-                  <Pressable
-                    key={prog.id || prog.program_name}
-                    style={[styles.modalItem, isSelected && styles.modalItemSelected]}
-                    onPress={() => {
-                      setProgram(prog.program_name, prog.student_set);
-                      setIsProgramModalOpen(false);
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.modalItemText, isSelected && styles.modalItemTextSelected]}>
-                        {prog.program_name}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#64748B' }}>Assigned to Set {prog.student_set}</Text>
-                    </View>
-                    {isSelected && <Check size={18} color="#6C8EFF" />}
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -289,15 +248,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#10131C',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 40,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#161A26',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
     borderColor: '#2A3143',
@@ -305,9 +279,9 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 10,
     backgroundColor: '#6C8EFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -316,7 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -332,7 +306,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,158,11,0.12)',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: 6,
     alignSelf: 'flex-start',
     marginTop: 6,
   },
@@ -356,8 +330,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#161A26',
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 10,
+    padding: 15,
     borderWidth: 1,
     borderColor: '#2A3143',
     marginBottom: 10,
@@ -370,23 +344,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tileTitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#94A3B8',
   },
   tileTitleFlex: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#ffffff',
   },
   tileValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#ffffff',
     marginTop: 2,
   },
   nicknameInput: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#6C8EFF',
     marginTop: 2,
@@ -394,14 +368,14 @@ const styles = StyleSheet.create({
   },
   editPill: {
     backgroundColor: 'rgba(108,142,255,0.12)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: 'rgba(108,142,255,0.3)',
   },
   editPillText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#6C8EFF',
   },
@@ -461,15 +435,15 @@ const styles = StyleSheet.create({
   },
   logoutBtn: {
     backgroundColor: '#EF4444',
-    borderRadius: 14,
-    height: 50,
+    borderRadius: 10,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -481,8 +455,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#161A26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: '#2A3143',
@@ -494,7 +468,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -502,16 +476,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: 8,
     marginBottom: 4,
   },
   modalItemSelected: {
     backgroundColor: 'rgba(108,142,255,0.12)',
   },
   modalItemText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#ffffff',
   },
@@ -548,8 +522,8 @@ const styles = StyleSheet.create({
   },
   leadMinutesPill: {
     flex: 1,
-    height: 36,
-    borderRadius: 18,
+    height: 34,
+    borderRadius: 6,
     backgroundColor: '#161A26',
     borderWidth: 1,
     borderColor: '#2A3143',
@@ -569,3 +543,4 @@ const styles = StyleSheet.create({
     color: '#6C8EFF',
   },
 });
+

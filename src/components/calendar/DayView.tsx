@@ -98,7 +98,7 @@ function ClassCard({
 }: {
   schedule: ClassScheduleRow;
   selectedDate: Date;
-  studentSet: 'A' | 'B' | null;
+  studentSet: import('@/src/store/userStore').StudentSet | null;
   semesterRules: SemesterRuleRow[];
   holidays: HolidayRow[];
   examWeeks: ExamWeekRow[];

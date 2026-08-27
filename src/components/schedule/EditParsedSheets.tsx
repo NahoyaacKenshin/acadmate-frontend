@@ -8,7 +8,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, Clock, Calendar } from 'lucide-react-native';
@@ -55,11 +55,9 @@ function formatTime12(hhmm: string): string {
 }
 
 function dateFromHHMM(hhmm: string): Date {
-  const d = new Date();
-  if (!hhmm) return d;
+  if (!hhmm) return new Date(2000, 0, 1, 8, 0, 0, 0);
   const [h, m] = hhmm.split(':').map(Number);
-  d.setHours(h, m, 0, 0);
-  return d;
+  return new Date(2000, 0, 1, h, m, 0, 0);
 }
 
 function formatDate(date: Date | string | undefined): string {
@@ -138,19 +136,45 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
 
   const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
-    setActivePickerField(field);
+    if (Platform.OS === 'android') {
+      if (field === 'startTime' || field === 'endTime') {
+        const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'time',
+          is24Hour: false,
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const hhmm = toHHMM(selectedDate);
+            if (field === 'startTime') setStartTime(hhmm);
+            else if (field === 'endTime') setEndTime(hhmm);
+          },
+        });
+      } else {
+        const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'date',
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            if (field === 'startDate') setStartDate(selectedDate);
+            else setEndDate(selectedDate);
+          },
+        });
+      }
+    } else {
+      setActivePickerField(field);
+    }
   };
 
-  const handleTimeChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     const hhmm = toHHMM(selected);
     if (activePickerField === 'startTime') setStartTime(hhmm);
     else if (activePickerField === 'endTime') setEndTime(hhmm);
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
     else if (activePickerField === 'endDate') setEndDate(selected);
@@ -234,14 +258,6 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
             </View>
           </View>
 
-          {/* Android Pickers */}
-          {Platform.OS === 'android' && (activePickerField === 'startTime' || activePickerField === 'endTime') && (
-            <DateTimePicker value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)} mode="time" display="default" onValueChange={handleTimeChange} />
-          )}
-          {Platform.OS === 'android' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
-            <DateTimePicker value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)} mode="date" display="default" onValueChange={handleDateChange} />
-          )}
-
           {/* iOS Pickers */}
           {Platform.OS === 'ios' && activePickerField && (
             <View style={styles.iosPickerWrapper}>
@@ -249,7 +265,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                 value={activePickerField === 'startTime' || activePickerField === 'endTime' ? dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime) : (activePickerField === 'startDate' ? startDate : (endDate ?? startDate))}
                 mode={activePickerField.includes('Time') ? 'time' : 'date'}
                 display="spinner"
-                onValueChange={activePickerField.includes('Time') ? handleTimeChange : handleDateChange}
+                onChange={activePickerField.includes('Time') ? handleTimeChange : handleDateChange}
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}
@@ -349,8 +365,24 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
     handleClose();
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const openPicker = (field: 'startDate' | 'endDate') => {
+    if (Platform.OS === 'android') {
+      const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+      DateTimePickerAndroid.open({
+        value: val,
+        mode: 'date',
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          if (field === 'startDate') setStartDate(selectedDate);
+          else setEndDate(selectedDate);
+        },
+      });
+    } else {
+      setActivePickerField(field);
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
     else if (activePickerField === 'endDate') setEndDate(selected);
@@ -378,7 +410,7 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
           <View style={[styles.formGroup, styles.timeRow]}>
             <View style={styles.timeField}>
               <Text style={styles.label}>Start Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('startDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
                 <Calendar size={14} color="#94A3B8" />
               </Pressable>
@@ -386,7 +418,7 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
             <View style={styles.timeField}>
               <Text style={styles.label}>End Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('endDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
                 <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {endDate ? formatDate(endDate) : 'Optional'}
                 </Text>
@@ -395,17 +427,13 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
             </View>
           </View>
 
-          {Platform.OS === 'android' && activePickerField && (
-             <DateTimePicker value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)} mode="date" display="default" onValueChange={handleDateChange} />
-          )}
-
           {Platform.OS === 'ios' && activePickerField && (
             <View style={styles.iosPickerWrapper}>
               <DateTimePicker
                 value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
                 mode="date"
                 display="spinner"
-                onValueChange={handleDateChange}
+                onChange={handleDateChange}
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}
@@ -435,7 +463,7 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
 interface EditParsedExamSheetProps {
   visible: boolean;
   item: ParsedExamWeek | null;
-  adminExamWeeks: import('@/src/hooks/useExamWeeks').ExamWeekRow[];
+  examWeeks: import('@/src/hooks/useExamWeeks').ExamWeekRow[];
   onClose: () => void;
   onSave: (updated: ParsedExamWeek) => void;
 }
@@ -458,7 +486,7 @@ function toISODateTime(d: Date): string {
   return d.toISOString();
 }
 
-/** Find the matching date-of-week within an admin ExamWeek block */
+/** Find the matching date-of-week within an ExamWeek block */
 function resolveFromBlock(dayOfWeek: number, blockId: string, blocks: import('@/src/hooks/useExamWeeks').ExamWeekRow[]): string | null {
   const block = blocks.find((b) => b.id === blockId);
   if (!block) return null;
@@ -479,7 +507,7 @@ function resolveFromBlock(dayOfWeek: number, blockId: string, blocks: import('@/
 
 type ExamPickerField = 'startDate' | 'endDate' | 'startTime' | 'endTime';
 
-export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, onSave }: EditParsedExamSheetProps) {
+export function EditParsedExamSheet({ visible, item, examWeeks, onClose, onSave }: EditParsedExamSheetProps) {
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
@@ -506,7 +534,7 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
   const handleBlockSelect = (blockId: string) => {
     setSelectedBlockId(blockId);
     if (item?.dayOfWeek != null) {
-      const datePart = resolveFromBlock(item.dayOfWeek, blockId, adminExamWeeks);
+      const datePart = resolveFromBlock(item.dayOfWeek, blockId, examWeeks);
       if (datePart) {
         const sd = new Date(`${datePart}T00:00:00`);
         const [sh, sm] = startTime.split(':').map(Number);
@@ -539,15 +567,45 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
     handleClose();
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const openPicker = (field: PickerField) => {
+    if (Platform.OS === 'android') {
+      if (field === 'startTime' || field === 'endTime') {
+        const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'time',
+          is24Hour: false,
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const hhmm = toHHMMFromDate(selectedDate);
+            if (field === 'startTime') setStartTime(hhmm);
+            else setEndTime(hhmm);
+          },
+        });
+      } else {
+        const val = field === 'startDate' ? startDate : endDate;
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'date',
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            if (field === 'startDate') setStartDate(selectedDate);
+            else setEndDate(selectedDate);
+          },
+        });
+      }
+    } else {
+      setActivePickerField(field);
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     if (activePickerField === 'startDate') setStartDate(selected);
     else if (activePickerField === 'endDate') setEndDate(selected);
   };
 
-  const handleTimeChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
     const hhmm = toHHMMFromDate(selected);
     if (activePickerField === 'startTime') setStartTime(hhmm);
@@ -585,14 +643,14 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
           </View>
 
           {/* Exam Week Block selector — only shown for students with day-of-week based exams */}
-          {item.dayOfWeek != null && adminExamWeeks.length > 0 && (
+          {item.dayOfWeek != null && examWeeks.length > 0 && (
             <View style={styles.formGroup}>
               <Text style={styles.label}>Exam Period</Text>
               <Text style={[styles.label, { fontSize: 11, marginBottom: 10, marginTop: -4 }]}>
                 This exam has no specific date — select which period it belongs to
               </Text>
               <View style={styles.pillRow}>
-                {adminExamWeeks.map((ew) => {
+                {examWeeks.map((ew) => {
                   const isSelected = selectedBlockId === ew.id;
                   return (
                     <Pressable
@@ -614,7 +672,7 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
           <View style={[styles.formGroup, styles.timeRow]}>
             <View style={styles.timeField}>
               <Text style={styles.label}>Exam Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('startDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
                 <Calendar size={14} color="#94A3B8" />
               </Pressable>
@@ -622,7 +680,7 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
             <View style={styles.timeField}>
               <Text style={styles.label}>End Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('endDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
                 <Text style={styles.pickerText}>{formatDate(endDate)}</Text>
                 <Calendar size={14} color="#94A3B8" />
               </Pressable>
@@ -633,7 +691,7 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
           <View style={[styles.formGroup, styles.timeRow]}>
             <View style={styles.timeField}>
               <Text style={styles.label}>Start Time</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('startTime')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
               </Pressable>
@@ -641,20 +699,12 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
             <View style={styles.timeField}>
               <Text style={styles.label}>End Time</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('endTime')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
               </Pressable>
             </View>
           </View>
-
-          {/* Android pickers */}
-          {Platform.OS === 'android' && isTimePicker && (
-            <DateTimePicker value={currentPickerValue()} mode="time" display="default" onValueChange={handleTimeChange} />
-          )}
-          {Platform.OS === 'android' && isDatePicker && (
-            <DateTimePicker value={currentPickerValue()} mode="date" display="default" onValueChange={handleDateChange} />
-          )}
 
           {/* iOS picker */}
           {Platform.OS === 'ios' && activePickerField && (
@@ -663,7 +713,7 @@ export function EditParsedExamSheet({ visible, item, adminExamWeeks, onClose, on
                 value={currentPickerValue()}
                 mode={isTimePicker ? 'time' : 'date'}
                 display="spinner"
-                onValueChange={isTimePicker ? handleTimeChange : handleDateChange}
+                onChange={isTimePicker ? handleTimeChange : handleDateChange}
                 textColor="#ffffff"
                 themeVariant="dark"
                 style={styles.iosPicker}

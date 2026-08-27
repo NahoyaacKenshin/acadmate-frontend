@@ -4,12 +4,11 @@ import { router } from 'expo-router';
 
 export function useNotificationDeepLink() {
   useEffect(() => {
-    // Handle tapping notification while app is running (foreground/background)
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
+    function handleNotificationResponse(response: Notifications.NotificationResponse) {
+      const data = response.notification?.request?.content?.data;
       if (!data) return;
 
-      const { type, taskId, notebookId } = data;
+      const { type, notebookId } = data;
 
       switch (type) {
         case 'class':
@@ -29,10 +28,21 @@ export function useNotificationDeepLink() {
         default:
           break;
       }
+    }
+
+    // 1. Cold start: check if app was opened via notification tap
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationResponse(response);
+      }
     });
+
+    // 2. Foreground / background tap listener
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
     return () => {
       subscription.remove();
     };
   }, []);
 }
+

@@ -35,8 +35,6 @@ import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
 import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 
-import AdminDashboardScreen from './admin';
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayISO(): string {
@@ -168,11 +166,11 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
   return (
     <Animated.View entering={FadeInDown.delay(200 + index * 60).springify()} style={styles.hubCardWrapper}>
       <TouchableOpacity
-        style={[styles.hubCard, { borderColor: item.accent + '40' }]}
+        style={styles.hubCard}
         onPress={item.onPress}
         activeOpacity={0.75}
       >
-        <View style={[styles.hubIcon, { backgroundColor: item.accent + '18' }]}>
+        <View style={styles.hubIcon}>
           {item.icon}
         </View>
         <Text style={styles.hubLabel}>{item.label}</Text>
@@ -184,12 +182,10 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function HomeScreen() {
+function StudentHomeScreen() {
   const { user } = useAuthStore();
   const { nickname } = useUserStore();
   const { isOnline } = useSystemStore();
-
-  if (user?.role === 'ADMIN') return <AdminDashboardScreen />;
 
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
   const greeting = getGreeting();
@@ -252,34 +248,34 @@ export default function HomeScreen() {
     return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [todayClasses, todayEvents]);
 
-  // AI Study Hub actions
+  // Academic Tools & Study Workspace actions
   const hubItems: HubItem[] = [
     {
-      icon: <Sparkles size={20} color="#A78BFA" />,
-      label: 'Ask AI',
-      sub: 'Chat with your notes',
-      accent: '#A78BFA',
+      icon: <BookOpen size={20} color="#6C8EFF" />,
+      label: 'Course Notes',
+      sub: 'Browse & review materials',
+      accent: '#6C8EFF',
       onPress: () => router.push('/(app)/notebook' as any),
     },
     {
-      icon: <UploadCloud size={20} color="#38BDF8" />,
-      label: 'Upload Material',
-      sub: 'Add PDFs, images, docs',
-      accent: '#38BDF8',
-      onPress: () => router.push('/(app)/notebook' as any),
-    },
-    {
-      icon: <ScanLine size={20} color="#34D399" />,
-      label: 'Scan Schedule',
-      sub: 'AI schedule parser',
-      accent: '#34D399',
+      icon: <ScanLine size={20} color="#6C8EFF" />,
+      label: 'Scan Timetable',
+      sub: 'Import class schedule',
+      accent: '#6C8EFF',
       onPress: () => router.push('/(app)/schedule-upload' as any),
     },
     {
-      icon: <BookOpen size={20} color="#FB923C" />,
-      label: 'Notebooks',
-      sub: 'Browse study materials',
-      accent: '#FB923C',
+      icon: <UploadCloud size={20} color="#6C8EFF" />,
+      label: 'Upload Sources',
+      sub: 'PDFs, docs & lecture slides',
+      accent: '#6C8EFF',
+      onPress: () => router.push('/(app)/notebook' as any),
+    },
+    {
+      icon: <Sparkles size={20} color="#6C8EFF" />,
+      label: 'AI Study Assistant',
+      sub: 'Grounded note search & Q&A',
+      accent: '#6C8EFF',
       onPress: () => router.push('/(app)/notebook' as any),
     },
   ];
@@ -294,10 +290,8 @@ export default function HomeScreen() {
         {/* ── Hero Header ── */}
         <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
           <View style={styles.heroLeft}>
-            <Text style={styles.greetingText}>
-              {greeting.text} {greeting.emoji}
-            </Text>
-            <Text style={styles.nameText}>{displayName} 👋</Text>
+            <Text style={styles.greetingText}>{greeting.text}</Text>
+            <Text style={styles.nameText}>{displayName}</Text>
           </View>
           <View style={[styles.onlinePill, isOnline ? styles.onlinePillGreen : styles.onlinePillAmber]}>
             {isOnline ? (
@@ -393,12 +387,12 @@ export default function HomeScreen() {
           )}
         </Animated.View>
 
-        {/* ── AI Study Hub ── */}
+        {/* ── Study Workspace ── */}
         <Animated.View entering={FadeInDown.delay(180).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Sparkles size={15} color="#A78BFA" />
-              <Text style={styles.sectionTitle}>AI Study Hub</Text>
+              <BookOpen size={15} color="#6C8EFF" />
+              <Text style={styles.sectionTitle}>Study Workspace</Text>
             </View>
           </View>
           <View style={styles.hubGrid}>
@@ -412,6 +406,10 @@ export default function HomeScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function HomeScreen() {
+  return <StudentHomeScreen />;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -430,21 +428,21 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   heroLeft: { flex: 1 },
-  greetingText: { fontSize: 14, color: '#64748B', fontWeight: '500' },
+  greetingText: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   nameText: { fontSize: 26, fontWeight: '800', color: '#ffffff', marginTop: 2 },
 
   onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     marginTop: 4,
   },
   onlinePillGreen: { backgroundColor: 'rgba(52,211,153,0.12)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
   onlinePillAmber: { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' },
-  onlineText: { fontSize: 11, fontWeight: '600' },
+  onlineText: { fontSize: 11, fontWeight: '700' },
   onlineTextGreen: { color: '#34D399' },
   onlineTextAmber: { color: '#F59E0B' },
 
@@ -452,10 +450,10 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     backgroundColor: '#161A26',
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     marginBottom: 24,
     alignItems: 'center',
@@ -464,10 +462,10 @@ const styles = StyleSheet.create({
   statChip: { alignItems: 'center', gap: 4, flex: 1 },
   statNum: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
   statLabel: { fontSize: 11, color: '#64748B', fontWeight: '500' },
-  statDivider: { width: 1, height: 36, backgroundColor: '#2A3143' },
+  statDivider: { width: 1, height: 32, backgroundColor: '#2A3143' },
 
   // Section
-  section: { marginBottom: 28 },
+  section: { marginBottom: 26 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -475,7 +473,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#E2E8F0' },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#E2E8F0', textTransform: 'uppercase', letterSpacing: 0.5 },
   sectionLink: { fontSize: 12, color: '#6C8EFF', fontWeight: '600' },
 
   // Urgent task card
@@ -483,7 +481,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#161A26',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
     marginBottom: 8,
@@ -493,7 +491,7 @@ const styles = StyleSheet.create({
   },
   urgentAccent: { width: 4, alignSelf: 'stretch' },
   urgentContent: { flex: 1, paddingVertical: 12 },
-  urgentTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff', marginBottom: 5 },
+  urgentTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff', marginBottom: 4 },
   urgentMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   urgentSubject: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
   urgentBadge: {
@@ -512,10 +510,10 @@ const styles = StyleSheet.create({
   // Empty state
   emptyCard: {
     backgroundColor: '#161A26',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
-    padding: 20,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -526,11 +524,11 @@ const styles = StyleSheet.create({
   timelineScroll: { paddingBottom: 4, gap: 10 },
   timelineItem: {
     backgroundColor: '#161A26',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
-    padding: 14,
-    width: 160,
+    padding: 12,
+    width: 156,
     gap: 6,
   },
   timelineDot: { width: 8, height: 8, borderRadius: 4 },
@@ -539,25 +537,28 @@ const styles = StyleSheet.create({
   timelineTime: { fontSize: 11, color: '#6C8EFF', fontWeight: '600' },
   timelineSub: { fontSize: 10, color: '#64748B' },
 
-  // AI Hub
+  // Workspace Hub
   hubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   hubCardWrapper: { width: '48%' },
   hubCard: {
     backgroundColor: '#161A26',
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 16,
-    gap: 8,
+    borderColor: '#2A3143',
+    padding: 14,
+    gap: 6,
   },
   hubIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 4,
   },
   hubLabel: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
-  hubSub: { fontSize: 11, color: '#64748B' },
+  hubSub: { fontSize: 11, color: '#64748B', lineHeight: 15 },
 
   bottomPad: { height: 20 },
 });

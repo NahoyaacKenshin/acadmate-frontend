@@ -25,11 +25,13 @@ export interface ScheduleResolution {
 export function resolveScheduleForDate(
   schedule: ClassScheduleRow,
   date: Date,
-  studentSet: 'A' | 'B' | null = null,
+  studentSet: 'A' | 'B' | 'Standard' | null = null,
   semesterRules: SemesterRuleRow[] = [],
   holidays: HolidayRow[] = [],
   examWeeks: ExamWeekRow[] = []
 ): ScheduleResolution {
+  // Treat 'Standard' the same as null — no alternating set logic
+  const effectiveSet: 'A' | 'B' | null = studentSet === 'Standard' ? null : studentSet;
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
 
@@ -122,7 +124,8 @@ export function resolveScheduleForDate(
   }
 
   // Determine effective set (user set or schedule set fallback)
-  const effectiveSet = studentSet || (schedule.set_type === 'A' || schedule.set_type === 'B' ? schedule.set_type : 'A');
+  // effectiveSet is already resolved above ('Standard' → null); fall back to the schedule's own set_type
+  const resolvedSet: 'A' | 'B' = effectiveSet || (schedule.set_type === 'A' || schedule.set_type === 'B' ? schedule.set_type : 'A');
 
   // 5. Special Day / Semester Rules (SemesterRule)
   if (semesterRules.length > 0) {
@@ -139,7 +142,7 @@ export function resolveScheduleForDate(
     });
 
     if (matchedRule) {
-      const isF2F = effectiveSet === matchedRule.setType;
+      const isF2F = resolvedSet === matchedRule.setType;
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const dayName = days[matchedRule.dayOfWeek];
       const otherSet = matchedRule.setType === 'A' ? 'B' : 'A';

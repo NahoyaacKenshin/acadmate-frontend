@@ -165,4 +165,16 @@ export const ApiService = {
       return handleResponse(response);
     },
   },
+
+  // --- User Profile ---
+  profile: {
+    update: async (data: { name?: string; programName?: string | null }) => {
+      const response = await fetch(`${ENV.API_URL}/auth/v1/me`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+  },
 };

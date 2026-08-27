@@ -1,15 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Home, CalendarDays, Book, Settings, ListTodo, WifiOff, ShieldAlert } from 'lucide-react-native';
+import { Home, CalendarDays, Book, Settings, ListTodo, WifiOff } from 'lucide-react-native';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useSystemStore } from '@/src/store/systemStore';
-import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Text } from '@/src/components/ui/text';
 
 export default function AppLayout() {
   const { isOnline } = useSystemStore();
-  const { user } = useAuthStore();
-
-  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <>
@@ -31,15 +27,13 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: isAdmin ? 'Admin Portal' : 'Home',
-            tabBarIcon: ({ color, size }) =>
-              isAdmin ? <ShieldAlert size={size} color={color} /> : <Home size={size} color={color} />,
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="calendar"
           options={{
-            href: isAdmin ? null : undefined,
             title: 'Calendar',
             tabBarIcon: ({ color, size }) => <CalendarDays size={size} color={color} />,
           }}
@@ -47,7 +41,6 @@ export default function AppLayout() {
         <Tabs.Screen
           name="tasks"
           options={{
-            href: isAdmin ? null : undefined,
             title: 'Tasks',
             tabBarIcon: ({ color, size }) => <ListTodo size={size} color={color} />,
           }}
@@ -55,7 +48,6 @@ export default function AppLayout() {
         <Tabs.Screen
           name="notebook"
           options={{
-            href: isAdmin ? null : undefined,
             title: 'Notebook',
             tabBarIcon: ({ color, size }) => <Book size={size} color={color} />,
           }}
@@ -75,10 +67,6 @@ export default function AppLayout() {
         <Tabs.Screen
           name="schedule-confirm"
           options={{ href: null, headerShown: false, title: 'Review Your Schedule' }}
-        />
-        <Tabs.Screen
-          name="admin"
-          options={{ href: null, headerShown: false, title: 'Admin Dashboard' }}
         />
         <Tabs.Screen
           name="notebook/[id]"

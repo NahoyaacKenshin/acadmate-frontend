@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Modal, Pressable, StyleSheet, TextInput, Platform, ActivityIndicator } from 'react-native';
 import { Text } from '../ui/text';
 import { X, Calendar as CalendarIcon } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '../ui/button';
@@ -58,11 +58,27 @@ export function AddExamWeekModal({
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
+  const openPicker = (field: 'startDate' | 'endDate') => {
+    if (Platform.OS === 'android') {
+      const val = field === 'startDate' ? startDate : endDate;
+      DateTimePickerAndroid.open({
+        value: val,
+        mode: 'date',
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          if (field === 'startDate') setStartDate(selectedDate);
+          else setEndDate(selectedDate);
+        },
+      });
+    } else {
+      setActivePickerField(field);
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (!selectedDate) return;
     if (activePickerField === 'startDate') setStartDate(selectedDate);
-    if (activePickerField === 'endDate') setEndDate(selectedDate);
+    else if (activePickerField === 'endDate') setEndDate(selectedDate);
   };
 
   const handleSave = async () => {
@@ -169,7 +185,7 @@ export function AddExamWeekModal({
           <View style={[styles.formGroup, styles.row]}>
             <View style={styles.flex1}>
               <Text style={styles.label}>Start Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('startDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
                 <CalendarIcon size={14} color="#94A3B8" />
               </Pressable>
@@ -179,21 +195,12 @@ export function AddExamWeekModal({
 
             <View style={styles.flex1}>
               <Text style={styles.label}>End Date</Text>
-              <Pressable style={styles.picker} onPress={() => setActivePickerField('endDate')}>
+              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
                 <Text style={styles.pickerText}>{formatDate(endDate)}</Text>
                 <CalendarIcon size={14} color="#94A3B8" />
               </Pressable>
             </View>
           </View>
-
-          {Platform.OS === 'android' && activePickerField !== null && (
-            <DateTimePicker
-              value={activePickerField === 'startDate' ? startDate : endDate}
-              mode="date"
-              display="default"
-              onValueChange={handleDateChange}
-            />
-          )}
 
           {Platform.OS === 'ios' && activePickerField !== null && (
              <View style={{ marginBottom: 16 }}>
@@ -201,7 +208,7 @@ export function AddExamWeekModal({
                  value={activePickerField === 'startDate' ? startDate : endDate}
                  mode="date"
                  display="spinner"
-                 onValueChange={handleDateChange}
+                 onChange={handleDateChange}
                  textColor="#ffffff"
                  themeVariant="dark"
                />

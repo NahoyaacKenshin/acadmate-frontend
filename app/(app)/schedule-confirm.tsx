@@ -636,7 +636,7 @@ export default function ScheduleConfirmScreen() {
       <EditParsedExamSheet
         visible={editingExamIndex !== null}
         item={editingExamIndex !== null ? exams[editingExamIndex] : null}
-        adminExamWeeks={adminExamWeeks ?? []}
+        examWeeks={adminExamWeeks ?? []}
         onClose={() => setEditingExamIndex(null)}
         onSave={(updated) => {
           if (editingExamIndex === null) return;

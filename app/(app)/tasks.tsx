@@ -68,7 +68,7 @@ export default function TasksScreen() {
   const formatDueDate = (iso: string | null): string => {
     if (!iso) return 'No due date';
     const d = new Date(iso);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const hours = d.getHours();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
+    lineHeight: 36,
     fontWeight: '700',
     color: '#ffffff',
   },
