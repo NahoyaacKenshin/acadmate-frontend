@@ -33,7 +33,7 @@ import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEven
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,7 +184,7 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 
 function StudentHomeScreen() {
   const { user } = useAuthStore();
-  const { nickname } = useUserStore();
+  const { nickname, studentSet } = useUserStore();
   const { isOnline } = useSystemStore();
 
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
@@ -197,6 +197,7 @@ function StudentHomeScreen() {
   const { events } = useCalendarEvents();
   const { examWeeks = [] } = useExamWeeks();
   const { holidays = [] } = useHolidays();
+  const { semesterRules = [] } = useSemesterRules();
 
   // Urgent tasks: incomplete, due today or overdue — max 3
   const urgentTasks = useMemo<TaskRow[]>(() => {
@@ -208,11 +209,16 @@ function StudentHomeScreen() {
   // Pending tasks (incomplete, any date)
   const pendingCount = useMemo(() => tasks.filter((t) => t.completed === 0).length, [tasks]);
 
-  // Today's classes
-  const todayClasses = useMemo(() => {
+  // Today's classes with full schedule resolution pipeline (modality, exam weeks, holidays, Set A/B)
+  const todayResolvedClasses = useMemo(() => {
     const today = new Date();
-    return schedules.filter((s) => isScheduleActiveOnDate(s, today, examWeeks, holidays));
-  }, [schedules, examWeeks, holidays]);
+    return schedules
+      .map((s) => ({
+        schedule: s,
+        resolution: resolveScheduleForDate(s, today, studentSet, semesterRules, holidays, examWeeks),
+      }))
+      .filter((item) => item.resolution.isActive);
+  }, [schedules, studentSet, semesterRules, holidays, examWeeks]);
 
   // Today's events
   const todayEvents = useMemo<CalendarEventRow[]>(() => {
@@ -229,12 +235,12 @@ function StudentHomeScreen() {
       sub?: string;
       sortKey: string;
     }> = [
-      ...todayClasses.map((s) => ({
+      ...todayResolvedClasses.map(({ schedule: s, resolution }) => ({
         id: s.id,
         label: s.subject_name ?? 'Class',
         time: `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`,
         color: s.subject_color ?? '#6C8EFF',
-        sub: s.room ? `📍 ${s.room} · ${s.modality}` : s.modality,
+        sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom} · ${resolution.badgeText}` : resolution.badgeText,
         sortKey: s.start_time,
       })),
       ...todayEvents.map((e) => ({
@@ -246,7 +252,7 @@ function StudentHomeScreen() {
       })),
     ];
     return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [todayClasses, todayEvents]);
+  }, [todayResolvedClasses, todayEvents]);
 
   // Academic Tools & Study Workspace actions
   const hubItems: HubItem[] = [
@@ -315,7 +321,7 @@ function StudentHomeScreen() {
           <View style={styles.statDivider} />
           <View style={styles.statChip}>
             <Clock size={14} color="#10B981" />
-            <Text style={styles.statNum}>{todayClasses.length}</Text>
+            <Text style={styles.statNum}>{todayResolvedClasses.length}</Text>
             <Text style={styles.statLabel}>Classes Today</Text>
           </View>
           <View style={styles.statDivider} />

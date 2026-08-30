@@ -8,7 +8,9 @@
     "scheme": "acadmate",
     "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.acadmate.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +26,8 @@
       ],
       "softwareKeyboardLayoutMode": "pan",
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.acadmate"
+      "package": "com.acadmate.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

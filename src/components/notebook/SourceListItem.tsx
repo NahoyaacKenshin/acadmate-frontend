@@ -10,6 +10,7 @@ import {
   Clock,
   AlertCircle,
   Loader,
+  RotateCw,
   ChevronRight,
 } from 'lucide-react-native';
 
@@ -28,6 +29,7 @@ export interface Source {
 interface SourceListItemProps {
   source: Source;
   onDelete: (source: Source) => void;
+  onRetry?: (source: Source) => void;
 }
 
 function FileTypeIcon({ type }: { type: SourceFileType }) {
@@ -53,7 +55,7 @@ function StatusBadge({ status }: { status: SourceStatus }) {
   );
 }
 
-export function SourceListItem({ source, onDelete }: SourceListItemProps) {
+export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProps) {
   const handleDeletePress = () => {
     Alert.alert(
       'Remove Source',
@@ -90,14 +92,26 @@ export function SourceListItem({ source, onDelete }: SourceListItemProps) {
         </View>
       </View>
 
-      {/* Delete btn */}
-      <Pressable
-        style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
-        onPress={handleDeletePress}
-        hitSlop={8}
-      >
-        <Trash2 size={16} color="#64748B" />
-      </Pressable>
+      {/* Actions */}
+      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+        {source.status === 'FAILED' && onRetry && (
+          <Pressable
+            style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.6 }]}
+            onPress={() => onRetry(source)}
+            hitSlop={8}
+          >
+            <RotateCw size={14} color="#6C8EFF" />
+          </Pressable>
+        )}
+
+        <Pressable
+          style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+          onPress={handleDeletePress}
+          hitSlop={8}
+        >
+          <Trash2 size={16} color="#64748B" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -166,6 +180,16 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 8,
     backgroundColor: '#10131C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108, 142, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },

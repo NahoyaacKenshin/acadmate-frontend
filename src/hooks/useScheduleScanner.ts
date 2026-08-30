@@ -17,8 +17,11 @@ import { Alert } from "react-native";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import { ENV } from "@/src/config/env";
 import type {
+  ParsedSemesterInfo,
   ParsedClassSchedule,
   ParsedCalendarEvent,
+  ParsedExamWeekBlocker,
+  ParsedExamEvent,
   ParsedExamWeek,
 } from "@/src/components/schedule/ParsedItemRow";
 
@@ -33,8 +36,11 @@ export type SelectedFile =
     };
 
 export interface ParsedScheduleResult {
+  semesterInfo?: ParsedSemesterInfo | null;
   classSchedules: ParsedClassSchedule[];
   calendarEvents: ParsedCalendarEvent[];
+  examWeekBlockers?: ParsedExamWeekBlocker[];
+  examEvents?: ParsedExamEvent[];
   examWeeks: ParsedExamWeek[];
 }
 

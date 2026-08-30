@@ -68,14 +68,8 @@ export const SemesterRule = new Table({
   setType: column.text,
   label: column.text,
   createdAt: column.text,
-  updatedAt: column.text
-});
-
-export const ProgramMapping = new Table({
-  programName: column.text,
-  studentSet: column.text,
-  createdAt: column.text,
-  updatedAt: column.text
+  updatedAt: column.text,
+  userId: column.text
 });
 
 export const PhilippineHoliday = new Table({
@@ -91,7 +85,6 @@ export const AppSchema = new Schema({
   CalendarEvent,
   ExamWeek,
   SemesterRule,
-  ProgramMapping,
   PhilippineHoliday
 });
 

@@ -1,11 +1,14 @@
 import { Tabs } from 'expo-router';
 import { Home, CalendarDays, Book, Settings, ListTodo, WifiOff } from 'lucide-react-native';
 import { View, StyleSheet, Platform } from 'react-native';
+import { useStatus } from '@powersync/react';
 import { useSystemStore } from '@/src/store/systemStore';
 import { Text } from '@/src/components/ui/text';
 
 export default function AppLayout() {
   const { isOnline } = useSystemStore();
+  const powerSyncStatus = useStatus();
+  const isDisconnected = !isOnline || (powerSyncStatus && !powerSyncStatus.connected);
 
   return (
     <>
@@ -77,10 +80,10 @@ export default function AppLayout() {
           options={{ href: null, headerShown: false, title: 'AI Notebook Chat' }}
         />
       </Tabs>
-      {!isOnline && (
+      {isDisconnected && (
         <View style={styles.offlineBannerAbsolute} pointerEvents="none">
-          <WifiOff size={16} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={styles.offlineText}>Offline: AI features unavailable. Changes will sync later.</Text>
+          <WifiOff size={14} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={styles.offlineText}>Offline: Changes saved locally & will sync when reconnected.</Text>
         </View>
       )}
     </>
@@ -90,11 +93,12 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
   offlineBannerAbsolute: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 20,
-    right: 20,
-    backgroundColor: '#F59E0B',
-    padding: 12,
+    top: Platform.OS === 'ios' ? 56 : 36,
+    left: 16,
+    right: 16,
+    backgroundColor: '#D97706',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -108,7 +112,8 @@ const styles = StyleSheet.create({
   },
   offlineText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   }
 });
+

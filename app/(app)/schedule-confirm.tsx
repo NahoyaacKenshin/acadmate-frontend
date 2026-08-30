@@ -25,10 +25,13 @@ import {
 import {
   ClassScheduleRow,
   CalendarEventRow,
-  ExamWeekRow,
+  ExamBlockerRow,
+  ExamEventRow,
+  ParsedSemesterInfo,
   ParsedClassSchedule,
   ParsedCalendarEvent,
-  ParsedExamWeek,
+  ParsedExamWeekBlocker,
+  ParsedExamEvent,
 } from "@/src/components/schedule/ParsedItemRow";
 import {
   EditParsedClassSheet,
@@ -39,7 +42,8 @@ import { ScanAnotherSheet } from "@/src/components/schedule/ScanAnotherSheet";
 import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
 import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
-import { useExamWeeks, ExamWeekRow as AdminExamWeekRow } from "@/src/hooks/useExamWeeks";
+import { useExamWeeks, type ExamWeekRow as DbExamWeekRow } from "@/src/hooks/useExamWeeks";
+import { toIsoDateString, toDateOnlyString } from "@/src/utils/scheduleUtils";
 import { usePowerSync } from "@powersync/react";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import ColorPicker, { HueSlider, Preview } from "reanimated-color-picker";
@@ -47,25 +51,18 @@ import { runOnJS } from "react-native-reanimated";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Given a dayOfWeek (0=Sun..6=Sat) and a list of admin ExamWeek blocks,
- * find the matching calendar date within the first applicable block.
- * Returns an ISO date string like "2026-08-04" or null if not found.
- */
 function resolveExamDate(
   dayOfWeek: number,
   examWeekId: string | null | undefined,
-  adminExamWeeks: AdminExamWeekRow[]
+  examWeeks: DbExamWeekRow[]
 ): string | null {
-  // Prefer the specific exam week block if one is pinned
   const candidates = examWeekId
-    ? adminExamWeeks.filter((ew) => ew.id === examWeekId)
-    : adminExamWeeks;
+    ? examWeeks.filter((ew) => ew.id === examWeekId)
+    : examWeeks;
 
   for (const ew of candidates) {
     const start = new Date(ew.startDate);
     const end = new Date(ew.endDate);
-    // Iterate each day in the range
     const cur = new Date(start);
     while (cur <= end) {
       if (cur.getDay() === dayOfWeek) {
@@ -80,33 +77,23 @@ function resolveExamDate(
   return null;
 }
 
-/** Build a full ISO datetime string from a date part and optional HH:MM time */
-function buildISODateTime(datePart: string, hhmm?: string | null): string {
-  if (!hhmm) return `${datePart}T00:00:00.000Z`;
-  const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date(`${datePart}T00:00:00.000Z`);
-  // Use local time construction to avoid UTC offset shift
-  return new Date(
-    d.getFullYear(), d.getMonth(), d.getDate(),
-    isNaN(h) ? 0 : h, isNaN(m) ? 0 : m, 0, 0
-  ).toISOString();
+function buildISODateTime(dateStr: string, timeStr?: string | null): string {
+  if (!timeStr) return toIsoDateString(`${dateStr}T08:00:00.000Z`);
+  const [h, m] = timeStr.split(':').map(Number);
+  const padH = String(isNaN(h) ? 8 : h).padStart(2, '0');
+  const padM = String(isNaN(m) ? 0 : m).padStart(2, '0');
+  return toIsoDateString(`${dateStr}T${padH}:${padM}:00.000Z`);
 }
-
 
 function generateId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
   });
 }
 
-const TOTAL_COUNT = (
-  classes: ParsedClassSchedule[],
-  events: ParsedCalendarEvent[],
-  exams: ParsedExamWeek[]
-) => classes.length + events.length + exams.length;
-
-// ── Collapsible section wrapper ───────────────────────────────────────────────
+// ── Accordion Section ─────────────────────────────────────────────────────────
 
 interface SectionProps {
   icon: React.ReactNode;
@@ -114,74 +101,113 @@ interface SectionProps {
   count: number;
   accentColor: string;
   children: React.ReactNode;
+  defaultExpanded?: boolean;
 }
 
-function Section({ icon, title, count, accentColor, children }: SectionProps) {
-  const [open, setOpen] = useState(true);
+function Section({
+  icon,
+  title,
+  count,
+  accentColor,
+  children,
+  defaultExpanded = true,
+}: SectionProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
   return (
-    <View style={sectionStyles.wrap}>
-      <Pressable style={sectionStyles.header} onPress={() => setOpen((v) => !v)}>
-        <View style={[sectionStyles.iconWrap, { backgroundColor: `${accentColor}1A` }]}>
-          {icon}
+    <View style={secStyles.card}>
+      <Pressable
+        style={secStyles.header}
+        onPress={() => setExpanded((v) => !v)}
+        hitSlop={4}
+      >
+        <View style={secStyles.headerLeft}>
+          <View style={[secStyles.iconWrap, { backgroundColor: `${accentColor}1A` }]}>
+            {icon}
+          </View>
+          <Text style={secStyles.title}>{title}</Text>
+          <View style={[secStyles.badge, { backgroundColor: `${accentColor}26` }]}>
+            <Text style={[secStyles.badgeText, { color: accentColor }]}>{count}</Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={sectionStyles.title}>{title}</Text>
-        </View>
-        <View style={[sectionStyles.countBadge, { backgroundColor: `${accentColor}22` }]}>
-          <Text style={[sectionStyles.countText, { color: accentColor }]}>{count}</Text>
-        </View>
-        {open
-          ? <ChevronUp size={16} color="#64748B" />
-          : <ChevronDown size={16} color="#64748B" />}
+        {expanded ? (
+          <ChevronUp size={18} color="#64748B" />
+        ) : (
+          <ChevronDown size={18} color="#64748B" />
+        )}
       </Pressable>
-      {open && count > 0 && <View style={sectionStyles.body}>{children}</View>}
-      {open && count === 0 && (
-        <View style={sectionStyles.emptyState}>
-          <Text style={sectionStyles.emptyText}>Nothing detected in this category.</Text>
+
+      {expanded && (
+        <View style={secStyles.body}>
+          {count === 0 ? (
+            <Text style={secStyles.emptyText}>None detected in this document.</Text>
+          ) : (
+            children
+          )}
         </View>
       )}
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
-  wrap: {
+const secStyles = StyleSheet.create({
+  card: {
     backgroundColor: "#161A26",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#2A3143",
-    marginBottom: 12,
+    marginBottom: 16,
     overflow: "hidden",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: 14, fontWeight: "700", color: "#ffffff" },
-  countBadge: {
-    borderRadius: 8,
+  title: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    minWidth: 28,
-    alignItems: "center",
+    borderRadius: 12,
   },
-  countText: { fontSize: 12, fontWeight: "700" },
-  body: { paddingHorizontal: 16, paddingBottom: 4 },
-  emptyState: { paddingHorizontal: 16, paddingBottom: 14 },
-  emptyText: { fontSize: 13, color: "#64748B" },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  body: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#1E2433",
+  },
+  emptyText: {
+    fontSize: 13,
+    color: "#64748B",
+    fontStyle: "italic",
+    paddingVertical: 12,
+    textAlign: "center",
+  },
 });
 
-// ── Inline new-subject creation modal ─────────────────────────────────────────
+// ── New Subject Modal ─────────────────────────────────────────────────────────
 
 interface NewSubjectModalProps {
   visible: boolean;
@@ -190,12 +216,30 @@ interface NewSubjectModalProps {
   onCreated: (id: string, name: string, color: string) => void;
 }
 
-function NewSubjectModal({ visible, prefillName, onClose, onCreated }: NewSubjectModalProps) {
+const PRESET_COLORS = [
+  "#6C8EFF",
+  "#10B981",
+  "#F59E0B",
+  "#EC4899",
+  "#8B5CF6",
+  "#06B6D4",
+  "#F97316",
+  "#84CC16",
+];
+
+function NewSubjectModal({
+  visible,
+  prefillName,
+  onClose,
+  onCreated,
+}: NewSubjectModalProps) {
+  const [name, setName] = useState(prefillName);
+  const [color, setColor] = useState(
+    PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
-  const [name, setName] = useState(prefillName);
-  const [color, setColor] = useState("#6C8EFF");
-  const [isLoading, setIsLoading] = useState(false);
 
   React.useEffect(() => { setName(prefillName); }, [prefillName]);
 
@@ -290,71 +334,90 @@ export default function ScheduleConfirmScreen() {
   const userId = user?.id;
   const [isSaving, setIsSaving] = useState(false);
 
-  // Admin-set ExamWeek blocks (used to resolve student exam dates)
-  const { examWeeks: adminExamWeeks } = useExamWeeks();
+  const { examWeeks: dbExamWeeks } = useExamWeeks();
 
   const initialData = useMemo(() => {
-    if (!params.payload) return { classSchedules: [], calendarEvents: [], examWeeks: [] };
+    if (!params.payload) {
+      return {
+        semesterInfo: null as ParsedSemesterInfo | null,
+        classSchedules: [] as ParsedClassSchedule[],
+        calendarEvents: [] as ParsedCalendarEvent[],
+        examWeekBlockers: [] as ParsedExamWeekBlocker[],
+        examEvents: [] as ParsedExamEvent[],
+      };
+    }
     try {
-      return JSON.parse(params.payload) as {
-        classSchedules: ParsedClassSchedule[];
-        calendarEvents: ParsedCalendarEvent[];
-        examWeeks: ParsedExamWeek[];
+      const raw = JSON.parse(params.payload);
+      const semesterInfo: ParsedSemesterInfo | null = raw.semesterInfo ?? null;
+      const classSchedules: ParsedClassSchedule[] = raw.classSchedules ?? [];
+      const calendarEvents: ParsedCalendarEvent[] = raw.calendarEvents ?? [];
+      const examWeekBlockers: ParsedExamWeekBlocker[] = raw.examWeekBlockers ?? [];
+
+      let examEvents: ParsedExamEvent[] = raw.examEvents ?? [];
+      if (examEvents.length === 0 && raw.examWeeks && raw.examWeeks.length > 0 && examWeekBlockers.length === 0) {
+        examEvents = raw.examWeeks.map((ew: any) => ({
+          subjectName: null,
+          title: ew.title,
+          startDate: ew.startDate,
+          endDate: ew.endDate,
+          dayOfWeek: ew.dayOfWeek,
+          startTime: ew.startTime,
+          endTime: ew.endTime,
+        }));
+      }
+
+      return {
+        semesterInfo,
+        classSchedules,
+        calendarEvents,
+        examWeekBlockers,
+        examEvents,
       };
     } catch {
-      return { classSchedules: [], calendarEvents: [], examWeeks: [] };
+      return {
+        semesterInfo: null,
+        classSchedules: [],
+        calendarEvents: [],
+        examWeekBlockers: [],
+        examEvents: [],
+      };
     }
   }, [params.payload]);
 
-  const filteredInitialExams = useMemo(() => {
-    if (user?.role === 'ADMIN') return initialData.examWeeks;
-    // Students: keep all exams — both specific-date ones and day-of-week-only ones
-    // (day-of-week-only will be resolved against admin ExamWeek blocks)
-    return initialData.examWeeks;
-  }, [initialData.examWeeks, user]);
-
   const [classes, setClasses] = useState<ParsedClassSchedule[]>(initialData.classSchedules);
   const [events, setEvents] = useState<ParsedCalendarEvent[]>(initialData.calendarEvents);
-  const [exams, setExams] = useState<ParsedExamWeek[]>(filteredInitialExams);
+  const [examBlockers, setExamBlockers] = useState<ParsedExamWeekBlocker[]>(initialData.examWeekBlockers);
+  const [examEvents, setExamEvents] = useState<ParsedExamEvent[]>(initialData.examEvents);
 
-  // Auto-resolve exam dates from admin ExamWeek blocks when they load
+  const [universalStartDate, setUniversalStartDate] = useState<string>(
+    initialData.semesterInfo?.startDate ? (toDateOnlyString(initialData.semesterInfo.startDate) ?? "") : ""
+  );
+  const [universalEndDate, setUniversalEndDate] = useState<string>(
+    initialData.semesterInfo?.endDate ? (toDateOnlyString(initialData.semesterInfo.endDate) ?? "") : ""
+  );
+
   React.useEffect(() => {
-    if (!adminExamWeeks || adminExamWeeks.length === 0) return;
-    if (user?.role === 'ADMIN') return;
-    setExams((prev) =>
+    if (!dbExamWeeks || dbExamWeeks.length === 0) return;
+    setExamEvents((prev) =>
       prev.map((ex) => {
-        // Already has a resolved date — skip
         if (ex.startDate) return ex;
-        // Needs resolution: has dayOfWeek
         if (ex.dayOfWeek == null) return ex;
-        const datePart = resolveExamDate(ex.dayOfWeek, ex.resolvedFromExamWeekId, adminExamWeeks);
+        const datePart = resolveExamDate(ex.dayOfWeek, null, dbExamWeeks);
         if (!datePart) return ex;
         const resolvedStart = buildISODateTime(datePart, ex.startTime);
         const resolvedEnd = buildISODateTime(datePart, ex.endTime ?? ex.startTime);
-        // Pin to the first matching exam week block
-        const matchedBlock = adminExamWeeks.find((ew) => {
-          const s = new Date(ew.startDate), e = new Date(ew.endDate);
-          const d = new Date(datePart);
-          return d >= s && d <= e;
-        });
         return {
           ...ex,
           startDate: resolvedStart,
           endDate: resolvedEnd,
-          resolvedFromExamWeekId: ex.resolvedFromExamWeekId ?? matchedBlock?.id ?? null,
         };
       })
     );
-  }, [adminExamWeeks, user?.role]);
-
-  // Universal date override fields (optional)
-  const [universalStartDate, setUniversalStartDate] = useState<string>("");
-  const [universalEndDate, setUniversalEndDate] = useState<string>("");
+  }, [dbExamWeeks]);
 
   const [resolvedSubjects, setResolvedSubjects] = useState<Record<string, { id: string; color: string }>>({});
   const [editingClassIndex, setEditingClassIndex] = useState<number | null>(null);
   const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
-  const [editingExamIndex, setEditingExamIndex] = useState<number | null>(null);
   const [newSubjectFor, setNewSubjectFor] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showScanSheet, setShowScanSheet] = useState(false);
@@ -368,10 +431,8 @@ export default function ScheduleConfirmScreen() {
   const isNewSubject = (name: string) =>
     !existingSubjectNames.has(name.toLowerCase()) && !resolvedSubjects[name];
 
-  const total = TOTAL_COUNT(classes, events, exams);
+  const total = classes.length + events.length + examBlockers.length + examEvents.length;
   const isEmpty = total === 0;
-
-  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSubjectCreated = (id: string, name: string, color: string) => {
     setResolvedSubjects((prev) => ({ ...prev, [name]: { id, color } }));
@@ -379,15 +440,24 @@ export default function ScheduleConfirmScreen() {
 
   const handleScanAnother = async () => {
     const currentSchedule = JSON.stringify({
+      semesterInfo: initialData.semesterInfo,
       classSchedules: classes,
       calendarEvents: events,
-      examWeeks: exams,
+      examWeekBlockers: examBlockers,
+      examEvents: examEvents,
     });
     const merged = await scanner.uploadAndParse(currentSchedule);
     if (!merged) return;
     setClasses(merged.classSchedules ?? []);
     setEvents(merged.calendarEvents ?? []);
-    setExams(merged.examWeeks ?? []);
+    setExamBlockers(merged.examWeekBlockers ?? []);
+    setExamEvents(merged.examEvents ?? []);
+    if (merged.semesterInfo?.startDate && !universalStartDate) {
+      setUniversalStartDate(toDateOnlyString(merged.semesterInfo.startDate) ?? "");
+    }
+    if (merged.semesterInfo?.endDate && !universalEndDate) {
+      setUniversalEndDate(toDateOnlyString(merged.semesterInfo.endDate) ?? "");
+    }
     scanner.clearFile();
     setShowScanSheet(false);
   };
@@ -410,12 +480,10 @@ export default function ScheduleConfirmScreen() {
       for (const c of resolvedClasses) {
         if (!c.resolvedSubjectId) continue;
         const id = generateId();
-        const effectiveStartDate = universalStartDate.trim()
-          ? (universalStartDate.includes("T") ? universalStartDate.trim() : `${universalStartDate.trim()}T00:00:00.000Z`)
-          : (c.startDate ?? now);
-        const effectiveEndDate = universalEndDate.trim()
-          ? (universalEndDate.includes("T") ? universalEndDate.trim() : `${universalEndDate.trim()}T00:00:00.000Z`)
-          : (c.endDate ?? null);
+        const effectiveStartDate = toIsoDateString(universalStartDate.trim() || c.startDate, now);
+        const effectiveEndDate = universalEndDate.trim() || c.endDate
+          ? toIsoDateString(universalEndDate.trim() || c.endDate)
+          : null;
 
         queries.push(
           powerSync.execute(
@@ -428,8 +496,8 @@ export default function ScheduleConfirmScreen() {
 
       for (const e of events) {
         const id = generateId();
-        const validStartDate = e.startDate || now;
-        const validEndDate = e.endDate || validStartDate;
+        const validStartDate = toIsoDateString(e.startDate, now);
+        const validEndDate = toIsoDateString(e.endDate, validStartDate);
         queries.push(
           powerSync.execute(
             `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
@@ -439,52 +507,48 @@ export default function ScheduleConfirmScreen() {
         );
       }
 
-      if (user?.role === 'ADMIN') {
-        // Admins: save exam weeks as global school-wide blocks
-        for (const ex of exams) {
-          const id = generateId();
-          const validStartDate = ex.startDate || now;
-          const validEndDate = ex.endDate || validStartDate;
-          queries.push(
-            powerSync.execute(
-              `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [id, ex.title, validStartDate, validEndDate, userId, now, now]
-            )
-          );
-        }
-      } else {
-        // Students: save parsed exam schedules as personal CalendarEvents with Purple (#8B5CF6) accent
-        for (const ex of exams) {
-          const id = generateId();
-          const validStartDate = ex.startDate || now;
-          const validEndDate = ex.endDate || validStartDate;
-          queries.push(
-            powerSync.execute(
-              `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [id, ex.title, '🎓 Exam Schedule', validStartDate, validEndDate, 0, null, '#8B5CF6', userId, null, now, now]
-            )
-          );
-        }
+      for (const eb of examBlockers) {
+        const id = generateId();
+        const validStartDate = toIsoDateString(eb.startDate, now);
+        const validEndDate = toIsoDateString(eb.endDate, validStartDate);
+        queries.push(
+          powerSync.execute(
+            `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, eb.title, validStartDate, validEndDate, userId, now, now]
+          )
+        );
+      }
+
+      for (const ex of examEvents) {
+        const id = generateId();
+        const validStartDate = toIsoDateString(ex.startDate, now);
+        const validEndDate = toIsoDateString(ex.endDate, validStartDate);
+        const subjectMatch = ex.subjectName
+          ? resolvedSubjects[ex.subjectName]?.id ?? subjects.find((s) => s.name.toLowerCase() === ex.subjectName!.toLowerCase())?.id ?? null
+          : null;
+
+        queries.push(
+          powerSync.execute(
+            `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, ex.title, '🎓 Subject Exam', validStartDate, validEndDate, 0, ex.room ?? null, '#8B5CF6', userId, subjectMatch, now, now]
+          )
+        );
       }
 
       await Promise.all(queries);
-      console.log("[ScheduleConfirm] Saved data locally via PowerSync");
       setShowSuccess(true);
     } catch (err) {
-      console.error("[ScheduleConfirm] Failed to save schedule:", err);
+      console.error("[ScheduleConfirm] Failed to save:", err);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <SafeAreaView style={styles.safe}>
-        {/* Header */}
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/calendar')} hitSlop={8}>
             <ChevronLeft size={22} color="#94A3B8" />
@@ -492,24 +556,30 @@ export default function ScheduleConfirmScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Review Your Schedule</Text>
             <Text style={styles.headerSub}>
-              {isEmpty ? "Nothing was detected." : `${total} item${total !== 1 ? "s" : ""} detected — remove anything that looks wrong`}
+              {isEmpty ? "Nothing was detected." : `${total} item${total !== 1 ? "s" : ""} detected.`}
             </Text>
           </View>
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Universal Start & End Date Override (Optional) */}
           <View style={styles.universalCard}>
             <View style={styles.universalHeader}>
-              <CalendarDays size={16} color="#6C8EFF" />
-              <Text style={styles.universalTitle}>Universal Semester Dates (Optional)</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <CalendarDays size={16} color="#6C8EFF" />
+                <Text style={styles.universalTitle}>Universal Semester Dates</Text>
+              </View>
+              {initialData.semesterInfo?.label && (
+                <View style={styles.detectedBadge}>
+                  <Text style={styles.detectedBadgeText}>✨ {initialData.semesterInfo.label}</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.universalSub}>
-              Override all parsed class schedules with a unified semester start & end date. Leave blank to keep individual dates.
+              These semester dates are applied automatically to all recurring classes. You can edit them here if needed.
             </Text>
             <View style={styles.universalInputsRow}>
               <View style={styles.universalInputGroup}>
-                <Text style={styles.universalInputLabel}>Start Date</Text>
+                <Text style={styles.universalInputLabel}>Semester Start</Text>
                 <TextInput
                   style={styles.universalInput}
                   value={universalStartDate}
@@ -519,7 +589,7 @@ export default function ScheduleConfirmScreen() {
                 />
               </View>
               <View style={styles.universalInputGroup}>
-                <Text style={styles.universalInputLabel}>End Date</Text>
+                <Text style={styles.universalInputLabel}>Semester End</Text>
                 <TextInput
                   style={styles.universalInput}
                   value={universalEndDate}
@@ -555,18 +625,34 @@ export default function ScheduleConfirmScreen() {
             ))}
           </Section>
 
+          {examBlockers.length > 0 && (
+            <Section
+              icon={<GraduationCap size={18} color="#F59E0B" />}
+              title="Exam Week Blockers"
+              count={examBlockers.length}
+              accentColor="#F59E0B"
+            >
+              {examBlockers.map((item, i) => (
+                <ExamBlockerRow
+                  key={`examblock-${i}`}
+                  item={item}
+                  onRemove={() => setExamBlockers((prev) => prev.filter((_, idx) => idx !== i))}
+                />
+              ))}
+            </Section>
+          )}
+
           <Section
-            icon={<GraduationCap size={18} color={user?.role === 'ADMIN' ? "#F59E0B" : "#8B5CF6"} />}
-            title={user?.role === 'ADMIN' ? "Exam Periods" : "My Exam Schedule"}
-            count={exams.length}
-            accentColor={user?.role === 'ADMIN' ? "#F59E0B" : "#8B5CF6"}
+            icon={<GraduationCap size={18} color="#8B5CF6" />}
+            title="Subject Exam Schedules"
+            count={examEvents.length}
+            accentColor="#8B5CF6"
           >
-            {exams.map((item, i) => (
-              <ExamWeekRow
-                key={`exam-${i}`}
+            {examEvents.map((item, i) => (
+              <ExamEventRow
+                key={`examevent-${i}`}
                 item={item}
-                onRemove={() => setExams((prev) => prev.filter((_, idx) => idx !== i))}
-                onEdit={() => setEditingExamIndex(i)}
+                onRemove={() => setExamEvents((prev) => prev.filter((_, idx) => idx !== i))}
               />
             ))}
           </Section>
@@ -574,13 +660,12 @@ export default function ScheduleConfirmScreen() {
           {classes.some((c) => isNewSubject(c.subjectName)) && (
             <View style={styles.noticeBanner}>
               <Text style={styles.noticeText}>
-                ⚠️  Some classes have subjects not yet in your list. Tap the yellow <Text style={styles.noticeHighlight}>+ New Subject</Text> badge to create them before adding.
+                ⚠️  Some classes have subjects not yet in your list. Tap the <Text style={styles.noticeHighlight}>+ New Subject</Text> badge to create them.
               </Text>
             </View>
           )}
         </ScrollView>
 
-        {/* Bottom actions — vertically stacked */}
         <View style={styles.footer}>
           <Button
             style={[styles.confirmBtn, (isEmpty || isSaving) && styles.confirmBtnDisabled]}
@@ -602,62 +687,63 @@ export default function ScheduleConfirmScreen() {
         </View>
       </SafeAreaView>
 
-      {/* New-subject modal */}
-      <NewSubjectModal
-        visible={newSubjectFor !== null}
-        prefillName={newSubjectFor ?? ""}
-        onClose={() => setNewSubjectFor(null)}
-        onCreated={handleSubjectCreated}
-      />
-
       {/* Edit sheets */}
-      <EditParsedClassSheet
-        visible={editingClassIndex !== null}
-        item={editingClassIndex !== null ? classes[editingClassIndex] : null}
-        onClose={() => setEditingClassIndex(null)}
-        onSave={(updated) => {
-          if (editingClassIndex === null) return;
-          const next = [...classes];
-          next[editingClassIndex] = updated;
-          setClasses(next);
-        }}
-      />
-      <EditParsedEventSheet
-        visible={editingEventIndex !== null}
-        item={editingEventIndex !== null ? events[editingEventIndex] : null}
-        onClose={() => setEditingEventIndex(null)}
-        onSave={(updated) => {
-          if (editingEventIndex === null) return;
-          const next = [...events];
-          next[editingEventIndex] = updated;
-          setEvents(next);
-        }}
-      />
-      <EditParsedExamSheet
-        visible={editingExamIndex !== null}
-        item={editingExamIndex !== null ? exams[editingExamIndex] : null}
-        examWeeks={adminExamWeeks ?? []}
-        onClose={() => setEditingExamIndex(null)}
-        onSave={(updated) => {
-          if (editingExamIndex === null) return;
-          const next = [...exams];
-          next[editingExamIndex] = updated;
-          setExams(next);
-        }}
-      />
+      {editingClassIndex !== null && classes[editingClassIndex] && (
+        <EditParsedClassSheet
+          visible={true}
+          item={classes[editingClassIndex]}
+          onClose={() => setEditingClassIndex(null)}
+          onSave={(updated) => {
+            setClasses((prev) =>
+              prev.map((c, i) => (i === editingClassIndex ? updated : c))
+            );
+            setEditingClassIndex(null);
+          }}
+        />
+      )}
 
-      {/* Scan Another sheet */}
+      {editingEventIndex !== null && events[editingEventIndex] && (
+        <EditParsedEventSheet
+          visible={true}
+          item={events[editingEventIndex]}
+          onClose={() => setEditingEventIndex(null)}
+          onSave={(updated) => {
+            setEvents((prev) =>
+              prev.map((e, i) => (i === editingEventIndex ? updated : e))
+            );
+            setEditingEventIndex(null);
+          }}
+        />
+      )}
+
+      {/* Create new subject modal */}
+      {newSubjectFor && (
+        <NewSubjectModal
+          visible={true}
+          prefillName={newSubjectFor}
+          onClose={() => setNewSubjectFor(null)}
+          onCreated={(id, name, color) => {
+            handleSubjectCreated(id, name, color);
+            setNewSubjectFor(null);
+          }}
+        />
+      )}
+
+      {/* Scan another sheet */}
       <ScanAnotherSheet
         visible={showScanSheet}
-        selectedFile={scanner.selectedFile}
         isLoading={scanner.isLoading}
         error={scanner.error}
+        selectedFile={scanner.selectedFile}
         onPickDocument={scanner.pickDocument}
         onPickGallery={scanner.pickFromGallery}
         onPickCamera={scanner.pickFromCamera}
         onClearFile={scanner.clearFile}
-        onClose={() => { setShowScanSheet(false); scanner.clearFile(); }}
         onScan={handleScanAnother}
+        onClose={() => {
+          scanner.clearFile();
+          setShowScanSheet(false);
+        }}
       />
 
       {/* AI loading overlay for scan-another */}
@@ -669,7 +755,9 @@ export default function ScheduleConfirmScreen() {
           <View style={styles.successCard}>
             <CheckCircle2 size={48} color="#10B981" />
             <Text style={styles.successTitle}>Schedule Added!</Text>
-            <Text style={styles.successSub}>Your parsed schedule has been added to your calendar successfully.</Text>
+            <Text style={styles.successSub}>
+              {classes.length} class{classes.length !== 1 ? "es" : ""}, {events.length} event{events.length !== 1 ? "s" : ""}, and {examBlockers.length + examEvents.length} exam item{examBlockers.length + examEvents.length !== 1 ? "s" : ""} have been added to your calendar.
+            </Text>
             <Button style={styles.successBtn} onPress={() => { setShowSuccess(false); router.replace("/(app)/calendar"); }}>
               <Text style={styles.successBtnText}>Done</Text>
             </Button>
@@ -756,5 +844,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  detectedBadge: {
+    backgroundColor: "rgba(108, 142, 255, 0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "rgba(108, 142, 255, 0.3)",
+  },
+  detectedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6C8EFF",
   },
 });

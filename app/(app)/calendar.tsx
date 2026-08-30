@@ -55,6 +55,7 @@ export default function CalendarScreen() {
 
   // Sheet visibility
   const [isAddEventVisible, setIsAddEventVisible] = useState(false);
+  const [isAddExamVisible, setIsAddExamVisible] = useState(false);
   const [isAddClassVisible, setIsAddClassVisible] = useState(false);
   const [isAddExamWeekVisible, setIsAddExamWeekVisible] = useState(false);
 
@@ -73,7 +74,6 @@ export default function CalendarScreen() {
     const fetchHolidays = async () => {
       try {
         const res = await ApiService.holidays.get(displayYear);
-        // Backend returns `{ data: [...] }` or similar. Adjusting to assume it returns the array directly or in a `data` field.
         const fetchedHolidays = res?.data || res || [];
         setHolidays(fetchedHolidays);
       } catch (err) {
@@ -127,6 +127,11 @@ export default function CalendarScreen() {
   const openAddEvent = () => {
     setActionMenuVisible(false);
     setIsAddEventVisible(true);
+  };
+
+  const openAddExam = () => {
+    setActionMenuVisible(false);
+    setIsAddExamVisible(true);
   };
 
   const openAddClass = () => {
@@ -183,6 +188,18 @@ export default function CalendarScreen() {
 
               <View style={styles.actionMenuDivider} />
 
+              <Pressable style={styles.actionMenuItem} onPress={openAddExam}>
+                <View style={styles.actionMenuIcon}>
+                  <GraduationCap size={18} color="#8B5CF6" />
+                </View>
+                <View>
+                  <Text style={styles.actionMenuLabel}>Add Exam / Quiz</Text>
+                  <Text style={styles.actionMenuSub}>Subject test session & room</Text>
+                </View>
+              </Pressable>
+
+              <View style={styles.actionMenuDivider} />
+
               <Pressable style={styles.actionMenuItem} onPress={openAddClass}>
                 <View style={styles.actionMenuIcon}>
                   <BookOpen size={18} color="#10B981" />
@@ -193,21 +210,17 @@ export default function CalendarScreen() {
                 </View>
               </Pressable>
 
-              {user?.role === 'ADMIN' && (
-                <>
-                  <View style={styles.actionMenuDivider} />
+              <View style={styles.actionMenuDivider} />
 
-                  <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
-                    <View style={styles.actionMenuIcon}>
-                      <GraduationCap size={18} color="#F59E0B" />
-                    </View>
-                    <View>
-                      <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
-                      <Text style={styles.actionMenuSub}>Block off exam / holiday periods</Text>
-                    </View>
-                  </Pressable>
-                </>
-              )}
+              <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
+                <View style={styles.actionMenuIcon}>
+                  <GraduationCap size={18} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={styles.actionMenuLabel}>Add Exam Week</Text>
+                  <Text style={styles.actionMenuSub}>Block out exam blackout period</Text>
+                </View>
+              </Pressable>
 
               <View style={styles.actionMenuDivider} />
 
@@ -268,9 +281,13 @@ export default function CalendarScreen() {
 
         {/* Sheets */}
         <AddEventSheet
-          visible={isAddEventVisible}
+          visible={isAddEventVisible || isAddExamVisible}
           initialDate={selectedDate}
-          onClose={() => setIsAddEventVisible(false)}
+          isExamMode={isAddExamVisible}
+          onClose={() => {
+            setIsAddEventVisible(false);
+            setIsAddExamVisible(false);
+          }}
         />
         <AddClassSheet
           visible={isAddClassVisible}

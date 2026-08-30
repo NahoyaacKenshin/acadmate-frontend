@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Modal, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/src/features/auth/auth.store';
@@ -11,12 +11,8 @@ import {
   User,
   Bell,
   Info,
-  ShieldAlert,
-  GraduationCap,
   Smile,
   ChevronRight,
-  Check,
-  X,
   Layers,
 } from 'lucide-react-native';
 
@@ -299,22 +295,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 2,
   },
-  adminBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245,158,11,0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  adminBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
   section: {
     marginBottom: 20,
   },
@@ -407,29 +387,6 @@ const styles = StyleSheet.create({
   setPillTextActive: {
     color: '#ffffff',
   },
-  adminTile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245,158,11,0.08)',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(245,158,11,0.3)',
-    gap: 12,
-  },
-  adminTilePressed: {
-    backgroundColor: 'rgba(245,158,11,0.15)',
-  },
-  adminTileTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  adminTileSub: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
   footer: {
     marginTop: 20,
   },
@@ -446,51 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#ffffff',
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#161A26',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
-  modalItemSelected: {
-    backgroundColor: 'rgba(108,142,255,0.12)',
-  },
-  modalItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  modalItemTextSelected: {
-    color: '#6C8EFF',
   },
   // Switch styling
   switchTrack: {

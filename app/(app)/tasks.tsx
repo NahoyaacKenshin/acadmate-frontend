@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
 import { Button } from '@/src/components/ui/button';
@@ -16,14 +16,44 @@ import { useSubjects } from '@/src/hooks/useSubjects';
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { NotificationService } from '@/src/services/notificationService';
 
+type TaskFilter = 'all' | 'pending' | 'overdue' | 'done';
+
 export default function TasksScreen() {
   const powerSync = usePowerSync();
   const { tasks, isLoading } = useTasks();
   const { subjects } = useSubjects();
 
+  const [activeFilter, setActiveFilter] = useState<TaskFilter>('pending');
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
+
+  // Filtered & Sorted Tasks
+  const filteredTasks = useMemo(() => {
+    const now = new Date().getTime();
+
+    const filtered = tasks.filter((t) => {
+      if (activeFilter === 'pending') return t.completed === 0;
+      if (activeFilter === 'done') return t.completed === 1;
+      if (activeFilter === 'overdue') {
+        if (t.completed === 1 || !t.due_date) return false;
+        return new Date(t.due_date).getTime() < now;
+      }
+      return true; // 'all'
+    });
+
+    return filtered.sort((a, b) => {
+      // Completed tasks go to the bottom in 'all' view
+      if (activeFilter === 'all' && a.completed !== b.completed) {
+        return a.completed - b.completed;
+      }
+      // Sort by due date ascending (earliest first); items without due date at the end
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+  }, [tasks, activeFilter]);
 
   const handleCompleteTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
@@ -86,6 +116,13 @@ export default function TasksScreen() {
     completed: task.completed === 1,
   });
 
+  const filterTabs: Array<{ key: TaskFilter; label: string }> = [
+    { key: 'pending', label: 'Pending' },
+    { key: 'overdue', label: 'Overdue' },
+    { key: 'done', label: 'Done' },
+    { key: 'all', label: 'All' },
+  ];
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -96,18 +133,48 @@ export default function TasksScreen() {
           </Button>
         </View>
 
+        {/* Filter Bar */}
+        <View style={styles.filterRow}>
+          {filterTabs.map((tab) => {
+            const isActive = activeFilter === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={[styles.filterPill, isActive && styles.filterPillActive]}
+                onPress={() => setActiveFilter(tab.key)}
+              >
+                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color="#6C8EFF" size="large" />
           </View>
-        ) : tasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No tasks yet.</Text>
-            <Text style={styles.emptySubText}>Tap + to add your first task!</Text>
+            <Text style={styles.emptyText}>
+              {activeFilter === 'pending'
+                ? 'No pending tasks!'
+                : activeFilter === 'overdue'
+                ? 'No overdue tasks 🎉'
+                : activeFilter === 'done'
+                ? 'No completed tasks yet.'
+                : 'No tasks yet.'}
+            </Text>
+            <Text style={styles.emptySubText}>
+              {activeFilter === 'pending' || activeFilter === 'all'
+                ? 'Tap + to add your first task!'
+                : 'Keep up the good work!'}
+            </Text>
           </View>
         ) : (
           <FlatList
-            data={tasks}
+            data={filteredTasks}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <TaskListItem
@@ -169,6 +236,33 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 14,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#161A26',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+  },
+  filterPillActive: {
+    backgroundColor: 'rgba(108, 142, 255, 0.15)',
+    borderColor: '#6C8EFF',
+  },
+  filterPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  filterPillTextActive: {
+    color: '#6C8EFF',
+    fontWeight: '700',
   },
   listContent: {
     paddingBottom: 24,

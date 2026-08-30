@@ -27,16 +27,8 @@ export function AuthGate() {
       return;
     }
 
-    // 2. Authenticated Admin users -> Redirect away from Auth and Onboarding to App
-    if (accessToken && user?.role === 'ADMIN') {
-      if (inAuthGroup || isOnboarding) {
-        router.replace('/' as Href);
-      }
-      return;
-    }
-
-    // 3. Authenticated Student users
-    if (accessToken && user?.role !== 'ADMIN') {
+    // 2. Authenticated users
+    if (accessToken) {
       if (!hasCompletedOnboarding && !isOnboarding) {
         // Fresh student -> Redirect to Onboarding
         router.replace('/onboarding' as Href);
@@ -45,7 +37,7 @@ export function AuthGate() {
         router.replace('/' as Href);
       }
     }
-  }, [accessToken, user, isRestoring, isUserStoreLoaded, hasCompletedOnboarding, router, segments]);
+  }, [accessToken, isRestoring, isUserStoreLoaded, hasCompletedOnboarding, router, segments]);
 
   return null;
 }

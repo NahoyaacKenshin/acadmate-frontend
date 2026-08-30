@@ -29,6 +29,59 @@ export function formatDateLocal(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Ensures any date input (YYYY-M-D, YYYY-MM-DD, or ISO strings) is converted to a
+ * strict 2-digit padded ISO-8601 string (e.g. "2026-08-11T00:00:00.000Z") safe for Prisma & Postgres.
+ */
+export function toIsoDateString(val?: string | null, fallback?: string): string {
+  if (!val || val.trim() === '') {
+    if (fallback && fallback.trim() !== '') return toIsoDateString(fallback);
+    return new Date().toISOString();
+  }
+
+  const trimmed = val.trim();
+  // Match YYYY-M-D or YYYY-MM-DD
+  const ymdMatch = trimmed.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.(\d+))?)?(?:Z|([+-]\d{2}:?\d{2}))?)?/
+  );
+  if (ymdMatch) {
+    const [, y, m, d, hh = '00', mm = '00', ss = '00', ms = '000'] = ymdMatch;
+    const padMonth = m.padStart(2, '0');
+    const padDay = d.padStart(2, '0');
+    const padHour = hh.padStart(2, '0');
+    const padMin = mm.padStart(2, '0');
+    const padSec = ss.padStart(2, '0');
+    const padMs = ms.slice(0, 3).padEnd(3, '0');
+    return `${y}-${padMonth}-${padDay}T${padHour}:${padMin}:${padSec}.${padMs}Z`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  if (fallback && fallback.trim() !== '') return toIsoDateString(fallback);
+  return new Date().toISOString();
+}
+
+/**
+ * Formats any date input into a clean 'YYYY-MM-DD' 2-digit string.
+ */
+export function toDateOnlyString(val?: string | null): string | null {
+  if (!val || val.trim() === '') return null;
+  const trimmed = val.trim();
+  const match = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return formatDateLocal(d);
+  }
+  return null;
+}
+
 
 export interface SimpleHoliday {
   date: string;

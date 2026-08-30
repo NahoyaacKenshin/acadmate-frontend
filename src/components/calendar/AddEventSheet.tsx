@@ -22,6 +22,7 @@ import { formatDateLocal } from '@/src/utils/scheduleUtils';
 interface AddEventSheetProps {
   visible: boolean;
   initialDate?: Date; // Pre-fill start date from selected day
+  isExamMode?: boolean; // When true, customizes labels and color for Exam/Quiz
   onClose: () => void;
 }
 
@@ -58,19 +59,19 @@ function generateId(): string {
   });
 }
 
-export function AddEventSheet({ visible, initialDate, onClose }: AddEventSheetProps) {
+export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: AddEventSheetProps) {
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
 
   // Form state
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(isExamMode ? '🎓 Exam Schedule' : '');
   const [startDate, setStartDate] = useState<Date>(initialDate ?? new Date());
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState('');
-  const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
+  const [selectedColor, setSelectedColor] = useState<string>(isExamMode ? '#8B5CF6' : PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
 
   // Picker state

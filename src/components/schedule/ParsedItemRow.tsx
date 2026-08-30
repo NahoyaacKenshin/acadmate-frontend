@@ -5,6 +5,12 @@ import { X, BookOpen, CalendarDays, GraduationCap } from 'lucide-react-native';
 
 // ── Types (mirroring backend ParsedScheduleResult) ───────────────────────────
 
+export interface ParsedSemesterInfo {
+  label?: string | null;     // e.g. "1st Semester A.Y. 2026-2027"
+  startDate?: string | null; // "YYYY-MM-DD"
+  endDate?: string | null;   // "YYYY-MM-DD"
+}
+
 export interface ParsedClassSchedule {
   dayOfWeek: number;
   startTime: string;
@@ -23,6 +29,23 @@ export interface ParsedCalendarEvent {
   endDate?: string | null;
   allDay?: boolean;
   location?: string | null;
+}
+
+export interface ParsedExamWeekBlocker {
+  title: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface ParsedExamEvent {
+  subjectName?: string | null;
+  title: string;
+  startDate: string | null;
+  endDate?: string | null;
+  dayOfWeek?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  room?: string | null;
 }
 
 export interface ParsedExamWeek {
@@ -144,7 +167,97 @@ export function CalendarEventRow({ item, onRemove, onEdit }: EventRowProps) {
   );
 }
 
-// ── ExamWeek row ──────────────────────────────────────────────────────────────
+// ── ExamWeek Blocker row (Blackout window) ────────────────────────────────────
+
+interface ExamBlockerRowProps {
+  item: ParsedExamWeekBlocker;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function ExamBlockerRow({ item, onRemove, onEdit }: ExamBlockerRowProps) {
+  const startStr = formatDate(item.startDate);
+  const endStr = formatDate(item.endDate);
+  const dateSub = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
+
+  return (
+    <View style={styles.row}>
+      <View style={[styles.iconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+        <GraduationCap size={16} color="#F59E0B" />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowSub, { color: '#F59E0B' }]}>
+          🛡️ Class Blocker  ·  {dateSub}
+        </Text>
+      </Pressable>
+
+      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
+        <X size={16} color="#64748B" />
+      </Pressable>
+    </View>
+  );
+}
+
+// ── Exam Event row (Individual subject test session) ──────────────────────────
+
+interface ExamEventRowProps {
+  item: ParsedExamEvent;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function ExamEventRow({ item, onRemove, onEdit }: ExamEventRowProps) {
+  const isPending = !item.startDate && item.dayOfWeek != null;
+  const dayLabel = item.dayOfWeek != null ? DAY_LABELS[item.dayOfWeek] : null;
+
+  const timeSub = (() => {
+    if (item.startTime) {
+      const fmt = (hhmm: string) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+      };
+      return `${fmt(item.startTime)}${item.endTime ? ` – ${fmt(item.endTime)}` : ''}`;
+    }
+    return null;
+  })();
+
+  const dateSub = (() => {
+    if (!item.startDate) return null;
+    const datePart = formatDate(item.startDate);
+    const timePart = formatTimeFromISO(item.startDate);
+    return `${datePart}${timePart ? `  ·  ${timePart}` : (timeSub ? `  ·  ${timeSub}` : '')}`;
+  })();
+
+  const roomSub = item.room ? `  ·  📍 ${item.room}` : '';
+
+  return (
+    <View style={styles.row}>
+      <View style={[styles.iconWrap, { backgroundColor: isPending ? 'rgba(100,116,139,0.15)' : 'rgba(139, 92, 246, 0.15)' }]}>
+        <GraduationCap size={16} color={isPending ? '#64748B' : '#8B5CF6'} />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        {isPending ? (
+          <Text style={[styles.rowSub, { color: '#64748B', fontStyle: 'italic' }]}>
+            {dayLabel}{timeSub ? `  ·  ${timeSub}` : ''}{'  —  Tap to assign date'}{roomSub}
+          </Text>
+        ) : (
+          <Text style={styles.rowSub}>{(dateSub ?? timeSub ?? 'Exam session') + roomSub}</Text>
+        )}
+      </Pressable>
+
+      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
+        <X size={16} color="#64748B" />
+      </Pressable>
+    </View>
+  );
+}
+
+// ── ExamWeek row (Legacy compatibility) ───────────────────────────────────────
 
 interface ExamWeekRowProps {
   item: ParsedExamWeek;

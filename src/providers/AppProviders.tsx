@@ -4,19 +4,23 @@ import { useColorScheme } from '@/src/components/useColorScheme';
 import { AuthGate } from './AuthGate';
 import { PowerSyncProvider } from './PowerSyncProvider';
 import { NotificationProvider } from './NotificationProvider';
+import { AppErrorBoundary } from '@/src/components/common/AppErrorBoundary';
 
 export function AppProviders({ children }: PropsWithChildren) {
   const colorScheme = useColorScheme();
 
   return (
-    <PowerSyncProvider>
-      <NotificationProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthGate />
-          {children}
-        </ThemeProvider>
-      </NotificationProvider>
-    </PowerSyncProvider>
+    <AppErrorBoundary>
+      <PowerSyncProvider>
+        <NotificationProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AuthGate />
+            {children}
+          </ThemeProvider>
+        </NotificationProvider>
+      </PowerSyncProvider>
+    </AppErrorBoundary>
   );
 }
+
 
