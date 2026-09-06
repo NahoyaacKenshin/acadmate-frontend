@@ -36,6 +36,7 @@ interface DayViewProps {
   tasks: TaskRow[];
   onClassPress?: (schedule: ClassScheduleRow) => void;
   onEventPress?: (event: CalendarEventRow) => void;
+  onExamWeekPress?: (examWeek: ExamWeekRow) => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -66,8 +67,8 @@ function formatEventTime(isoString: string): string {
 
 // ── Modality Badge ─────────────────────────────────────────────────────────────
 function ModalityBadge({ text, color }: { text: string; color: string }) {
-  const isF2F = color === '#10B981';
-  const isOnline = color === '#3B82F6' || color === '#6C8EFF';
+  const isF2F = text.includes('F2F');
+  const isOnline = text.includes('ONLINE') || text.includes('Online');
   return (
     <View style={[
       styles.badge,
@@ -153,8 +154,16 @@ function ClassCard({
 
 
 // ── Calendar Event Card ────────────────────────────────────────────────────────
-function EventCard({ event, onPress }: { event: CalendarEventRow; onPress?: () => void }) {
-  const accentColor = event.subject_color ?? event.color ?? '#6C8EFF';
+function EventCard({
+  event,
+  onPress,
+  isExam = false,
+}: {
+  event: CalendarEventRow;
+  onPress?: () => void;
+  isExam?: boolean;
+}) {
+  const accentColor = isExam ? '#8B5CF6' : (event.subject_color ?? event.color ?? '#6C8EFF');
   return (
     <Pressable
       style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
@@ -162,7 +171,15 @@ function EventCard({ event, onPress }: { event: CalendarEventRow; onPress?: () =
     >
       <View style={[styles.eventColorBar, { backgroundColor: accentColor }]} />
       <View style={styles.eventBody}>
-        <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+        <View style={styles.eventTopRow}>
+          <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+          {isExam ? (
+            <View style={[styles.badge, { backgroundColor: 'rgba(139, 92, 246, 0.18)' }]}>
+              <GraduationCap size={10} color="#A78BFA" />
+              <Text style={[styles.badgeText, { color: '#A78BFA' }]}>EXAM</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.eventMeta}>
           {event.all_day === 1 ? (
             <View style={styles.metaItem}>
@@ -231,7 +248,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ── Main DayView ───────────────────────────────────────────────────────────────
-export function DayView({ selectedDate, events, schedules, examWeeks, holidays, tasks, onClassPress, onEventPress }: DayViewProps) {
+export function DayView({ selectedDate, events, schedules, examWeeks, holidays, tasks, onClassPress, onEventPress, onExamWeekPress }: DayViewProps) {
   const today = new Date();
   const isToday = isSameDay(selectedDate, today);
   const dayOfWeek = selectedDate.getDay();
@@ -256,6 +273,16 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
 
   // Filter one-off events for this date
   const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), selectedDate));
+
+  // Categorize subject exams vs general events
+  const isExamEvent = (e: CalendarEventRow) =>
+    e.color === '#8B5CF6' ||
+    (e.description != null && e.description.toLowerCase().includes('exam')) ||
+    e.title.toLowerCase().includes('exam') ||
+    e.title.toLowerCase().includes('quiz');
+
+  const dayExams = dayEvents.filter(isExamEvent);
+  const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));
 
   // Filter tasks due on this date
   const dayTasks = tasks.filter((t) => t.due_date && isSameDay(new Date(t.due_date), selectedDate));
@@ -294,12 +321,17 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
 
       {/* Exam Week banners */}
       {activeExamWeeks.map((ew) => (
-        <View key={ew.id} style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
+        <Pressable
+          key={ew.id}
+          style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}
+          onPress={() => onExamWeekPress?.(ew)}
+        >
           <GraduationCap size={14} color="#F59E0B" />
           <Text style={[styles.holidayText, { color: '#F59E0B' }]}>
             Exam Week Block — {ew.title}
           </Text>
-        </View>
+          <Text style={{ fontSize: 11, color: '#F59E0B', fontStyle: 'italic', marginLeft: 'auto' }}>Edit</Text>
+        </Pressable>
       ))}
 
       {/* Holiday / Suspension banner */}
@@ -333,6 +365,16 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
         </View>
       ) : null}
 
+      {/* Subject Exams */}
+      {dayExams.length > 0 ? (
+        <View style={styles.section}>
+          <SectionHeader title="Exams & Quizzes" />
+          {dayExams.map((e) => (
+            <EventCard key={e.id} event={e} isExam={true} onPress={() => onEventPress?.(e)} />
+          ))}
+        </View>
+      ) : null}
+
       {/* Classes */}
       {daySchedules.length > 0 ? (
         <View style={styles.section}>
@@ -352,12 +394,11 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
         </View>
       ) : null}
 
-
       {/* One-off events */}
-      {dayEvents.length > 0 ? (
+      {dayGeneralEvents.length > 0 ? (
         <View style={styles.section}>
-          <SectionHeader title="Events" />
-          {dayEvents.map((e) => <EventCard key={e.id} event={e} onPress={() => onEventPress?.(e)} />)}
+          <SectionHeader title="Events & Activities" />
+          {dayGeneralEvents.map((e) => <EventCard key={e.id} event={e} onPress={() => onEventPress?.(e)} />)}
         </View>
       ) : null}
 

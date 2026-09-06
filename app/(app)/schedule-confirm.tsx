@@ -37,6 +37,7 @@ import {
   EditParsedClassSheet,
   EditParsedEventSheet,
   EditParsedExamSheet,
+  EditParsedBlockerSheet,
 } from "@/src/components/schedule/EditParsedSheets";
 import { ScanAnotherSheet } from "@/src/components/schedule/ScanAnotherSheet";
 import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
@@ -418,6 +419,8 @@ export default function ScheduleConfirmScreen() {
   const [resolvedSubjects, setResolvedSubjects] = useState<Record<string, { id: string; color: string }>>({});
   const [editingClassIndex, setEditingClassIndex] = useState<number | null>(null);
   const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
+  const [editingBlockerIndex, setEditingBlockerIndex] = useState<number | null>(null);
+  const [editingExamIndex, setEditingExamIndex] = useState<number | null>(null);
   const [newSubjectFor, setNewSubjectFor] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showScanSheet, setShowScanSheet] = useState(false);
@@ -564,16 +567,20 @@ export default function ScheduleConfirmScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.universalCard}>
             <View style={styles.universalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={styles.universalTitleRow}>
                 <CalendarDays size={16} color="#6C8EFF" />
                 <Text style={styles.universalTitle}>Universal Semester Dates</Text>
               </View>
-              {initialData.semesterInfo?.label && (
-                <View style={styles.detectedBadge}>
-                  <Text style={styles.detectedBadgeText}>✨ {initialData.semesterInfo.label}</Text>
-                </View>
-              )}
             </View>
+            {initialData.semesterInfo?.label ? (
+              <View style={styles.detectedBadgeRow}>
+                <View style={styles.detectedBadge}>
+                  <Text style={styles.detectedBadgeText}>
+                    ✨ {initialData.semesterInfo.label}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <Text style={styles.universalSub}>
               These semester dates are applied automatically to all recurring classes. You can edit them here if needed.
             </Text>
@@ -637,6 +644,7 @@ export default function ScheduleConfirmScreen() {
                   key={`examblock-${i}`}
                   item={item}
                   onRemove={() => setExamBlockers((prev) => prev.filter((_, idx) => idx !== i))}
+                  onEdit={() => setEditingBlockerIndex(i)}
                 />
               ))}
             </Section>
@@ -653,6 +661,7 @@ export default function ScheduleConfirmScreen() {
                 key={`examevent-${i}`}
                 item={item}
                 onRemove={() => setExamEvents((prev) => prev.filter((_, idx) => idx !== i))}
+                onEdit={() => setEditingExamIndex(i)}
               />
             ))}
           </Section>
@@ -712,6 +721,35 @@ export default function ScheduleConfirmScreen() {
               prev.map((e, i) => (i === editingEventIndex ? updated : e))
             );
             setEditingEventIndex(null);
+          }}
+        />
+      )}
+
+      {editingBlockerIndex !== null && examBlockers[editingBlockerIndex] && (
+        <EditParsedBlockerSheet
+          visible={true}
+          item={examBlockers[editingBlockerIndex]}
+          onClose={() => setEditingBlockerIndex(null)}
+          onSave={(updated) => {
+            setExamBlockers((prev) =>
+              prev.map((b, i) => (i === editingBlockerIndex ? updated : b))
+            );
+            setEditingBlockerIndex(null);
+          }}
+        />
+      )}
+
+      {editingExamIndex !== null && examEvents[editingExamIndex] && (
+        <EditParsedExamSheet
+          visible={true}
+          item={examEvents[editingExamIndex]}
+          examWeeks={dbExamWeeks}
+          onClose={() => setEditingExamIndex(null)}
+          onSave={(updated) => {
+            setExamEvents((prev) =>
+              prev.map((ex, i) => (i === editingExamIndex ? updated : ex))
+            );
+            setEditingExamIndex(null);
           }}
         />
       )}
@@ -807,8 +845,16 @@ const styles = StyleSheet.create({
   universalHeader: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 6,
+  },
+  universalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    marginBottom: 4,
+  },
+  detectedBadgeRow: {
+    flexDirection: "row",
+    marginBottom: 8,
   },
   universalTitle: {
     fontSize: 14,
@@ -846,16 +892,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   detectedBadge: {
-    backgroundColor: "rgba(108, 142, 255, 0.15)",
+    backgroundColor: "rgba(108, 142, 255, 0.12)",
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 1,
-    borderColor: "rgba(108, 142, 255, 0.3)",
+    borderColor: "rgba(108, 142, 255, 0.25)",
+    alignSelf: "flex-start",
   },
   detectedBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#6C8EFF",
   },
 });

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
-import { Bell, BookOpen, CheckSquare, Sparkles, X } from 'lucide-react-native';
+import { Bell, BookOpen, CheckSquare, Sparkles, X, GraduationCap } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -45,7 +45,7 @@ export function InAppNotificationBanner() {
 
     if (!data) return;
     const { type, notebookId } = data;
-    if (type === 'class') {
+    if (type === 'class' || type === 'exam' || type === 'exam_week') {
       router.push('/(app)/calendar');
     } else if (type === 'task') {
       router.push('/(app)/tasks');
@@ -114,6 +114,10 @@ export function InAppNotificationBanner() {
     IconComponent = BookOpen;
     iconColor = '#A78BFA';
     badgeBg = 'rgba(167, 139, 250, 0.15)';
+  } else if (type === 'exam' || type === 'exam_week') {
+    IconComponent = GraduationCap;
+    iconColor = '#8B5CF6';
+    badgeBg = 'rgba(139, 92, 246, 0.15)';
   } else if (type === 'test') {
     IconComponent = Sparkles;
     iconColor = '#F59E0B';

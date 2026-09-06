@@ -12,6 +12,8 @@ export function useNotificationDeepLink() {
 
       switch (type) {
         case 'class':
+        case 'exam':
+        case 'exam_week':
           router.push('/(app)/calendar');
           break;
         case 'task':

@@ -16,6 +16,8 @@ import {
   ParsedClassSchedule,
   ParsedCalendarEvent,
   ParsedExamWeek,
+  ParsedExamWeekBlocker,
+  ParsedExamEvent,
 } from './ParsedItemRow';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { formatDateLocal } from '@/src/utils/scheduleUtils';
@@ -458,14 +460,147 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
   );
 }
 
+// ── EditParsedBlockerSheet ───────────────────────────────────────────────────
+
+export interface EditParsedBlockerSheetProps {
+  visible: boolean;
+  item: ParsedExamWeekBlocker | null;
+  onClose: () => void;
+  onSave: (updated: ParsedExamWeekBlocker) => void;
+}
+
+export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditParsedBlockerSheetProps) {
+  const [title, setTitle] = useState('');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [activePickerField, setActivePickerField] = useState<'startDate' | 'endDate' | null>(null);
+
+  useEffect(() => {
+    if (item) {
+      setTitle(item.title);
+      setStartDate(item.startDate ? new Date(item.startDate) : new Date());
+      setEndDate(item.endDate ? new Date(item.endDate) : (item.startDate ? new Date(item.startDate) : new Date()));
+    }
+  }, [item]);
+
+  const handleClose = () => {
+    setActivePickerField(null);
+    onClose();
+  };
+
+  const handleSave = () => {
+    if (!item) return;
+    onSave({
+      ...item,
+      title: title.trim() || item.title,
+      startDate: toISODate(startDate),
+      endDate: toISODate(endDate),
+    });
+    handleClose();
+  };
+
+  const openPicker = (field: 'startDate' | 'endDate') => {
+    if (Platform.OS === 'android') {
+      const val = field === 'startDate' ? startDate : endDate;
+      DateTimePickerAndroid.open({
+        value: val,
+        mode: 'date',
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          if (field === 'startDate') setStartDate(selectedDate);
+          else setEndDate(selectedDate);
+        },
+      });
+    } else {
+      setActivePickerField(field);
+    }
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (!selected) return;
+    if (activePickerField === 'startDate') setStartDate(selected);
+    else if (activePickerField === 'endDate') setEndDate(selected);
+  };
+
+  if (!item) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <Pressable style={styles.backdrop} onPress={handleClose} />
+      <View style={styles.sheetContent}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Edit Exam Blocker</Text>
+          <Pressable onPress={handleClose} style={styles.closeBtn}>
+            <X size={24} color="#94A3B8" />
+          </Pressable>
+        </View>
+
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Blocker Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g. Midterm Exam Week"
+              placeholderTextColor="#64748B"
+            />
+          </View>
+
+          {/* Dates row */}
+          <View style={[styles.formGroup, styles.timeRow]}>
+            <View style={styles.timeField}>
+              <Text style={styles.label}>Start Date</Text>
+              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
+                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                <Calendar size={14} color="#94A3B8" />
+              </Pressable>
+            </View>
+            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
+            <View style={styles.timeField}>
+              <Text style={styles.label}>End Date</Text>
+              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
+                <Text style={styles.pickerText}>{formatDate(endDate)}</Text>
+                <Calendar size={14} color="#94A3B8" />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* iOS picker */}
+          {Platform.OS === 'ios' && activePickerField && (
+            <View style={styles.iosPickerWrapper}>
+              <DateTimePicker
+                value={activePickerField === 'startDate' ? startDate : endDate}
+                mode="date"
+                display="spinner"
+                onChange={handleDateChange}
+                textColor="#ffffff"
+                themeVariant="dark"
+                style={styles.iosPicker}
+              />
+              <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
+                <Text style={styles.iosDoneBtnText}>Done</Text>
+              </Pressable>
+            </View>
+          )}
+
+          <Button style={styles.saveButton} onPress={handleSave}>
+            <Text>Save Changes</Text>
+          </Button>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ── EditParsedExamSheet ───────────────────────────────────────────────────────
 
-interface EditParsedExamSheetProps {
+export interface EditParsedExamSheetProps {
   visible: boolean;
-  item: ParsedExamWeek | null;
-  examWeeks: import('@/src/hooks/useExamWeeks').ExamWeekRow[];
+  item: ParsedExamEvent | null;
+  examWeeks?: import('@/src/hooks/useExamWeeks').ExamWeekRow[];
   onClose: () => void;
-  onSave: (updated: ParsedExamWeek) => void;
+  onSave: (updated: ParsedExamEvent) => void;
 }
 
 /** Extract HH:MM from a Date object */
@@ -507,8 +642,9 @@ function resolveFromBlock(dayOfWeek: number, blockId: string, blocks: import('@/
 
 type ExamPickerField = 'startDate' | 'endDate' | 'startTime' | 'endTime';
 
-export function EditParsedExamSheet({ visible, item, examWeeks, onClose, onSave }: EditParsedExamSheetProps) {
+export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, onSave }: EditParsedExamSheetProps) {
   const [title, setTitle] = useState('');
+  const [room, setRoom] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [startTime, setStartTime] = useState('08:00');
@@ -520,13 +656,21 @@ export function EditParsedExamSheet({ visible, item, examWeeks, onClose, onSave 
   useEffect(() => {
     if (item) {
       setTitle(item.title);
+      setRoom(item.room || '');
       const sd = item.startDate ? new Date(item.startDate) : new Date();
       const ed = item.endDate ? new Date(item.endDate) : sd;
       setStartDate(sd);
       setEndDate(ed);
-      setStartTime(toHHMMFromDate(sd));
-      setEndTime(toHHMMFromDate(ed));
-      setSelectedBlockId(item.resolvedFromExamWeekId ?? null);
+      if (item.startTime) {
+        setStartTime(item.startTime);
+      } else if (item.startDate) {
+        setStartTime(toHHMMFromDate(sd));
+      }
+      if (item.endTime) {
+        setEndTime(item.endTime);
+      } else if (item.endDate) {
+        setEndTime(toHHMMFromDate(ed));
+      }
     }
   }, [item]);
 
@@ -559,10 +703,12 @@ export function EditParsedExamSheet({ visible, item, examWeeks, onClose, onSave 
     const finalEnd = combineDateAndTime(endDate, endTime);
     onSave({
       ...item,
-      title,
+      title: title.trim() || item.title,
+      room: room.trim() || null,
       startDate: toISODateTime(finalStart),
       endDate: toISODateTime(finalEnd),
-      resolvedFromExamWeekId: selectedBlockId,
+      startTime,
+      endTime,
     });
     handleClose();
   };
@@ -640,6 +786,12 @@ export function EditParsedExamSheet({ visible, item, examWeeks, onClose, onSave 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Exam Title / Subject</Text>
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. IT101 Midterm Exam" placeholderTextColor="#64748B" />
+          </View>
+
+          {/* Room */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Room / Location</Text>
+            <TextInput style={styles.input} value={room} onChangeText={setRoom} placeholder="e.g. Room 402 / Online" placeholderTextColor="#64748B" />
           </View>
 
           {/* Exam Week Block selector — only shown for students with day-of-week based exams */}

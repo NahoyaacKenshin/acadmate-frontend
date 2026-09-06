@@ -27,6 +27,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useUserStore } from '@/src/store/userStore';
 import { useSystemStore } from '@/src/store/systemStore';
+import { useStatus } from '@powersync/react';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
@@ -58,11 +59,21 @@ function todayDayOfWeek(): number {
   return new Date().getDay(); // 0=Sun ... 6=Sat
 }
 
-function fmtTime(time: string): string {
+function fmtTime(time: string | null | undefined): string {
+  if (!time) return '';
+  if (time.includes('T')) {
+    const d = new Date(time);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  }
   const [h, m] = time.split(':').map(Number);
+  if (isNaN(h)) return time;
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  return `${h12}:${String(m || 0).padStart(2, '0')} ${ampm}`;
 }
 
 function fmtDue(iso: string | null): string {
@@ -185,7 +196,9 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 function StudentHomeScreen() {
   const { user } = useAuthStore();
   const { nickname, studentSet } = useUserStore();
-  const { isOnline } = useSystemStore();
+  const { isOnline: systemOnline } = useSystemStore();
+  const powerSyncStatus = useStatus();
+  const isOnline = (powerSyncStatus?.connected ?? true) && systemOnline;
 
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
   const greeting = getGreeting();
@@ -225,7 +238,7 @@ function StudentHomeScreen() {
     return events.filter((e) => isToday(e.start_date));
   }, [events]);
 
-  // Merged timeline (classes + events), sorted by time
+  // Merged timeline (classes + events), sorted by time in 12-hour format
   const timeline = useMemo(() => {
     const items: Array<{
       id: string;
@@ -243,13 +256,21 @@ function StudentHomeScreen() {
         sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom} · ${resolution.badgeText}` : resolution.badgeText,
         sortKey: s.start_time,
       })),
-      ...todayEvents.map((e) => ({
-        id: e.id,
-        label: e.title,
-        time: e.all_day === 1 ? 'All day' : e.start_date.substring(11, 16) || 'Today',
-        color: e.color ?? e.subject_color ?? '#10B981',
-        sortKey: e.start_date.substring(11, 16) || '00:00',
-      })),
+      ...todayEvents.map((e) => {
+        let timeDisplay = 'All day';
+        if (e.all_day !== 1 && e.start_date) {
+          const startFmt = fmtTime(e.start_date);
+          const endFmt = e.end_date ? fmtTime(e.end_date) : '';
+          timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
+        }
+        return {
+          id: e.id,
+          label: e.title,
+          time: timeDisplay,
+          color: e.color ?? e.subject_color ?? '#10B981',
+          sortKey: e.start_date ? e.start_date.substring(11, 16) : '00:00',
+        };
+      }),
     ];
     return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [todayResolvedClasses, todayEvents]);
@@ -433,9 +454,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingTop: 8,
   },
-  heroLeft: { flex: 1 },
+  heroLeft: { flex: 1, overflow: 'visible' },
   greetingText: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  nameText: { fontSize: 26, fontWeight: '800', color: '#ffffff', marginTop: 2 },
+  nameText: {
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 2,
+    paddingBottom: 4,
+    includeFontPadding: false,
+  },
 
   onlinePill: {
     flexDirection: 'row',

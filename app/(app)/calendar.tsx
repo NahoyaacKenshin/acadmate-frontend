@@ -62,6 +62,7 @@ export default function CalendarScreen() {
   // Edit sheet state
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
   const [editingClass, setEditingClass] = useState<ClassScheduleRow | null>(null);
+  const [editingExamWeek, setEditingExamWeek] = useState<import('@/src/hooks/useExamWeeks').ExamWeekRow | null>(null);
 
   // Data
   const { events } = useCalendarEvents();
@@ -277,6 +278,7 @@ export default function CalendarScreen() {
           tasks={tasks}
           onClassPress={(s) => setEditingClass(s)}
           onEventPress={(e) => setEditingEvent(e)}
+          onExamWeekPress={(ew) => setEditingExamWeek(ew)}
         />
 
         {/* Sheets */}
@@ -304,8 +306,12 @@ export default function CalendarScreen() {
           onClose={() => setEditingClass(null)}
         />
         <AddExamWeekModal
-          visible={isAddExamWeekVisible}
-          onClose={() => setIsAddExamWeekVisible(false)}
+          visible={isAddExamWeekVisible || editingExamWeek !== null}
+          initialData={editingExamWeek}
+          onClose={() => {
+            setIsAddExamWeekVisible(false);
+            setEditingExamWeek(null);
+          }}
         />
 
       </SafeAreaView>

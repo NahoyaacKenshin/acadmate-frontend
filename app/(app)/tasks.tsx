@@ -82,6 +82,7 @@ export default function TasksScreen() {
       // Cancel local notifications
       await NotificationService.cancelNotification(`task_${taskToDeleteId}_day`);
       await NotificationService.cancelNotification(`task_${taskToDeleteId}_hour`);
+      await NotificationService.cancelNotification(`task_${taskToDeleteId}_due`);
 
       await powerSync.execute(`DELETE FROM Task WHERE id = ?`, [taskToDeleteId]);
     } catch (err) {

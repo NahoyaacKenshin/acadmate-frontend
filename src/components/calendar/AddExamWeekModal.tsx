@@ -130,6 +130,21 @@ export function AddExamWeekModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!initialData?.id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await powerSync.execute(`DELETE FROM ExamWeek WHERE id = ?`, [initialData.id]);
+      setTitle('');
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete period.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -218,9 +233,20 @@ export function AddExamWeekModal({
              </View>
           )}
 
-          <Button style={styles.addButton} onPress={handleSave} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Exam Week</Text>}
-          </Button>
+          <View style={initialData ? styles.btnRow : null}>
+            {initialData ? (
+              <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={isLoading}>
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </Pressable>
+            ) : null}
+            <Button
+              style={[styles.addButton, initialData ? { flex: 1, marginTop: 0 } : null]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>{initialData ? 'Save Changes' : 'Save Exam Week'}</Text>}
+            </Button>
+          </View>
         </View>
       </View>
     </Modal>
@@ -322,6 +348,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerText: { color: '#ffffff', fontSize: 14 },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#EF4444',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   addButton: { marginTop: 8 },
   errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
 });

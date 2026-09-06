@@ -2,6 +2,9 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { ClassScheduleRow } from '../hooks/useClassSchedules';
 import { TaskRow } from '../hooks/useTasks';
+import { ExamWeekRow } from '../hooks/useExamWeeks';
+import { CalendarEventRow } from '../hooks/useCalendarEvents';
+import { parseDateLocal } from '../utils/scheduleUtils';
 
 // Configure notification behavior when app is in foreground
 Notifications.setNotificationHandler({
@@ -399,6 +402,182 @@ export const NotificationService = {
       }
     } catch (err) {
       console.error('Error in rescheduleAllTasks:', err);
+    }
+  },
+
+  /**
+   * Schedules reminders for an Exam Week block (1 day before start date at 8:00 AM).
+   */
+  scheduleExamWeekReminders: async (ew: ExamWeekRow): Promise<string[]> => {
+    const identifiers: string[] = [];
+    const startDate = parseDateLocal(ew.startDate);
+    if (!startDate) return [];
+
+    const alertTime = new Date(startDate);
+    alertTime.setDate(alertTime.getDate() - 1);
+    alertTime.setHours(8, 0, 0, 0);
+
+    if (alertTime.getTime() > Date.now()) {
+      const id = `examweek_${ew.id}_day`;
+      try {
+        await NotificationService.cancelNotification(id);
+        await Notifications.scheduleNotificationAsync({
+          identifier: id,
+          content: {
+            title: `Exam Week Starts Tomorrow`,
+            body: `"${ew.title}" begins tomorrow. Check your schedule and prepare well!`,
+            sound: true,
+            data: {
+              type: 'exam_week',
+              examWeekId: ew.id,
+              title: ew.title,
+              startDate: ew.startDate,
+              endDate: ew.endDate,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks',
+            date: alertTime,
+          },
+        });
+        identifiers.push(id);
+      } catch (e) {
+        console.error('Failed to schedule exam week reminder', e);
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Schedules reminders for a specific subject exam (1 day before + 1 hour before).
+   */
+  scheduleSubjectExamReminders: async (event: CalendarEventRow): Promise<string[]> => {
+    const identifiers: string[] = [];
+    if (!event.start_date) return [];
+
+    const examTime = new Date(event.start_date).getTime();
+    const now = Date.now();
+    const dayBefore = examTime - 24 * 60 * 60 * 1000;
+    const hourBefore = examTime - 60 * 60 * 1000;
+
+    // 1 Day before
+    if (dayBefore > now) {
+      const idDay = `exam_${event.id}_day`;
+      try {
+        await NotificationService.cancelNotification(idDay);
+        await Notifications.scheduleNotificationAsync({
+          identifier: idDay,
+          content: {
+            title: `Exam Tomorrow: ${event.title}`,
+            body: `Starts tomorrow${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
+            sound: true,
+            data: {
+              type: 'exam',
+              eventId: event.id,
+              title: event.title,
+              startDate: event.start_date,
+              location: event.location || '',
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks',
+            date: new Date(dayBefore),
+          },
+        });
+        identifiers.push(idDay);
+      } catch (e) {
+        console.error('Failed to schedule exam day-before reminder', e);
+      }
+    }
+
+    // 1 Hour before
+    if (hourBefore > now) {
+      const idHour = `exam_${event.id}_hour`;
+      try {
+        await NotificationService.cancelNotification(idHour);
+        await Notifications.scheduleNotificationAsync({
+          identifier: idHour,
+          content: {
+            title: `Exam in 1 Hour: ${event.title}`,
+            body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
+            sound: true,
+            data: {
+              type: 'exam',
+              eventId: event.id,
+              title: event.title,
+              startDate: event.start_date,
+              location: event.location || '',
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks',
+            date: new Date(hourBefore),
+          },
+        });
+        identifiers.push(idHour);
+      } catch (e) {
+        console.error('Failed to schedule exam hour-before reminder', e);
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Synchronizes exam notifications (both exam weeks and subject exams).
+   */
+  rescheduleAllExams: async (
+    examWeeks: ExamWeekRow[],
+    events: CalendarEventRow[],
+    enabled: boolean
+  ) => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingExamNotifs = allNotifications.filter(
+        (n) => n.identifier.startsWith('examweek_') || n.identifier.startsWith('exam_')
+      );
+      const existingIds = new Set(existingExamNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingExamNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      const desiredIds = new Set<string>();
+
+      // Schedule exam week blockers
+      for (const ew of examWeeks) {
+        const ids = await NotificationService.scheduleExamWeekReminders(ew);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Schedule individual subject exams
+      const isExam = (e: CalendarEventRow) =>
+        e.color === '#8B5CF6' ||
+        (e.description != null && e.description.toLowerCase().includes('exam')) ||
+        e.title.toLowerCase().includes('exam') ||
+        e.title.toLowerCase().includes('quiz');
+
+      const examEvents = events.filter(isExam);
+      for (const ex of examEvents) {
+        const ids = await NotificationService.scheduleSubjectExamReminders(ex);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Clean up orphaned exam notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllExams:', err);
     }
   },
 };

@@ -33,7 +33,9 @@ export function PowerSyncProvider({ children }: PropsWithChildren) {
       powerSync.connect(connector);
       setSyncStatus(true);
     } else {
-      powerSync.disconnect();
+      powerSync.disconnectAndClear().catch((err) => {
+        console.warn('PowerSync disconnectAndClear error:', err);
+      });
       setSyncStatus(false);
     }
   }, [accessToken, isRestoring, powerSync, setSyncStatus]);
