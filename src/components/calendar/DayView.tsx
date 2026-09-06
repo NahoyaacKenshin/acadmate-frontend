@@ -25,6 +25,7 @@ import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
 import { Holiday } from './MonthGrid';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isSameDayPHT, formatTimePHT } from '@/src/utils/philippineTime';
 import { useUserStore } from '@/src/store/userStore';
 
 interface DayViewProps {
@@ -57,12 +58,7 @@ function formatTime12(hhmm: string): string {
 }
 
 function formatEventTime(isoString: string): string {
-  const d = new Date(isoString);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+  return formatTimePHT(isoString);
 }
 
 // ── Modality Badge ─────────────────────────────────────────────────────────────
@@ -272,7 +268,7 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks, combinedHolidays));
 
   // Filter one-off events for this date
-  const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), selectedDate));
+  const dayEvents = events.filter((e) => isSameDayPHT(e.start_date, selectedDate));
 
   // Categorize subject exams vs general events
   const isExamEvent = (e: CalendarEventRow) =>
@@ -285,7 +281,7 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));
 
   // Filter tasks due on this date
-  const dayTasks = tasks.filter((t) => t.due_date && isSameDay(new Date(t.due_date), selectedDate));
+  const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, selectedDate));
 
   // Holiday / Suspension for this date
   const dayHoliday = combinedHolidays.find((h) => {

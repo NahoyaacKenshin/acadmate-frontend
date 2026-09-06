@@ -6,7 +6,7 @@ import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@rea
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '../ui/button';
-import { formatDateLocal, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, parseDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -94,7 +94,7 @@ export function AddExamWeekModal({
     setIsLoading(true);
     setError(null);
     try {
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
       const sd = formatDateLocal(startDate);
       const ed = formatDateLocal(endDate);
 

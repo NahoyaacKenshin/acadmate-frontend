@@ -4,7 +4,8 @@ import { ClassScheduleRow } from '../hooks/useClassSchedules';
 import { TaskRow } from '../hooks/useTasks';
 import { ExamWeekRow } from '../hooks/useExamWeeks';
 import { CalendarEventRow } from '../hooks/useCalendarEvents';
-import { parseDateLocal } from '../utils/scheduleUtils';
+import { parseDateLocal, toPhilippineISO } from '../utils/scheduleUtils';
+import { parseToEpoch } from '../utils/philippineTime';
 
 // Configure notification behavior when app is in foreground
 Notifications.setNotificationHandler({
@@ -12,7 +13,7 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
+    priority: Notifications.AndroidNotificationPriority.MAX,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
@@ -41,27 +42,46 @@ export const NotificationService = {
   },
 
   /**
-   * Configures Android specific channels for granular user control.
+   * Configures Android specific channels for heads-up banners, sound, and vibration.
    */
   configureChannels: async () => {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('classes', {
+      try {
+        await Notifications.deleteNotificationChannelAsync('classes');
+        await Notifications.deleteNotificationChannelAsync('tasks');
+        await Notifications.deleteNotificationChannelAsync('study');
+      } catch {}
+
+      // Omitting 'sound' defaults to Android's native Settings.System.DEFAULT_NOTIFICATION_URI
+      await Notifications.setNotificationChannelAsync('classes_alerts', {
         name: 'Class Reminders',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#6C8EFF',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
       });
-      await Notifications.setNotificationChannelAsync('tasks', {
+      await Notifications.setNotificationChannelAsync('tasks_alerts', {
         name: 'Task & Exam Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#10B981',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
       });
-      await Notifications.setNotificationChannelAsync('study', {
+      await Notifications.setNotificationChannelAsync('study_alerts', {
         name: 'Study Reminders',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#A78BFA',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
       });
     }
   },
@@ -116,6 +136,7 @@ export const NotificationService = {
           title: `Upcoming Class: ${subject_name || 'Class'}`,
           body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
           sound: true,
+          priority: Notifications.AndroidNotificationPriority.MAX,
           data: {
             type: 'class',
             scheduleId: id,
@@ -129,7 +150,7 @@ export const NotificationService = {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          channelId: 'classes',
+          channelId: 'classes_alerts',
           weekday: triggerWeekday,
           hour: scheduledHour,
           minute: scheduledMinute,
@@ -152,7 +173,8 @@ export const NotificationService = {
     const { id, title, due_date, subject_name } = task;
     if (!due_date) return [];
 
-    const dueTime = new Date(due_date).getTime();
+    const dueTime = parseToEpoch(due_date);
+    if (!dueTime) return [];
     const now = Date.now();
 
     // 1 Day before reminder
@@ -166,6 +188,7 @@ export const NotificationService = {
             title: `Task Due Tomorrow`,
             body: `"${title}" is due tomorrow${subject_name ? ` for ${subject_name}` : ''}`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'task',
               taskId: id,
@@ -177,7 +200,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: new Date(dayBeforeTime),
           },
         });
@@ -198,6 +221,7 @@ export const NotificationService = {
             title: `Task Due in 1 Hour`,
             body: `"${title}" is due soon. Make sure to complete it!`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'task',
               taskId: id,
@@ -209,7 +233,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: new Date(hourBeforeTime),
           },
         });
@@ -229,6 +253,7 @@ export const NotificationService = {
             title: `Task Due Soon`,
             body: `"${title}" is due right now!`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'task',
               taskId: id,
@@ -240,7 +265,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: new Date(dueTime),
           },
         });
@@ -272,18 +297,19 @@ export const NotificationService = {
             title: `Study Reminder: ${notebookTitle}${leadLabel}`,
             body: focusText || `Get ready for your scheduled study session!`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'study',
               notebookId,
               notebookTitle,
               focusText: focusText || '',
-              dateTime: dateTime.toISOString(),
+              dateTime: toPhilippineISO(dateTime),
               leadMinutes,
             },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'study',
+            channelId: 'study_alerts',
             date: alertTime,
           },
         });
@@ -308,6 +334,7 @@ export const NotificationService = {
         title: 'AcadMate Local Notification',
         body: 'Offline notification engine & in-app alerts are active and working!',
         sound: true,
+        priority: Notifications.AndroidNotificationPriority.MAX,
         data: {
           type: 'test',
           timestamp: Date.now(),
@@ -315,7 +342,7 @@ export const NotificationService = {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        channelId: 'tasks',
+        channelId: 'tasks_alerts',
         date: triggerDate,
       },
     });
@@ -427,6 +454,7 @@ export const NotificationService = {
             title: `Exam Week Starts Tomorrow`,
             body: `"${ew.title}" begins tomorrow. Check your schedule and prepare well!`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'exam_week',
               examWeekId: ew.id,
@@ -437,7 +465,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: alertTime,
           },
         });
@@ -457,7 +485,8 @@ export const NotificationService = {
     const identifiers: string[] = [];
     if (!event.start_date) return [];
 
-    const examTime = new Date(event.start_date).getTime();
+    const examTime = parseToEpoch(event.start_date);
+    if (!examTime) return [];
     const now = Date.now();
     const dayBefore = examTime - 24 * 60 * 60 * 1000;
     const hourBefore = examTime - 60 * 60 * 1000;
@@ -473,6 +502,7 @@ export const NotificationService = {
             title: `Exam Tomorrow: ${event.title}`,
             body: `Starts tomorrow${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'exam',
               eventId: event.id,
@@ -483,7 +513,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: new Date(dayBefore),
           },
         });
@@ -504,6 +534,7 @@ export const NotificationService = {
             title: `Exam in 1 Hour: ${event.title}`,
             body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
             sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
               type: 'exam',
               eventId: event.id,
@@ -514,7 +545,7 @@ export const NotificationService = {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks',
+            channelId: 'tasks_alerts',
             date: new Date(hourBefore),
           },
         });

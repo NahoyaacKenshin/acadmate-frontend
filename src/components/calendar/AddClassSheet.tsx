@@ -18,7 +18,7 @@ import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { useClassSchedules } from '@/src/hooks/useClassSchedules';
 import { AddExamWeekModal } from './AddExamWeekModal';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
 
 interface AddClassSheetProps {
   visible: boolean;
@@ -175,7 +175,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setIsSavingSubject(true);
     try {
       const subjectId = generateId();
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
       await powerSync.execute(
         `INSERT INTO Subject (id, name, color, userId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
         [subjectId, newSubjectName.trim(), newSubjectColor, userId, now, now]
@@ -267,7 +267,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setError(null);
 
     try {
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
       const isBySet = scheduleMode === 'bySet';
 
       if (isBySet) {

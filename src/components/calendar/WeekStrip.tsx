@@ -6,6 +6,7 @@ import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 interface WeekStripProps {
@@ -92,7 +93,7 @@ function getDayDots(
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
   for (const ev of events) {
     if (colors.length >= 3) break;
-    if (isSameDay(new Date(ev.start_date), date)) {
+    if (isSameDayPHT(ev.start_date, date)) {
       colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');
     }
   }

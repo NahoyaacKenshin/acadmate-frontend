@@ -16,6 +16,7 @@ import { X, ChevronDown, Calendar } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { SubjectRow } from '@/src/hooks/useSubjects';
+import { toPhilippineISO } from '@/src/utils/philippineTime';
 
 interface AddTaskSheetProps {
   visible: boolean;
@@ -124,8 +125,8 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
 
     try {
       const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const now = new Date().toISOString();
-      const dueDateISO = dueDate ? dueDate.toISOString() : null;
+      const now = toPhilippineISO(new Date());
+      const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
 
       await powerSync.execute(
         `INSERT INTO Task (id, title, description, dueDate, completed, subjectId, userId, createdAt, updatedAt)

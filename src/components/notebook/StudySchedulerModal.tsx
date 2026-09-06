@@ -14,6 +14,7 @@ import { X, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NotificationService } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
+import { formatDatePHT, formatTime12PHT } from '@/src/utils/philippineTime';
 
 interface StudySchedulerModalProps {
   visible: boolean;
@@ -115,7 +116,7 @@ export function StudySchedulerModal({
     const leadText = leadMinutes > 0 ? ` (${leadMinutes} mins lead time)` : '';
     Alert.alert(
       'Reminder Scheduled',
-      `Study reminder set for ${date.toLocaleString()}${leadText}`,
+      `Study reminder set for ${formatDatePHT(date)} at ${formatTime12PHT(date)}${leadText}`,
       [{ text: 'OK', onPress: onClose }]
     );
   };
@@ -159,7 +160,7 @@ export function StudySchedulerModal({
               <CalendarIcon size={18} color="#6C8EFF" />
               <View>
                 <Text style={styles.pickerLabel}>Date</Text>
-                <Text style={styles.pickerValue}>{date.toLocaleDateString()}</Text>
+                <Text style={styles.pickerValue}>{formatDatePHT(date)}</Text>
               </View>
             </Pressable>
 
@@ -171,7 +172,7 @@ export function StudySchedulerModal({
               <View>
                 <Text style={styles.pickerLabel}>Time</Text>
                 <Text style={styles.pickerValue}>
-                  {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatTime12PHT(date)}
                 </Text>
               </View>
             </Pressable>

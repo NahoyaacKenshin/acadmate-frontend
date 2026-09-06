@@ -14,9 +14,11 @@ import {
   Smile,
   ChevronRight,
   Layers,
+  Send,
 } from 'lucide-react-native';
 
 import { useNotificationStore } from '@/src/store/notificationStore';
+import { NotificationService } from '@/src/services/notificationService';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function SettingsScreen() {
   const { prefs, updatePrefs } = useNotificationStore();
   const [nicknameInput, setNicknameInput] = useState(nickname ?? '');
   const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [isTestingNotif, setIsTestingNotif] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -214,6 +217,39 @@ export default function SettingsScreen() {
               <View style={[styles.switchThumb, prefs.studyReminders && styles.switchThumbActive]} />
             </View>
           </Pressable>
+
+          {/* Test Notification Trigger */}
+          <Pressable
+            style={styles.tile}
+            disabled={isTestingNotif}
+            onPress={async () => {
+              setIsTestingNotif(true);
+              try {
+                await NotificationService.sendTestNotification(3);
+              } finally {
+                setTimeout(() => setIsTestingNotif(false), 3500);
+              }
+            }}
+          >
+            <Send size={20} color={isTestingNotif ? '#10B981' : '#6C8EFF'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>
+                {isTestingNotif ? 'Sending Alert (3s)...' : 'Test Notification'}
+              </Text>
+              <Text style={styles.tileValueSub}>
+                {isTestingNotif ? 'Check your status bar in 3s' : 'Trigger 3-second test alert'}
+              </Text>
+            </View>
+            <View style={styles.testBtnPill}>
+              <Text style={styles.testBtnText}>{isTestingNotif ? 'Pending...' : 'Send'}</Text>
+            </View>
+          </Pressable>
+
+          <View style={styles.deviceNoteBox}>
+            <Text style={styles.deviceNoteText}>
+              Note for Xiaomi, HyperOS, and Oppo users: Turn on "Floating notifications" and "Sound" in your phone's App Notification settings to allow drop-down pop-up banners.
+            </Text>
+          </View>
 
           <View style={styles.tile}>
             <Info size={20} color="#6C8EFF" />
@@ -453,6 +489,34 @@ const styles = StyleSheet.create({
   },
   leadMinutesTextActive: {
     color: '#6C8EFF',
+  },
+  testBtnPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108,142,255,0.15)',
+    borderWidth: 1,
+    borderColor: '#6C8EFF',
+  },
+  testBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C8EFF',
+  },
+  deviceNoteBox: {
+    backgroundColor: '#161A26',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#232A3B',
+  },
+  deviceNoteText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#8A99AD',
   },
 });
 

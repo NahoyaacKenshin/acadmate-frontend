@@ -15,29 +15,28 @@ import { useSubjects } from '@/src/hooks/useSubjects';
 
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { NotificationService } from '@/src/services/notificationService';
+import { formatDateTimePHT, isOverduePHT, parseToEpoch } from '@/src/utils/philippineTime';
 
 type TaskFilter = 'all' | 'pending' | 'overdue' | 'done';
 
 export default function TasksScreen() {
-  const powerSync = usePowerSync();
   const { tasks, isLoading } = useTasks();
   const { subjects } = useSubjects();
+  const powerSync = usePowerSync();
 
-  const [activeFilter, setActiveFilter] = useState<TaskFilter>('pending');
+  const [activeFilter, setActiveFilter] = useState<TaskFilter>('all');
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
   // Filtered & Sorted Tasks
   const filteredTasks = useMemo(() => {
-    const now = new Date().getTime();
-
     const filtered = tasks.filter((t) => {
       if (activeFilter === 'pending') return t.completed === 0;
       if (activeFilter === 'done') return t.completed === 1;
       if (activeFilter === 'overdue') {
         if (t.completed === 1 || !t.due_date) return false;
-        return new Date(t.due_date).getTime() < now;
+        return isOverduePHT(t.due_date);
       }
       return true; // 'all'
     });
@@ -51,7 +50,7 @@ export default function TasksScreen() {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      return (parseToEpoch(a.due_date) ?? 0) - (parseToEpoch(b.due_date) ?? 0);
     });
   }, [tasks, activeFilter]);
 
@@ -98,13 +97,7 @@ export default function TasksScreen() {
 
   const formatDueDate = (iso: string | null): string => {
     if (!iso) return 'No due date';
-    const d = new Date(iso);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const hours = d.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const hour12 = hours % 12 || 12;
-    const mins = String(d.getMinutes()).padStart(2, '0');
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} · ${hour12}:${mins} ${ampm}`;
+    return formatDateTimePHT(iso) || 'No due date';
   };
 
   // Map TaskRow to the shape TaskListItem expects

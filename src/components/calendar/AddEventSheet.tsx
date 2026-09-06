@@ -17,7 +17,7 @@ import { X, ChevronDown, Calendar, MapPin, Clock } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects, SubjectRow } from '@/src/hooks/useSubjects';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
 
 interface AddEventSheetProps {
   visible: boolean;
@@ -177,7 +177,7 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
 
     try {
       const id = generateId();
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
 
       await powerSync.execute(
         `INSERT INTO CalendarEvent
@@ -187,8 +187,8 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
           id,
           title.trim(),
           description.trim() || null,
-          allDay ? formatDateLocal(startDate) : startDate.toISOString(),
-          endDate ? (allDay ? formatDateLocal(endDate) : endDate.toISOString()) : null,
+          allDay ? formatDateLocal(startDate) : toPhilippineISO(startDate),
+          endDate ? (allDay ? formatDateLocal(endDate) : toPhilippineISO(endDate)) : null,
           allDay ? 1 : 0,
           location.trim() || null,
           selectedColor,

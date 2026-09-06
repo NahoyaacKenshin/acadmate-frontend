@@ -45,6 +45,7 @@ import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
 import { useExamWeeks, type ExamWeekRow as DbExamWeekRow } from "@/src/hooks/useExamWeeks";
 import { toIsoDateString, toDateOnlyString } from "@/src/utils/scheduleUtils";
+import { toPhilippineISO, toPhilippineDateOnly } from "@/src/utils/philippineTime";
 import { usePowerSync } from "@powersync/react";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import ColorPicker, { HueSlider, Preview } from "reanimated-color-picker";
@@ -79,11 +80,7 @@ function resolveExamDate(
 }
 
 function buildISODateTime(dateStr: string, timeStr?: string | null): string {
-  if (!timeStr) return toIsoDateString(`${dateStr}T08:00:00.000Z`);
-  const [h, m] = timeStr.split(':').map(Number);
-  const padH = String(isNaN(h) ? 8 : h).padStart(2, '0');
-  const padM = String(isNaN(m) ? 0 : m).padStart(2, '0');
-  return toIsoDateString(`${dateStr}T${padH}:${padM}:00.000Z`);
+  return toPhilippineISO(dateStr, timeStr || "08:00");
 }
 
 function generateId(): string {
@@ -512,8 +509,8 @@ export default function ScheduleConfirmScreen() {
 
       for (const eb of examBlockers) {
         const id = generateId();
-        const validStartDate = toIsoDateString(eb.startDate, now);
-        const validEndDate = toIsoDateString(eb.endDate, validStartDate);
+        const validStartDate = toPhilippineDateOnly(eb.startDate) || toPhilippineDateOnly(now);
+        const validEndDate = toPhilippineDateOnly(eb.endDate) || validStartDate;
         queries.push(
           powerSync.execute(
             `INSERT INTO ExamWeek (id, title, startDate, endDate, userId, createdAt, updatedAt)

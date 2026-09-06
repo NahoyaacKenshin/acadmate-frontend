@@ -18,7 +18,7 @@ import { X, ChevronDown, Calendar, MapPin, Clock, Trash2 } from 'lucide-react-na
 import { usePowerSync } from '@powersync/react';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO, parseDateLocal } from '@/src/utils/scheduleUtils';
 
 interface EditEventSheetProps {
   visible: boolean;
@@ -76,8 +76,13 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
     if (event) {
       setTitle(event.title);
       setDescription(event.description ?? '');
-      setStartDate(new Date(event.start_date));
-      setEndDate(event.end_date ? new Date(event.end_date) : null);
+      if (event.all_day === 1) {
+        setStartDate(parseDateLocal(event.start_date) ?? new Date(event.start_date));
+        setEndDate(event.end_date ? (parseDateLocal(event.end_date) ?? new Date(event.end_date)) : null);
+      } else {
+        setStartDate(new Date(event.start_date));
+        setEndDate(event.end_date ? new Date(event.end_date) : null);
+      }
       setAllDay(event.all_day === 1);
       setLocation(event.location ?? '');
       setSelectedColor(event.color ?? PRESET_COLORS[0]);
@@ -161,7 +166,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
     setIsLoading(true);
     setError(null);
     try {
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
       await powerSync.execute(
         `UPDATE CalendarEvent SET
           title = ?, description = ?, startDate = ?, endDate = ?,
@@ -170,8 +175,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
         [
           title.trim(),
           description.trim() || null,
-          allDay ? formatDateLocal(startDate) : startDate.toISOString(),
-          endDate ? (allDay ? formatDateLocal(endDate) : endDate.toISOString()) : null,
+          allDay ? formatDateLocal(startDate) : toPhilippineISO(startDate),
+          endDate ? (allDay ? formatDateLocal(endDate) : toPhilippineISO(endDate)) : null,
           allDay ? 1 : 0,
           location.trim() || null,
           selectedColor,

@@ -18,7 +18,7 @@ import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO, parseDateLocal } from '@/src/utils/scheduleUtils';
 
 interface EditClassSheetProps {
   visible: boolean;
@@ -104,8 +104,8 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
       setSetType((schedule.set_type as SetType) ?? null);
       setRoom(schedule.room ?? '');
       setSelectedSubjectId(schedule.subject_id);
-      setStartDate(new Date(schedule.start_date));
-      setEndDate(schedule.end_date ? new Date(schedule.end_date) : null);
+      setStartDate(parseDateLocal(schedule.start_date) ?? new Date(schedule.start_date));
+      setEndDate(schedule.end_date ? (parseDateLocal(schedule.end_date) ?? new Date(schedule.end_date)) : null);
       setShowSubjectPicker(false);
       setActivePickerField(null);
       setError(null);
@@ -123,48 +123,63 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
 
   const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
+    setActivePickerField(field);
+
     if (Platform.OS === 'android') {
       if (field === 'startTime' || field === 'endTime') {
-        const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
+        const [h, m] = (field === 'startTime' ? startTime : endTime).split(':').map(Number);
+        const d = new Date();
+        d.setHours(isNaN(h) ? 8 : h, isNaN(m) ? 0 : m, 0, 0);
+
         DateTimePickerAndroid.open({
-          value: val,
+          value: d,
           mode: 'time',
           is24Hour: false,
           onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
-            if (event.type === 'dismissed' || !selectedDate) return;
-            const hhmm = toHHMM(selectedDate);
-            if (field === 'startTime') setStartTime(hhmm);
-            else setEndTime(hhmm);
+            if (event.type === 'dismissed' || !selectedDate) {
+              setActivePickerField(null);
+              return;
+            }
+            const hh = String(selectedDate.getHours()).padStart(2, '0');
+            const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+            const timeStr = `${hh}:${mm}`;
+            if (field === 'startTime') setStartTime(timeStr);
+            else setEndTime(timeStr);
+            setActivePickerField(null);
           },
         });
       } else {
-        const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+        const d = field === 'startDate' ? startDate : (endDate ?? new Date());
         DateTimePickerAndroid.open({
-          value: val,
+          value: d,
           mode: 'date',
           onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
-            if (event.type === 'dismissed' || !selectedDate) return;
+            if (event.type === 'dismissed' || !selectedDate) {
+              setActivePickerField(null);
+              return;
+            }
             if (field === 'startDate') setStartDate(selectedDate);
             else setEndDate(selectedDate);
+            setActivePickerField(null);
           },
         });
       }
-    } else {
-      setActivePickerField(field);
     }
   };
 
-  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    if (!selected) return;
-    const hhmm = toHHMM(selected);
-    if (activePickerField === 'startTime') setStartTime(hhmm);
-    else if (activePickerField === 'endTime') setEndTime(hhmm);
+  const handleTimeChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (!selectedDate || !activePickerField) return;
+    const hh = String(selectedDate.getHours()).padStart(2, '0');
+    const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+    if (activePickerField === 'startTime') setStartTime(timeStr);
+    else if (activePickerField === 'endTime') setEndTime(timeStr);
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    if (!selected) return;
-    if (activePickerField === 'startDate') setStartDate(selected);
-    else if (activePickerField === 'endDate') setEndDate(selected);
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (!selectedDate || !activePickerField) return;
+    if (activePickerField === 'startDate') setStartDate(selectedDate);
+    else if (activePickerField === 'endDate') setEndDate(selectedDate);
   };
 
   const handleIOSDone = () => setActivePickerField(null);
@@ -174,7 +189,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     setIsLoading(true);
     setError(null);
     try {
-      const now = new Date().toISOString();
+      const now = toPhilippineISO(new Date());
       await powerSync.execute(
         `UPDATE ClassSchedule SET
           dayOfWeek = ?, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,

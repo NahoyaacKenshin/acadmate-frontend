@@ -15,6 +15,7 @@ import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { SubjectRow } from '@/src/hooks/useSubjects';
+import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
 import { TaskRow } from '@/src/hooks/useTasks';
 
 interface EditTaskSheetProps {
@@ -52,7 +53,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? '');
-      setDueDate(task.due_date ? new Date(task.due_date) : null);
+      setDueDate(task.due_date ? (parseToPHTDate(task.due_date) ?? new Date(task.due_date)) : null);
       setSelectedSubjectId(task.subject_id);
       setShowSubjectPicker(false);
       setDatePickerStep(null);
@@ -129,8 +130,8 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     setError(null);
 
     try {
-      const now = new Date().toISOString();
-      const dueDateISO = dueDate ? dueDate.toISOString() : null;
+      const now = toPhilippineISO(new Date());
+      const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
 
       await powerSync.execute(
         `UPDATE Task SET title = ?, description = ?, dueDate = ?, subjectId = ?, updatedAt = ?

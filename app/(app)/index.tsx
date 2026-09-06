@@ -35,24 +35,22 @@ import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
+import { getPhilippineToday, formatTime12PHT, formatTimePHT, isTodayPHT, isTodayOrPastPHT, formatDateTimePHT, parseToEpoch } from '@/src/utils/philippineTime';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayISO(): string {
-  return new Date().toISOString().split('T')[0];
+  return getPhilippineToday();
 }
 
 function isToday(dateStr: string | null): boolean {
   if (!dateStr) return false;
-  return dateStr.startsWith(todayISO());
+  return isTodayPHT(dateStr);
 }
 
 function isTodayOrPast(dateStr: string | null): boolean {
   if (!dateStr) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dateStr);
-  return due <= new Date(today.getTime() + 86400000 - 1);
+  return isTodayOrPastPHT(dateStr);
 }
 
 function todayDayOfWeek(): number {
@@ -61,25 +59,14 @@ function todayDayOfWeek(): number {
 
 function fmtTime(time: string | null | undefined): string {
   if (!time) return '';
-  if (time.includes('T')) {
-    const d = new Date(time);
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-  }
-  const [h, m] = time.split(':').map(Number);
-  if (isNaN(h)) return time;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m || 0).padStart(2, '0')} ${ampm}`;
+  return formatTimePHT(time);
 }
 
 function fmtDue(iso: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  const diff = d.getTime() - Date.now();
+  const epoch = parseToEpoch(iso);
+  if (epoch === null) return '';
+  const diff = epoch - Date.now();
   if (diff < 0) return 'Overdue';
   const hrs = Math.floor(diff / 3600000);
   if (hrs < 1) return 'Due soon';

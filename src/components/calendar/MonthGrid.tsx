@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 
 export interface Holiday {
@@ -96,7 +97,7 @@ function getDotColors(
   }
 
   // CalendarEvent dot (one-off — check startDate)
-  const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), date));
+  const dayEvents = events.filter((e) => isSameDayPHT(e.start_date, date));
   for (const ev of dayEvents) {
     if (colors.length >= 3) break;
     colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');

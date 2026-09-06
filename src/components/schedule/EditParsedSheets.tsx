@@ -20,7 +20,7 @@ import {
   ParsedExamEvent,
 } from './ParsedItemRow';
 import { useSubjects } from '@/src/hooks/useSubjects';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -616,9 +616,9 @@ function combineDateAndTime(date: Date, hhmm: string): Date {
   return result;
 }
 
-/** Convert Date to full ISO-8601 datetime string */
+/** Convert Date to full ISO-8601 datetime string with Philippine offset (+08:00) */
 function toISODateTime(d: Date): string {
-  return d.toISOString();
+  return toPhilippineISO(d);
 }
 
 /** Find the matching date-of-week within an ExamWeek block */
