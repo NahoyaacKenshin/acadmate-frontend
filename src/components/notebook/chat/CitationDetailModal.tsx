@@ -103,6 +103,7 @@ export function CitationDetailModal({ visible, citation, onClose }: CitationDeta
           style={styles.snippetScroll}
           contentContainerStyle={styles.snippetContent}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
         >
           <Text style={styles.snippetText}>{citation.snippet}</Text>
         </ScrollView>

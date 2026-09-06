@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Pressable, StyleSheet, Alert, Animated } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import {
   FileText,
@@ -9,10 +9,9 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Loader,
   RotateCw,
-  ChevronRight,
 } from 'lucide-react-native';
+import { parseToPHT } from '@/src/utils/philippineTime';
 
 export type SourceStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
 export type SourceFileType = 'PDF' | 'IMAGE' | 'TEXT';
@@ -39,20 +38,63 @@ function FileTypeIcon({ type }: { type: SourceFileType }) {
   return <File {...props} color="#64748B" />;
 }
 
+/** Animated spinning icon for the PROCESSING state */
+function SpinnerIcon({ color }: { color: string }) {
+  const rotation = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(rotation, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [rotation]);
+  const rotate = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <RotateCw size={11} color={color} />
+    </Animated.View>
+  );
+}
+
 function StatusBadge({ status }: { status: SourceStatus }) {
-  const config: Record<SourceStatus, { label: string; color: string; bg: string; Icon: any }> = {
-    PENDING: { label: 'Queued', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', Icon: Clock },
-    PROCESSING: { label: 'Processing…', color: '#6C8EFF', bg: 'rgba(108,142,255,0.12)', Icon: Loader },
-    READY: { label: 'Ready', color: '#22C55E', bg: 'rgba(34,197,94,0.12)', Icon: CheckCircle2 },
-    FAILED: { label: 'Failed', color: '#EF4444', bg: 'rgba(239,68,68,0.12)', Icon: AlertCircle },
+  const config: Record<SourceStatus, { label: string; color: string; bg: string }> = {
+    PENDING: { label: 'Queued', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+    PROCESSING: { label: 'Processing…', color: '#6C8EFF', bg: 'rgba(108,142,255,0.12)' },
+    READY: { label: 'Ready', color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
+    FAILED: { label: 'Failed', color: '#EF4444', bg: 'rgba(239,68,68,0.12)' },
   };
-  const { label, color, bg, Icon } = config[status];
+  const { label, color, bg } = config[status];
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Icon size={11} color={color} />
+      {status === 'PROCESSING' ? (
+        <SpinnerIcon color={color} />
+      ) : status === 'PENDING' ? (
+        <Clock size={11} color={color} />
+      ) : status === 'READY' ? (
+        <CheckCircle2 size={11} color={color} />
+      ) : (
+        <AlertCircle size={11} color={color} />
+      )}
       <Text style={[styles.badgeText, { color }]}>{label}</Text>
     </View>
   );
+}
+
+/** Format a createdAt ISO string to PHT-aware short date (e.g. "Sep 7") */
+function formatDatePHT(iso: string): string {
+  const p = parseToPHT(iso);
+  if (!p) {
+    // Fallback to device-local
+    const d = new Date(iso);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}`;
+  }
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[p.month - 1]} ${p.day}`;
 }
 
 export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProps) {
@@ -65,12 +107,6 @@ export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProp
         { text: 'Remove', style: 'destructive', onPress: () => onDelete(source) },
       ]
     );
-  };
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}`;
   };
 
   return (
@@ -86,9 +122,9 @@ export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProp
         <View style={styles.metaRow}>
           <StatusBadge status={source.status} />
           {source.status === 'READY' && source.chunkCount != null && (
-            <Text style={styles.metaText}>{source.chunkCount} chunks indexed</Text>
+            <Text style={styles.metaText}>{source.chunkCount} chunks</Text>
           )}
-          <Text style={styles.dateText}>{formatDate(source.createdAt)}</Text>
+          <Text style={styles.dateText}>{formatDatePHT(source.createdAt)}</Text>
         </View>
       </View>
 

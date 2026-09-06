@@ -27,8 +27,9 @@ interface ChatHistoryDrawerProps {
 }
 
 function formatRelativeDate(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  // Use Date.now() for true absolute epoch comparison (PHT-independent)
+  const nowMs = Date.now();
+  const diffMs = nowMs - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -37,7 +38,8 @@ function formatRelativeDate(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}`;
 }
 
 function SessionRow({
@@ -87,13 +89,21 @@ export function ChatHistoryDrawer({
   visible,
   sessions,
   currentMessages,
+  currentSessionId,
   onClose,
   onNewChat,
   onSelectSession,
   onDeleteSession,
-}: ChatHistoryDrawerProps & { onDeleteSession?: (session: ChatSession) => void }) {
-  // Build a pseudo-session for the current in-progress conversation if it has content
-  const currentUserMessages = currentMessages.filter((m) => m.role === 'user');
+}: ChatHistoryDrawerProps & {
+  currentSessionId?: string | null;
+  onDeleteSession?: (session: ChatSession) => void;
+}) {
+  // Only show "This Session" for a genuinely NEW, unsaved conversation
+  // (i.e. messages exist but sessionId is null, meaning it hasn't been saved to the server yet)
+  const isNewUnsavedSession = currentMessages.length > 0 && !currentSessionId;
+  const currentUserMessages = isNewUnsavedSession
+    ? currentMessages.filter((m) => m.role === 'user')
+    : [];
 
   return (
     <Modal
@@ -120,8 +130,9 @@ export function ChatHistoryDrawer({
         <Pressable
           style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.8 }]}
           onPress={() => {
-            onNewChat();
+            // Always close the drawer first, then trigger new chat logic
             onClose();
+            onNewChat();
           }}
         >
           <Plus size={16} color="#6C8EFF" />

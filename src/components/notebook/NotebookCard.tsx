@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Alert } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { BookOpen, FileText, Trash2, ChevronRight, Sparkles } from 'lucide-react-native';
+import { BookOpen, FileText, Trash2, ChevronRight } from 'lucide-react-native';
+import { parseToPHT } from '@/src/utils/philippineTime';
 
 export interface Notebook {
   id: string;
@@ -35,9 +36,14 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    const p = parseToPHT(iso);
+    if (!p) {
+      const d = new Date(iso);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    }
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[p.month - 1]} ${p.day}, ${p.year}`;
   };
 
   return (
@@ -71,12 +77,6 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
                 {notebook.sourceCount} {notebook.sourceCount === 1 ? 'source' : 'sources'}
               </Text>
             </View>
-
-            {notebook.sourceCount === 0 && (
-              <View style={styles.emptyBadge}>
-                <Text style={styles.emptyBadgeText}>0 files</Text>
-              </View>
-            )}
 
             <Text style={styles.dateText}>{formatDate(notebook.updatedAt)}</Text>
           </View>

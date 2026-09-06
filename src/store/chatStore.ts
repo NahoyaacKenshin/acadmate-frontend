@@ -12,12 +12,22 @@ function genId(): string {
 interface ChatState {
   messages: ChatMessage[];
   sessionId: string | null;
+  /** The notebookId currently loaded in the chat view. */
+  activeNotebookId: string | null;
   sessions: any[];
   isLoading: boolean;
   error: string | null;
+  /** Last user text that was sent — used by retry. */
+  lastUserText: string | null;
 
   setSessionId: (sessionId: string | null) => void;
+  /**
+   * Must be called when the chat screen mounts with a notebookId.
+   * Clears stale state if switching between notebooks.
+   */
+  initForNotebook: (notebookId: string) => void;
   sendMessage: (notebookId: string, text: string) => Promise<void>;
+  retryLastMessage: (notebookId: string) => Promise<void>;
   fetchSessions: (notebookId: string) => Promise<void>;
   loadSession: (notebookId: string, sessionId: string) => Promise<void>;
   deleteSession: (notebookId: string, sessionId: string) => Promise<void>;
@@ -27,17 +37,31 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   sessionId: null,
+  activeNotebookId: null,
   sessions: [],
   isLoading: false,
   error: null,
+  lastUserText: null,
 
-  setSessionId: (sessionId: string | null) => set({ sessionId }),
+  setSessionId: (sessionId) => set({ sessionId }),
+
+  initForNotebook: (notebookId: string) => {
+    const { activeNotebookId } = get();
+    if (activeNotebookId !== notebookId) {
+      // Switching notebooks — wipe previous chat state
+      set({
+        messages: [],
+        sessionId: null,
+        activeNotebookId: notebookId,
+        error: null,
+        lastUserText: null,
+      });
+    }
+  },
 
   sendMessage: async (notebookId: string, text: string) => {
     const { isOnline } = useSystemStore.getState();
-    if (!isOnline) {
-      return;
-    }
+    if (!isOnline) return;
 
     const currentSessionId = get().sessionId;
 
@@ -52,12 +76,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...state.messages, userMsg],
       isLoading: true,
       error: null,
+      lastUserText: text,
     }));
 
     try {
       const res = await ApiService.chat.send(notebookId, text, currentSessionId);
       const payload = res?.data ?? res;
-      
+
       const newSessionId = payload?.sessionId ?? currentSessionId;
 
       const assistantMsg: ChatMessage = {
@@ -74,20 +99,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isLoading: false,
       }));
     } catch (err: any) {
+      // Mark as an error bubble so the UI can render it differently
       const errMsg: ChatMessage = {
         id: genId(),
         role: 'assistant',
-        content: `Sorry, an error occurred: ${err?.message ?? 'Unknown error'}. Please check your connection and try again.`,
+        content: err?.message ?? 'Unknown error. Please check your connection and try again.',
         citations: [],
         timestamp: new Date(),
+        isError: true,
       };
-      
+
       set((state) => ({
         messages: [...state.messages, errMsg],
         isLoading: false,
         error: err?.message ?? 'Unknown error',
       }));
     }
+  },
+
+  retryLastMessage: async (notebookId: string) => {
+    const { lastUserText, isLoading } = get();
+    if (!lastUserText || isLoading) return;
+
+    // Remove the last error bubble before retrying
+    set((state) => {
+      const msgs = [...state.messages];
+      if (msgs.length > 0 && msgs[msgs.length - 1].isError) {
+        msgs.pop();
+      }
+      return { messages: msgs, error: null };
+    });
+
+    await get().sendMessage(notebookId, lastUserText);
   },
 
   fetchSessions: async (notebookId: string) => {
@@ -105,8 +148,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const res = await ApiService.chat.getSession(notebookId, sessionId);
       const data = res?.data ?? res;
-      const rawMsgs = Array.isArray(data?.messages) ? data.messages : (Array.isArray(data) ? data : []);
-      
+      const rawMsgs = Array.isArray(data?.messages)
+        ? data.messages
+        : Array.isArray(data)
+        ? data
+        : [];
+
       const formattedMsgs: ChatMessage[] = rawMsgs.map((m: any) => ({
         id: m.id || genId(),
         role: m.role?.toLowerCase() === 'user' ? 'user' : 'assistant',
@@ -138,6 +185,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearMessages: () => {
-    set({ messages: [], sessionId: null, error: null });
+    set({ messages: [], sessionId: null, error: null, lastUserText: null });
   },
 }));

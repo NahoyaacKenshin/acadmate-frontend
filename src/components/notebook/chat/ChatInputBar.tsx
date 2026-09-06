@@ -56,9 +56,10 @@ export function ChatInputBar({ onSend, isLoading, isOnline }: ChatInputBarProps)
           multiline
           maxLength={2000}
           editable={isOnline && !isLoading}
-          onSubmitEditing={handleSend}
+          // Do NOT use onSubmitEditing with multiline on Android —
+          // it fires on every newline press. Use only the send button.
           blurOnSubmit={false}
-          returnKeyType="send"
+          returnKeyType="default"
         />
 
         {/* Character counter — only when close to limit */}

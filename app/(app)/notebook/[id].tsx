@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   FlatList,
@@ -46,6 +46,9 @@ export default function NotebookDetailScreen() {
   const [isSchedulerVisible, setIsSchedulerVisible] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(68);
+  const pollingStartRef = useRef<number | null>(null);
+  const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max polling
 
   // ─── Fetch sources ────────────────────────────────────────────────────────
 
@@ -71,13 +74,25 @@ export default function NotebookDetailScreen() {
   // Handle polling logic separately by checking the sources in the store
   useEffect(() => {
     const hasPending = sources.some((s) => s.status === 'PENDING' || s.status === 'PROCESSING');
+    if (hasPending && !isPolling) {
+      // Start poll and record start time
+      pollingStartRef.current = Date.now();
+    }
     setIsPolling(hasPending);
   }, [sources]);
 
-  // Auto-poll every 5s while any source is still processing
+  // Auto-poll every 5s while any source is still processing, up to POLL_TIMEOUT_MS
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(() => loadSources(true), 5000);
+    const timer = setInterval(() => {
+      if (pollingStartRef.current && Date.now() - pollingStartRef.current > POLL_TIMEOUT_MS) {
+        // Timeout — stop polling to avoid infinite battery drain
+        setIsPolling(false);
+        console.warn('[NotebookDetail] Polling timed out after 5 minutes.');
+        return;
+      }
+      loadSources(true);
+    }, 5000);
     return () => clearInterval(timer);
   }, [isPolling, loadSources]);
 
@@ -95,6 +110,19 @@ export default function NotebookDetailScreen() {
       await deleteSource(id, source.id);
     } catch {
       Alert.alert('Error', 'Failed to remove source. Please try again.');
+    }
+  };
+
+  // ─── Retry FAILED source ──────────────────────────────────────────────────
+
+  const handleRetrySource = async (source: Source) => {
+    if (!id) return;
+    try {
+      // Re-upload by triggering a fetch refresh; the backend re-queues FAILED sources
+      // on the next fetchSources call. We optimistically reload.
+      await loadSources(true);
+    } catch {
+      Alert.alert('Error', 'Failed to retry source processing. Please try again.');
     }
   };
 
@@ -133,7 +161,7 @@ export default function NotebookDetailScreen() {
   // ─── Action Menu ──────────────────────────────────────────────────────────
 
   const ActionMenu = () => (
-    <View style={styles.actionMenu}>
+    <View style={styles.actionMenuContent}>
       <Pressable
         style={styles.actionMenuItem}
         onPress={() => {
@@ -222,7 +250,10 @@ export default function NotebookDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
         <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/notebook' as any)}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
@@ -270,7 +301,9 @@ export default function NotebookDetailScreen() {
             style={StyleSheet.absoluteFill}
             onPress={() => setIsActionMenuOpen(false)}
           />
-          <ActionMenu />
+          <View style={[styles.actionMenu, { top: headerHeight + 4 }]}>
+            <ActionMenu />
+          </View>
         </>
       )}
 
@@ -297,7 +330,11 @@ export default function NotebookDetailScreen() {
           ListHeaderComponent={<ListHeader />}
           ListEmptyComponent={<EmptyState />}
           renderItem={({ item }) => (
-            <SourceListItem source={item} onDelete={handleDeleteSource} />
+            <SourceListItem
+              source={item}
+              onDelete={handleDeleteSource}
+              onRetry={handleRetrySource}
+            />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -415,21 +452,23 @@ const styles = StyleSheet.create({
   },
   // ── Action Menu ───────────────────────────────────────────────────────────
   actionMenu: {
+    // Positioning only — top is set dynamically via headerHeight
     position: 'absolute',
     right: 16,
-    top: 68,
-    backgroundColor: '#161A26',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2A3143',
     zIndex: 999,
-    overflow: 'hidden',
     width: 220,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 12,
+  },
+  actionMenuContent: {
+    backgroundColor: '#161A26',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    overflow: 'hidden',
   },
   actionMenuItem: {
     flexDirection: 'row',

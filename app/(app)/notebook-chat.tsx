@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,13 +18,13 @@ import {
   Sparkles,
   BookOpen,
   Zap,
+  ChevronDown,
 } from 'lucide-react-native';
 
 import { ChatMessageBubble, ChatMessage } from '@/src/components/notebook/chat/ChatMessageBubble';
 import { ChatTypingIndicator } from '@/src/components/notebook/chat/ChatTypingIndicator';
 import { ChatInputBar } from '@/src/components/notebook/chat/ChatInputBar';
 import { ChatHistoryDrawer } from '@/src/components/notebook/chat/ChatHistoryDrawer';
-import { ApiService } from '@/src/services/api';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useChatStore } from '@/src/store/chatStore';
 
@@ -41,22 +42,44 @@ export default function NotebookChatScreen() {
     useLocalSearchParams<{ id: string; title: string }>();
   const { isOnline } = useSystemStore();
 
-  const { messages, sessionId, sessions, isLoading, sendMessage, fetchSessions, loadSession, deleteSession, clearMessages } = useChatStore();
+  const {
+    messages,
+    sessionId,
+    sessions,
+    isLoading,
+    initForNotebook,
+    sendMessage,
+    retryLastMessage,
+    fetchSessions,
+    loadSession,
+    deleteSession,
+    clearMessages,
+  } = useChatStore();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+  const scrollBtnOpacity = useRef(new Animated.Value(0)).current;
 
-  // Fetch session history when drawer opens or screen mounts
+  // ── Init per notebook (clears stale state) ────────────────────────────────
   useEffect(() => {
     if (notebookId) {
+      initForNotebook(notebookId);
       fetchSessions(notebookId);
     }
-  }, [notebookId, fetchSessions]);
+  }, [notebookId]); // intentionally only run on notebookId change
+
+  // ── Scroll-to-bottom button fade ──────────────────────────────────────────
+  useEffect(() => {
+    Animated.timing(scrollBtnOpacity, {
+      toValue: showScrollBtn ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [showScrollBtn, scrollBtnOpacity]);
 
   const handleOpenHistory = useCallback(() => {
-    if (notebookId) {
-      fetchSessions(notebookId);
-    }
+    if (notebookId) fetchSessions(notebookId);
     setIsHistoryOpen(true);
   }, [notebookId, fetchSessions]);
 
@@ -132,6 +155,11 @@ export default function NotebookChatScreen() {
     [notebookId, isLoading, sendMessage]
   );
 
+  const handleRetry = useCallback(async () => {
+    if (!notebookId) return;
+    await retryLastMessage(notebookId);
+  }, [notebookId, retryLastMessage]);
+
   // ── New chat ──────────────────────────────────────────────────────────────
   const handleNewChat = useCallback(() => {
     if (messages.length === 0 && !sessionId) return;
@@ -154,6 +182,19 @@ export default function NotebookChatScreen() {
     handleSend(chip);
   };
 
+  // ── Scroll tracking ───────────────────────────────────────────────────────
+  const handleScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - contentOffset.y - layoutMeasurement.height;
+    setShowScrollBtn(distanceFromBottom > 120);
+  }, []);
+
+  const scrollToBottom = () => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+    setShowScrollBtn(false);
+  };
+
   // ── Render helpers ────────────────────────────────────────────────────────
   const EmptyState = () => (
     <View style={styles.emptyState}>
@@ -172,7 +213,10 @@ export default function NotebookChatScreen() {
         {SUGGESTION_CHIPS.map((chip) => (
           <Pressable
             key={chip}
-            style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+            style={({ pressed }) => [
+              styles.chip,
+              pressed && styles.chipPressed,
+            ]}
             onPress={() => handleChipPress(chip)}
             disabled={!isOnline}
           >
@@ -193,7 +237,10 @@ export default function NotebookChatScreen() {
   );
 
   const renderItem = ({ item }: { item: ChatMessage }) => (
-    <ChatMessageBubble message={item} />
+    <ChatMessageBubble
+      message={item}
+      onRetry={item.isError ? handleRetry : undefined}
+    />
   );
 
   const ListFooter = () =>
@@ -239,24 +286,38 @@ export default function NotebookChatScreen() {
       </View>
 
       {/* ── Message list ── */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        renderItem={renderItem}
-        ListEmptyComponent={<EmptyState />}
-        ListFooterComponent={<ListFooter />}
-        contentContainerStyle={[
-          styles.listContent,
-          messages.length === 0 && styles.listContentEmpty,
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() =>
-          messages.length > 0 &&
-          flatListRef.current?.scrollToEnd({ animated: false })
-        }
-      />
+      <View style={styles.listContainer}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(m) => m.id}
+          renderItem={renderItem}
+          ListEmptyComponent={<EmptyState />}
+          ListFooterComponent={<ListFooter />}
+          contentContainerStyle={[
+            styles.listContent,
+            messages.length === 0 && styles.listContentEmpty,
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
+          onContentSizeChange={() =>
+            messages.length > 0 &&
+            flatListRef.current?.scrollToEnd({ animated: false })
+          }
+        />
+
+        {/* Scroll-to-bottom floating button */}
+        <Animated.View style={[styles.scrollBtnWrap, { opacity: scrollBtnOpacity }]}>
+          <Pressable
+            style={({ pressed }) => [styles.scrollBtn, pressed && { opacity: 0.8 }]}
+            onPress={scrollToBottom}
+          >
+            <ChevronDown size={18} color="#6C8EFF" />
+          </Pressable>
+        </Animated.View>
+      </View>
 
       {/* ── Input bar ── */}
       <ChatInputBar
@@ -270,6 +331,7 @@ export default function NotebookChatScreen() {
         visible={isHistoryOpen}
         sessions={formattedSessions}
         currentMessages={messages}
+        currentSessionId={sessionId}
         onClose={() => setIsHistoryOpen(false)}
         onNewChat={handleNewChat}
         onSelectSession={handleSelectSession}
@@ -359,6 +421,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // ── Message list ──────────────────────────────────────────────────────────
+  listContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   listContent: {
     paddingVertical: 12,
     paddingBottom: 8,
@@ -370,6 +436,31 @@ const styles = StyleSheet.create({
   typingWrapper: {
     marginTop: 4,
     marginBottom: 8,
+  },
+  // ── Scroll-to-bottom button ───────────────────────────────────────────────
+  scrollBtnWrap: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  scrollBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#161A26',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   // ── Empty state ───────────────────────────────────────────────────────────
   emptyState: {
