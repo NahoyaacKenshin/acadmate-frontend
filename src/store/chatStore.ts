@@ -98,6 +98,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         sessionId: newSessionId,
         isLoading: false,
       }));
+
+      // Refresh session history so the new/updated conversation appears immediately in the drawer
+      get().fetchSessions(notebookId);
     } catch (err: any) {
       // Mark as an error bubble so the UI can render it differently
       const errMsg: ChatMessage = {
@@ -137,7 +140,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const res = await ApiService.chat.history(notebookId);
       const data = res?.data ?? res;
-      set({ sessions: Array.isArray(data) ? data : [] });
+      // Backend returns { status: 'success', data: { notebookId, sessions: [...] } }
+      const sessionList = Array.isArray(data?.sessions)
+        ? data.sessions
+        : Array.isArray(data?.data?.sessions)
+        ? data.data.sessions
+        : Array.isArray(data)
+        ? data
+        : [];
+      set({ sessions: sessionList });
     } catch (err) {
       console.warn('Failed to fetch chat sessions', err);
     }
@@ -150,15 +161,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const data = res?.data ?? res;
       const rawMsgs = Array.isArray(data?.messages)
         ? data.messages
+        : Array.isArray(data?.data?.messages)
+        ? data.data.messages
         : Array.isArray(data)
         ? data
         : [];
+
+      const parseCitations = (raw: any): any[] => {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw;
+        // Prisma JSON may come back as a string in some drivers
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch { return []; }
+        }
+        return [];
+      };
 
       const formattedMsgs: ChatMessage[] = rawMsgs.map((m: any) => ({
         id: m.id || genId(),
         role: m.role?.toLowerCase() === 'user' ? 'user' : 'assistant',
         content: m.content,
-        citations: m.citations ?? [],
+        citations: parseCitations(m.citations),
         timestamp: m.createdAt ? new Date(m.createdAt) : new Date(),
       }));
 

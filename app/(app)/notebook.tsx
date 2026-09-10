@@ -7,12 +7,14 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
 import { NotebookCard, Notebook } from '@/src/components/notebook/NotebookCard';
 import { CreateNotebookSheet } from '@/src/components/notebook/CreateNotebookSheet';
+import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import { Plus, BookOpen, Sparkles } from 'lucide-react-native';
 
@@ -25,11 +27,13 @@ export default function NotebookScreen() {
     notebooksError: error,
     fetchNotebooks,
     createNotebook,
+    updateNotebook,
     deleteNotebook,
   } = useNotebookStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreateVisible, setIsCreateVisible] = useState(false);
+  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
 
   useEffect(() => {
     fetchNotebooks();
@@ -58,6 +62,17 @@ export default function NotebookScreen() {
       await deleteNotebook(notebook.id);
     } catch (err: any) {
       Alert.alert('Error', 'Failed to delete notebook. Please try again.');
+    }
+  };
+
+  // ─── Update ───────────────────────────────────────────────────────────────
+
+  const handleUpdate = async (id: string, title: string, description: string) => {
+    try {
+      await updateNotebook(id, { title, description });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update notebook. Please try again.');
+      throw err;
     }
   };
 
@@ -141,10 +156,15 @@ export default function NotebookScreen() {
               notebook={item}
               onPress={handleOpenNotebook}
               onDelete={handleDelete}
+              onEdit={(nb) => setEditingNotebook(nb)}
             />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          windowSize={7}
+          maxToRenderPerBatch={10}
+          initialNumToRender={8}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -161,6 +181,14 @@ export default function NotebookScreen() {
         visible={isCreateVisible}
         onClose={() => setIsCreateVisible(false)}
         onSave={handleCreate}
+      />
+
+      {/* ── Edit Sheet ── */}
+      <EditNotebookSheet
+        visible={!!editingNotebook}
+        notebook={editingNotebook}
+        onClose={() => setEditingNotebook(null)}
+        onSave={handleUpdate}
       />
     </SafeAreaView>
   );

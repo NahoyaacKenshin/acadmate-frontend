@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import { useNotebookStore } from '@/src/store/notebookStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import {
   ArrowLeft,
   Plus,
@@ -29,13 +31,23 @@ import {
   RefreshCw,
   MessageSquare,
   Bell,
+  Pencil,
 } from 'lucide-react-native';
 
 export default function NotebookDetailScreen() {
   const router = useRouter();
   const { id, title: notebookTitle } = useLocalSearchParams<{ id: string; title: string }>();
 
-  const { sourcesByNotebook, fetchSources, deleteSource } = useNotebookStore();
+  const {
+    notebooks,
+    sourcesByNotebook,
+    fetchSources,
+    deleteSource,
+    retrySource,
+    updateNotebook,
+  } = useNotebookStore();
+  const currentNotebook = notebooks.find((n) => n.id === id);
+  const displayTitle = currentNotebook?.title ?? notebookTitle ?? 'Notebook';
   const sources = id ? (sourcesByNotebook[id] || []) : [];
 
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +57,7 @@ export default function NotebookDetailScreen() {
   const [isNoteEditorVisible, setIsNoteEditorVisible] = useState(false);
   const [isSchedulerVisible, setIsSchedulerVisible] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isEditVisible, setIsEditVisible] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -118,11 +131,22 @@ export default function NotebookDetailScreen() {
   const handleRetrySource = async (source: Source) => {
     if (!id) return;
     try {
-      // Re-upload by triggering a fetch refresh; the backend re-queues FAILED sources
-      // on the next fetchSources call. We optimistically reload.
-      await loadSources(true);
-    } catch {
-      Alert.alert('Error', 'Failed to retry source processing. Please try again.');
+      await retrySource(id, source.id);
+      pollingStartRef.current = Date.now();
+      setIsPolling(true);
+    } catch (err: any) {
+      Alert.alert('Retry Failed', err?.message || 'Failed to retry source processing. Please try again.');
+    }
+  };
+
+  // ─── Update Notebook ──────────────────────────────────────────────────────
+
+  const handleUpdateNotebook = async (notebookId: string, title: string, description: string) => {
+    try {
+      await updateNotebook(notebookId, { title, description });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update notebook. Please try again.');
+      throw err;
     }
   };
 
@@ -257,9 +281,14 @@ export default function NotebookDetailScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/notebook' as any)}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{notebookTitle ?? 'Notebook'}</Text>
-        </View>
+        <Pressable
+          style={styles.headerCenter}
+          onPress={() => setIsEditVisible(true)}
+          hitSlop={8}
+        >
+          <Text style={styles.headerTitle} numberOfLines={1}>{displayTitle}</Text>
+          <Pencil size={13} color="#64748B" style={{ marginLeft: 6, flexShrink: 0 }} />
+        </Pressable>
         <View style={styles.headerRight}>
           {isPolling && (
             <Pressable style={styles.refreshBtn} onPress={handleRefresh}>
@@ -278,7 +307,7 @@ export default function NotebookDetailScreen() {
             style={({ pressed }) => [styles.askAiBtn, pressed && { opacity: 0.75 }]}
             onPress={() =>
               router.push(
-                `/(app)/notebook-chat?id=${id}&title=${encodeURIComponent(notebookTitle ?? 'Notebook')}` as any
+                `/(app)/notebook-chat?id=${id}&title=${encodeURIComponent(displayTitle)}` as any
               )
             }
           >
@@ -338,6 +367,10 @@ export default function NotebookDetailScreen() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          windowSize={7}
+          maxToRenderPerBatch={10}
+          initialNumToRender={8}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -373,9 +406,29 @@ export default function NotebookDetailScreen() {
           visible={isSchedulerVisible}
           onClose={() => setIsSchedulerVisible(false)}
           notebookId={id}
-          notebookTitle={notebookTitle ?? 'Notebook'}
+          notebookTitle={displayTitle}
         />
       )}
+
+      {/* ── Edit Notebook Sheet ── */}
+      <EditNotebookSheet
+        visible={isEditVisible}
+        notebook={
+          currentNotebook ??
+          (id
+            ? {
+                id,
+                title: displayTitle,
+                description: null,
+                sourceCount: sources.length,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+            : null)
+        }
+        onClose={() => setIsEditVisible(false)}
+        onSave={handleUpdateNotebook}
+      />
     </SafeAreaView>
   );
 }
@@ -405,6 +458,8 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 17,

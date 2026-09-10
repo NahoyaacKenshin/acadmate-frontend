@@ -17,6 +17,7 @@ import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { SubjectRow } from '@/src/hooks/useSubjects';
 import { toPhilippineISO } from '@/src/utils/philippineTime';
+import { NotificationService } from '@/src/services/notificationService';
 
 interface AddTaskSheetProps {
   visible: boolean;
@@ -133,6 +134,22 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
         [id, title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, userId, now, now]
       );
+
+      if (dueDateISO) {
+        NotificationService.scheduleTaskReminders({
+          id,
+          title: title.trim(),
+          description: description.trim() || null,
+          due_date: dueDateISO,
+          completed: 0,
+          subject_id: selectedSubjectId,
+          user_id: userId,
+          created_at: now,
+          updated_at: now,
+          subject_name: selectedSubject?.name ?? null,
+          subject_color: selectedSubject?.color ?? null,
+        }).catch((e) => console.warn('[AddTask] scheduleTaskReminders error:', e));
+      }
 
       handleClose();
     } catch (err: any) {

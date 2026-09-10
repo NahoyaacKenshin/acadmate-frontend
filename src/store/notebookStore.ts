@@ -11,10 +11,12 @@ interface NotebookState {
 
   fetchNotebooks: (silent?: boolean) => Promise<void>;
   createNotebook: (title: string, description?: string) => Promise<Notebook>;
+  updateNotebook: (id: string, data: { title?: string; description?: string | null }) => Promise<Notebook>;
   deleteNotebook: (id: string) => Promise<void>;
 
   fetchSources: (notebookId: string, silent?: boolean) => Promise<void>;
   deleteSource: (notebookId: string, sourceId: string) => Promise<void>;
+  retrySource: (notebookId: string, sourceId: string) => Promise<void>;
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
@@ -63,6 +65,29 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     return mapped;
   },
 
+  updateNotebook: async (id, data) => {
+    const res = await ApiService.notebooks.update(id, data);
+    const updated = res?.data ?? res?.notebook ?? res;
+    let mappedNotebook: Notebook | null = null;
+    set((state) => {
+      const updatedList = state.notebooks.map((n) => {
+        if (n.id === id) {
+          const m: Notebook = {
+            ...n,
+            title: updated.title ?? (data.title ?? n.title),
+            description: updated.description !== undefined ? updated.description : (data.description !== undefined ? data.description : n.description),
+            updatedAt: updated.updatedAt ?? new Date().toISOString(),
+          };
+          mappedNotebook = m;
+          return m;
+        }
+        return n;
+      });
+      return { notebooks: updatedList };
+    });
+    return mappedNotebook ?? updated;
+  },
+
   deleteNotebook: async (id) => {
     await ApiService.notebooks.delete(id);
     set((state) => ({ notebooks: state.notebooks.filter((n) => n.id !== id) }));
@@ -106,6 +131,21 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
           ...state.sourcesByNotebook,
           [notebookId]: currentSources.filter(s => s.id !== sourceId),
         }
+      };
+    });
+  },
+
+  retrySource: async (notebookId, sourceId) => {
+    await ApiService.sources.retry(notebookId, sourceId);
+    set((state) => {
+      const currentSources = state.sourcesByNotebook[notebookId] || [];
+      return {
+        sourcesByNotebook: {
+          ...state.sourcesByNotebook,
+          [notebookId]: currentSources.map((s) =>
+            s.id === sourceId ? { ...s, status: 'PROCESSING' as const } : s
+          ),
+        },
       };
     });
   },

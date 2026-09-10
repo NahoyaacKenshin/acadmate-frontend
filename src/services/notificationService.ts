@@ -98,6 +98,15 @@ export const NotificationService = {
   },
 
   /**
+   * Helper to cancel all scheduled notifications for a given task.
+   */
+  cancelTaskNotifications: async (taskId: string) => {
+    await NotificationService.cancelNotification(`task_${taskId}_day`);
+    await NotificationService.cancelNotification(`task_${taskId}_hour`);
+    await NotificationService.cancelNotification(`task_${taskId}_due`);
+  },
+
+  /**
    * Schedules recurring weekly notifications for a class schedule.
    * Day of week: 0 = Sun, 1 = Mon ... 6 = Sat.
    */

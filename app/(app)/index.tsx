@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   TouchableOpacity,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,13 +22,15 @@ import {
   MapPin,
   Wifi,
   WifiOff,
+  RotateCw,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useUserStore } from '@/src/store/userStore';
-import { useSystemStore } from '@/src/store/systemStore';
-import { useStatus } from '@powersync/react';
+import { useStatus, usePowerSync } from '@powersync/react';
+import { useNetworkSyncStatus } from '@/src/hooks/useNetworkSyncStatus';
+import { NotificationService } from '@/src/services/notificationService';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
@@ -35,13 +38,17 @@ import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { getPhilippineToday, formatTime12PHT, formatTimePHT, isTodayPHT, isTodayOrPastPHT, formatDateTimePHT, parseToEpoch } from '@/src/utils/philippineTime';
+import {
+  getPhilippineToday,
+  formatTime12,
+  formatTimePHT,
+  isTodayPHT,
+  isOverduePHT,
+  isTodayOrPastPHT,
+  parseToEpoch,
+} from '@/src/utils/philippineTime';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function todayISO(): string {
-  return getPhilippineToday();
-}
 
 function isToday(dateStr: string | null): boolean {
   if (!dateStr) return false;
@@ -53,13 +60,9 @@ function isTodayOrPast(dateStr: string | null): boolean {
   return isTodayOrPastPHT(dateStr);
 }
 
-function todayDayOfWeek(): number {
-  return new Date().getDay(); // 0=Sun ... 6=Sat
-}
-
 function fmtTime(time: string | null | undefined): string {
   if (!time) return '';
-  return formatTimePHT(time);
+  return formatTime12(time);
 }
 
 function fmtDue(iso: string | null): string {
@@ -84,10 +87,19 @@ function getGreeting() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function UrgentTaskCard({ task, index }: { task: TaskRow; index: number }) {
-  const label = fmtDue(task.due_date);
-  const isOverdue = label === 'Overdue';
+function UrgentTaskCard({
+  task,
+  index,
+  onComplete,
+}: {
+  task: TaskRow;
+  index: number;
+  onComplete: (task: TaskRow) => void;
+}) {
+  const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
+  const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
   const color = task.subject_color ?? '#6C8EFF';
+  const dueTime = task.due_date ? formatTime12(task.due_date) : null;
 
   return (
     <Animated.View
@@ -95,25 +107,55 @@ function UrgentTaskCard({ task, index }: { task: TaskRow; index: number }) {
       style={styles.urgentCard}
     >
       <View style={[styles.urgentAccent, { backgroundColor: color }]} />
+
+      {/* 1-Tap Circular Checkbox */}
+      <TouchableOpacity
+        style={styles.urgentCheckbox}
+        onPress={() => onComplete(task)}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <CheckCircle2 size={20} color="#3A4455" />
+      </TouchableOpacity>
+
       <View style={styles.urgentContent}>
         <Text style={styles.urgentTitle} numberOfLines={1}>
           {task.title}
         </Text>
         <View style={styles.urgentMeta}>
           {task.subject_name ? (
-            <Text style={[styles.urgentSubject, { color }]} numberOfLines={1}>
-              {task.subject_name}
-            </Text>
+            <View style={[styles.urgentSubjectTag, { backgroundColor: color + '22' }]}>
+              <View style={[styles.urgentSubjectDot, { backgroundColor: color }]} />
+              <Text style={[styles.urgentSubject, { color }]} numberOfLines={1}>
+                {task.subject_name}
+              </Text>
+            </View>
           ) : null}
-          <View style={[styles.urgentBadge, isOverdue && styles.urgentBadgeRed]}>
-            <AlertTriangle size={10} color={isOverdue ? '#FCA5A5' : '#FCD34D'} />
-            <Text style={[styles.urgentBadgeText, isOverdue && styles.urgentBadgeTextRed]}>
-              {label}
-            </Text>
-          </View>
+
+          {isOverdue ? (
+            <View style={[styles.urgentBadge, styles.urgentBadgeRed]}>
+              <AlertTriangle size={10} color="#FCA5A5" />
+              <Text style={[styles.urgentBadgeText, styles.urgentBadgeTextRed]}>
+                Overdue
+              </Text>
+            </View>
+          ) : isTodayDue ? (
+            <View style={styles.urgentBadge}>
+              <Clock size={10} color="#FCD34D" />
+              <Text style={styles.urgentBadgeText}>
+                Due Today{dueTime ? ` · ${dueTime}` : ''}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.urgentBadge}>
+              <Clock size={10} color="#94A3B8" />
+              <Text style={[styles.urgentBadgeText, { color: '#94A3B8' }]}>
+                {fmtDue(task.due_date)}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
-      <CheckCircle2 size={18} color="#2A3143" />
     </Animated.View>
   );
 }
@@ -123,31 +165,48 @@ function TimelineItem({
   time,
   color,
   sub,
+  modality,
   index,
+  onPress,
 }: {
   label: string;
   time: string;
   color: string;
   sub?: string;
+  modality?: string;
   index: number;
+  onPress?: () => void;
 }) {
   return (
     <Animated.View
       entering={FadeInDown.delay(index * 60).springify()}
-      style={styles.timelineItem}
+      style={styles.timelineItemWrapper}
     >
-      <View style={[styles.timelineDot, { backgroundColor: color }]} />
-      <View style={styles.timelineText}>
-        <Text style={styles.timelineLabel} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={styles.timelineTime}>{time}</Text>
-        {sub ? (
-          <Text style={styles.timelineSub} numberOfLines={1}>
-            {sub}
+      <TouchableOpacity
+        style={styles.timelineItem}
+        activeOpacity={0.75}
+        onPress={onPress}
+      >
+        <View style={styles.timelineTopRow}>
+          <View style={[styles.timelineDot, { backgroundColor: color }]} />
+          {modality ? (
+            <View style={[styles.modalityTag, { backgroundColor: color + '22' }]}>
+              <Text style={[styles.modalityText, { color }]}>{modality}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.timelineText}>
+          <Text style={styles.timelineLabel} numberOfLines={1}>
+            {label}
           </Text>
-        ) : null}
-      </View>
+          <Text style={styles.timelineTime}>{time}</Text>
+          {sub ? (
+            <Text style={styles.timelineSub} numberOfLines={1}>
+              {sub}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -183,13 +242,35 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 function StudentHomeScreen() {
   const { user } = useAuthStore();
   const { nickname, studentSet } = useUserStore();
-  const { isOnline: systemOnline } = useSystemStore();
   const powerSyncStatus = useStatus();
-  const isOnline = (powerSyncStatus?.connected ?? true) && systemOnline;
+  const powerSync = usePowerSync();
+
+  // Dynamic reactive connection & sync status (accurate offline / syncing / online detection)
+  const networkStatus = useNetworkSyncStatus();
+
+  const handleCompleteTask = async (task: TaskRow) => {
+    try {
+      Vibration.vibrate(15);
+    } catch {}
+    const now = new Date().toISOString();
+    try {
+      await powerSync.execute(
+        `UPDATE Task SET completed = 1, updatedAt = ? WHERE id = ?`,
+        [now, task.id]
+      );
+      await NotificationService.cancelTaskNotifications(task.id);
+    } catch (err) {
+      console.error('[Home] Complete task failed:', err);
+    }
+  };
 
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
   const greeting = getGreeting();
-  const todayDOW = todayDayOfWeek();
+  const dateSubtitle = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date());
 
   // ── Data from PowerSync (zero REST calls) ──
   const { tasks } = useTasks();
@@ -233,6 +314,7 @@ function StudentHomeScreen() {
       time: string;
       color: string;
       sub?: string;
+      modality?: string;
       sortKey: string;
     }> = [
       ...todayResolvedClasses.map(({ schedule: s, resolution }) => ({
@@ -240,7 +322,8 @@ function StudentHomeScreen() {
         label: s.subject_name ?? 'Class',
         time: `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`,
         color: s.subject_color ?? '#6C8EFF',
-        sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom} · ${resolution.badgeText}` : resolution.badgeText,
+        sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom}` : undefined,
+        modality: resolution.badgeText,
         sortKey: s.start_time,
       })),
       ...todayEvents.map((e) => {
@@ -304,17 +387,37 @@ function StudentHomeScreen() {
         {/* ── Hero Header ── */}
         <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
           <View style={styles.heroLeft}>
-            <Text style={styles.greetingText}>{greeting.text}</Text>
+            <View style={styles.greetingRow}>
+              <Text style={styles.greetingText}>{greeting.text} {greeting.emoji}</Text>
+              <Text style={styles.dateDot}>·</Text>
+              <Text style={styles.dateSubtitle}>{dateSubtitle}</Text>
+            </View>
             <Text style={styles.nameText}>{displayName}</Text>
           </View>
-          <View style={[styles.onlinePill, isOnline ? styles.onlinePillGreen : styles.onlinePillAmber]}>
-            {isOnline ? (
+          <View style={[
+            styles.onlinePill,
+            networkStatus === 'online'
+              ? styles.onlinePillGreen
+              : networkStatus === 'syncing'
+              ? styles.onlinePillBlue
+              : styles.onlinePillAmber
+          ]}>
+            {networkStatus === 'online' ? (
               <Wifi size={12} color="#34D399" />
+            ) : networkStatus === 'syncing' ? (
+              <RotateCw size={12} color="#6C8EFF" />
             ) : (
               <WifiOff size={12} color="#F59E0B" />
             )}
-            <Text style={[styles.onlineText, isOnline ? styles.onlineTextGreen : styles.onlineTextAmber]}>
-              {isOnline ? 'Online' : 'Offline'}
+            <Text style={[
+              styles.onlineText,
+              networkStatus === 'online'
+                ? styles.onlineTextGreen
+                : networkStatus === 'syncing'
+                ? styles.onlineTextBlue
+                : styles.onlineTextAmber
+            ]}>
+              {networkStatus === 'online' ? 'Online' : networkStatus === 'syncing' ? 'Syncing...' : 'Offline'}
             </Text>
           </View>
         </Animated.View>
@@ -359,7 +462,12 @@ function StudentHomeScreen() {
             </View>
           ) : (
             urgentTasks.map((t, i) => (
-              <UrgentTaskCard key={t.id} task={t} index={i} />
+              <UrgentTaskCard
+                key={t.id}
+                task={t}
+                index={i}
+                onComplete={handleCompleteTask}
+              />
             ))
           )}
         </Animated.View>
@@ -394,7 +502,9 @@ function StudentHomeScreen() {
                   time={item.time}
                   color={item.color}
                   sub={item.sub}
+                  modality={item.modality}
                   index={i}
+                  onPress={() => router.push('/(app)/calendar' as any)}
                 />
               ))}
             </ScrollView>
@@ -442,15 +552,18 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   heroLeft: { flex: 1, overflow: 'visible' },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   greetingText: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  dateDot: { fontSize: 13, color: '#475569' },
+  dateSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500' },
   nameText: {
     fontSize: 26,
-    lineHeight: 34,
+    lineHeight: 36,
     fontWeight: '800',
     color: '#ffffff',
     marginTop: 2,
-    paddingBottom: 4,
-    includeFontPadding: false,
+    paddingTop: 2,
+    paddingBottom: 8,
   },
 
   onlinePill: {
@@ -463,9 +576,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   onlinePillGreen: { backgroundColor: 'rgba(52,211,153,0.12)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
+  onlinePillBlue: { backgroundColor: 'rgba(108,142,255,0.12)', borderWidth: 1, borderColor: 'rgba(108,142,255,0.25)' },
   onlinePillAmber: { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' },
   onlineText: { fontSize: 11, fontWeight: '700' },
   onlineTextGreen: { color: '#34D399' },
+  onlineTextBlue: { color: '#6C8EFF' },
   onlineTextAmber: { color: '#F59E0B' },
 
   // Stats row
@@ -509,13 +624,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     overflow: 'hidden',
     paddingRight: 14,
-    gap: 12,
+    gap: 8,
   },
   urgentAccent: { width: 4, alignSelf: 'stretch' },
-  urgentContent: { flex: 1, paddingVertical: 12 },
-  urgentTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff', marginBottom: 4 },
+  urgentCheckbox: {
+    paddingLeft: 6,
+    paddingRight: 4,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  urgentContent: { flex: 1, paddingVertical: 12, gap: 4 },
+  urgentTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
   urgentMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  urgentSubject: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  urgentSubjectTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    maxWidth: 120,
+  },
+  urgentSubjectDot: { width: 5, height: 5, borderRadius: 2.5 },
+  urgentSubject: { fontSize: 11, fontWeight: '600', flexShrink: 1 },
   urgentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,16 +676,31 @@ const styles = StyleSheet.create({
 
   // Timeline
   timelineScroll: { paddingBottom: 4, gap: 10 },
+  timelineItemWrapper: { width: 168 },
   timelineItem: {
     backgroundColor: '#161A26',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
     padding: 12,
-    width: 156,
     gap: 6,
   },
+  timelineTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   timelineDot: { width: 8, height: 8, borderRadius: 4 },
+  modalityTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  modalityText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
   timelineText: { gap: 2 },
   timelineLabel: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
   timelineTime: { fontSize: 11, color: '#6C8EFF', fontWeight: '600' },

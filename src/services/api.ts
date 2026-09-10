@@ -120,6 +120,14 @@ export const ApiService = {
       });
       return handleResponse(response);
     },
+    update: async (id: string, data: { title?: string; description?: string | null }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
   },
 
   // --- Notebook Sources ---

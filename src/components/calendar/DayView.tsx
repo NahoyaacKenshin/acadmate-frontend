@@ -4,6 +4,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Vibration,
 } from 'react-native';
 import { Text } from '../ui/text';
 import {
@@ -15,6 +16,9 @@ import {
   Users,
   Layers,
   GraduationCap,
+  ChevronRight,
+  Check,
+  Sparkles,
 } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
@@ -38,6 +42,7 @@ interface DayViewProps {
   onClassPress?: (schedule: ClassScheduleRow) => void;
   onEventPress?: (event: CalendarEventRow) => void;
   onExamWeekPress?: (examWeek: ExamWeekRow) => void;
+  onToggleTask?: (id: string) => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -122,7 +127,10 @@ function ClassCard({
           <Text style={styles.eventTitle} numberOfLines={1}>
             {schedule.subject_name ?? 'Class'}
           </Text>
-          <ModalityBadge text={resolution.badgeText} color={resolution.badgeColor} />
+          <View style={styles.eventTopRight}>
+            <ModalityBadge text={resolution.badgeText} color={resolution.badgeColor} />
+            <ChevronRight size={14} color="#3A4455" />
+          </View>
         </View>
         <View style={styles.eventMeta}>
           {resolution.effectiveRoom ? (
@@ -169,12 +177,15 @@ function EventCard({
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
           <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-          {isExam ? (
-            <View style={[styles.badge, { backgroundColor: 'rgba(139, 92, 246, 0.18)' }]}>
-              <GraduationCap size={10} color="#A78BFA" />
-              <Text style={[styles.badgeText, { color: '#A78BFA' }]}>EXAM</Text>
-            </View>
-          ) : null}
+          <View style={styles.eventTopRight}>
+            {isExam ? (
+              <View style={[styles.badge, { backgroundColor: 'rgba(139, 92, 246, 0.18)' }]}>
+                <GraduationCap size={10} color="#A78BFA" />
+                <Text style={[styles.badgeText, { color: '#A78BFA' }]}>EXAM</Text>
+              </View>
+            ) : null}
+            <ChevronRight size={14} color="#3A4455" />
+          </View>
         </View>
         <View style={styles.eventMeta}>
           {event.all_day === 1 ? (
@@ -210,24 +221,75 @@ function EventCard({
 }
 
 // ── Task Due Card ──────────────────────────────────────────────────────────────
-function TaskDueCard({ task }: { task: TaskRow }) {
+function TaskDueCard({
+  task,
+  onToggleComplete,
+}: {
+  task: TaskRow;
+  onToggleComplete?: () => void;
+}) {
+  const isCompleted = task.completed === 1;
+  const subjectColor = task.subject_color ?? '#94A3B8';
+  const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
+
+  const handleCheckboxPress = () => {
+    try { Vibration.vibrate(15); } catch { /* ignored */ }
+    onToggleComplete?.();
+  };
+
   return (
-    <View style={[styles.eventCard, task.completed === 1 && styles.eventCardDimmed]}>
-      <View style={[styles.eventColorBar, { backgroundColor: task.subject_color ?? '#94A3B8' }]} />
-      <View style={styles.eventBody}>
-        <Text style={[styles.eventTitle, task.completed === 1 && styles.titleStrikethrough]} numberOfLines={1}>
-          {task.title}
-        </Text>
-        <View style={styles.eventMeta}>
-          <View style={styles.metaItem}>
-            <Text style={styles.taskDueLabel}>Task due</Text>
-          </View>
+    <View style={[styles.taskCard, isCompleted && styles.taskCardCompleted]}>
+      {/* Color bar */}
+      <View style={[styles.eventColorBar, { backgroundColor: subjectColor }]} />
+
+      {/* Checkbox */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.taskCheckbox,
+          isCompleted && styles.taskCheckboxDone,
+          pressed && { transform: [{ scale: 0.88 }] },
+        ]}
+        onPress={handleCheckboxPress}
+        hitSlop={10}
+      >
+        {isCompleted && <Check size={12} color="#ffffff" strokeWidth={3} />}
+      </Pressable>
+
+      {/* Body */}
+      <View style={styles.taskBody}>
+        <View style={styles.taskTopRow}>
+          <Text
+            style={[styles.taskTitle, isCompleted && styles.taskTitleDone]}
+            numberOfLines={1}
+          >
+            {task.title}
+          </Text>
+          {/* Subject pill */}
           {task.subject_name ? (
-            <View style={styles.metaItem}>
-              <BookOpen size={11} color="#94A3B8" />
-              <Text style={styles.metaText}>{task.subject_name}</Text>
+            <View style={[styles.subjectPill, { backgroundColor: `${subjectColor}22` }]}>
+              <View style={[styles.subjectDot, { backgroundColor: subjectColor }]} />
+              <Text style={[styles.subjectPillText, { color: subjectColor }]} numberOfLines={1}>
+                {task.subject_name}
+              </Text>
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.taskMeta}>
+          {/* Due label */}
+          {isCompleted ? (
+            <View style={styles.badgeCompleted}>
+              <Check size={10} color="#10B981" strokeWidth={3} />
+              <Text style={styles.badgeCompletedText}>Done</Text>
+            </View>
+          ) : (
+            <View style={styles.taskDueBadge}>
+              <Clock size={10} color="#F59E0B" />
+              <Text style={styles.taskDueLabel}>
+                Task due{dueTime ? ` · ${dueTime}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -244,9 +306,10 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ── Main DayView ───────────────────────────────────────────────────────────────
-export function DayView({ selectedDate, events, schedules, examWeeks, holidays, tasks, onClassPress, onEventPress, onExamWeekPress }: DayViewProps) {
+export function DayView({ selectedDate, events, schedules, examWeeks, holidays, tasks, onClassPress, onEventPress, onExamWeekPress, onToggleTask }: DayViewProps) {
   const today = new Date();
   const isToday = isSameDay(selectedDate, today);
+  const isPast = selectedDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const dayOfWeek = selectedDate.getDay();
 
   const { semesterRules } = useSemesterRules();
@@ -305,6 +368,13 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   const dateLabel = isToday
     ? `Today — ${DAYS_FULL[dayOfWeek]}, ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}`
     : `${DAYS_FULL[dayOfWeek]}, ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}`;
+
+  // Empty state message
+  const emptySubtitle = isToday
+    ? 'Enjoy your free day — tap + to add something'
+    : isPast
+    ? 'Nothing was scheduled for this day'
+    : 'Nothing planned yet — tap + to add an event';
 
   return (
     <ScrollView
@@ -402,16 +472,24 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
       {dayTasks.length > 0 ? (
         <View style={styles.section}>
           <SectionHeader title="Tasks Due" />
-          {dayTasks.map((t) => <TaskDueCard key={t.id} task={t} />)}
+          {dayTasks.map((t) => (
+            <TaskDueCard
+              key={t.id}
+              task={t}
+              onToggleComplete={() => onToggleTask?.(t.id)}
+            />
+          ))}
         </View>
       ) : null}
 
       {/* Empty state */}
       {!hasAnything ? (
         <View style={styles.emptyState}>
-          <CalendarDays size={40} color="#2A3143" />
+          <View style={styles.emptyIconWrap}>
+            <Sparkles size={28} color="#3A4455" />
+          </View>
           <Text style={styles.emptyTitle}>Nothing scheduled</Text>
-          <Text style={styles.emptySubtitle}>Tap + to add an event for this day</Text>
+          <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -474,7 +552,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  // Event card
+  // Event card (class & events)
   eventCard: {
     flexDirection: 'row',
     backgroundColor: '#161A26',
@@ -503,6 +581,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  eventTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   eventTitle: {
     fontSize: 15,
@@ -536,16 +619,110 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
+  // Task Due Card
+  taskCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161A26',
+    borderRadius: 12,
+    marginBottom: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+  },
+  taskCardCompleted: {
+    opacity: 0.55,
+  },
+  taskCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#3A4455',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+    flexShrink: 0,
+  },
+  taskCheckboxDone: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  taskBody: {
+    flex: 1,
+    padding: 12,
+    paddingLeft: 10,
+    gap: 6,
+  },
+  taskTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  taskTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
+    flex: 1,
+  },
+  taskTitleDone: {
+    textDecorationLine: 'line-through',
+    color: '#64748B',
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  taskDueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
   taskDueLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: '#F59E0B',
-    backgroundColor: 'rgba(245,158,11,0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
   },
-  // Badge
+  badgeCompleted: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeCompletedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  // Subject pill on task cards
+  subjectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    maxWidth: 110,
+    flexShrink: 0,
+  },
+  subjectDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  subjectPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  // Badge (modality, exam)
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -554,19 +731,24 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
-  badgeF2F: { backgroundColor: 'rgba(16,185,129,0.12)' },
-  badgeOnline: { backgroundColor: 'rgba(108,142,255,0.12)' },
-  badgeHybrid: { backgroundColor: 'rgba(245,158,11,0.12)' },
   badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  badgeTextF2F: { color: '#10B981' },
-  badgeTextOnline: { color: '#6C8EFF' },
-  badgeTextHybrid: { color: '#F59E0B' },
   // Empty state
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
     gap: 10,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#161A26',
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 17,
@@ -575,8 +757,8 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 13,
-    color: '#2A3143',
+    color: '#3A4455',
     textAlign: 'center',
+    paddingHorizontal: 32,
   },
 });
-

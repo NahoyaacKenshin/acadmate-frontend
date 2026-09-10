@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { X, BookOpen, CalendarDays, GraduationCap } from 'lucide-react-native';
+import { X, BookOpen, CalendarDays, GraduationCap, Pencil } from 'lucide-react-native';
 
 // ── Types (mirroring backend ParsedScheduleResult) ───────────────────────────
 
@@ -193,9 +193,16 @@ export function ExamBlockerRow({ item, onRemove, onEdit }: ExamBlockerRowProps) 
         </Text>
       </Pressable>
 
-      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-        <X size={16} color="#64748B" />
-      </Pressable>
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable style={styles.editBtn} onPress={onEdit} hitSlop={8}>
+            <Pencil size={15} color="#94A3B8" />
+          </Pressable>
+        )}
+        <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
+          <X size={16} color="#64748B" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -250,9 +257,16 @@ export function ExamEventRow({ item, onRemove, onEdit }: ExamEventRowProps) {
         )}
       </Pressable>
 
-      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-        <X size={16} color="#64748B" />
-      </Pressable>
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable style={styles.editBtn} onPress={onEdit} hitSlop={8}>
+            <Pencil size={15} color="#94A3B8" />
+          </Pressable>
+        )}
+        <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
+          <X size={16} color="#64748B" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -373,6 +387,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F59E0B',
   },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#1A1F2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   removeBtn: {
     width: 32,
     height: 32,
@@ -380,7 +408,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1F2E',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
 });
 

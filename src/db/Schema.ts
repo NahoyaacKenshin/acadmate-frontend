@@ -17,6 +17,10 @@ export const Task = new Table({
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_tasks: ['userId', 'completed', 'dueDate']
+  }
 });
 
 // ── Week 3: Calendar & Scheduler ─────────────────────────────────────────────
@@ -34,6 +38,10 @@ export const ClassSchedule = new Table({
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_classes: ['userId', 'dayOfWeek']
+  }
 });
 
 export const CalendarEvent = new Table({
@@ -48,6 +56,10 @@ export const CalendarEvent = new Table({
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_events: ['userId', 'startDate']
+  }
 });
 
 export const ExamWeek = new Table({
@@ -57,6 +69,10 @@ export const ExamWeek = new Table({
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text
+}, {
+  indexes: {
+    user_exams: ['userId', 'startDate']
+  }
 });
 
 // ── Week 4 Additional: Admin & Set A/B Global Config ───────────────────────

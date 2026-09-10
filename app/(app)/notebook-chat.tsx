@@ -8,6 +8,7 @@ import {
   Alert,
   BackHandler,
   Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -107,10 +108,11 @@ export default function NotebookChatScreen() {
   );
 
   // Format sessions for drawer
+  // Backend returns SessionSummary: { id, title, messageCount, createdAt, updatedAt }
   const formattedSessions = sessions.map((s: any) => ({
     id: s.id,
-    preview: s.title || s.messages?.[0]?.content || 'Chat Session',
-    messageCount: s._count?.messages || s.messages?.length || 0,
+    preview: s.title || 'Chat Session',
+    messageCount: s.messageCount ?? s._count?.messages ?? s.messages?.length ?? 0,
     createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
   }));
 
@@ -164,13 +166,12 @@ export default function NotebookChatScreen() {
   const handleNewChat = useCallback(() => {
     if (messages.length === 0 && !sessionId) return;
     Alert.alert(
-      'Start New Conversation',
-      'This will clear the active conversation in view. Continue?',
+      'Start New Topic?',
+      'Your current conversation is automatically saved in your Chat History.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep Chatting', style: 'cancel' },
         {
-          text: 'Clear',
-          style: 'destructive',
+          text: 'Start New',
           onPress: () => clearMessages(),
         },
       ]
@@ -300,6 +301,10 @@ export default function NotebookChatScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          windowSize={7}
+          maxToRenderPerBatch={10}
+          initialNumToRender={8}
+          removeClippedSubviews={Platform.OS === 'android'}
           onScroll={handleScroll}
           scrollEventThrottle={100}
           onContentSizeChange={() =>

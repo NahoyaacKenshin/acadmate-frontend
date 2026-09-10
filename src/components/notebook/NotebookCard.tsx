@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Alert } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { BookOpen, FileText, Trash2, ChevronRight } from 'lucide-react-native';
+import { BookOpen, FileText, Trash2, ChevronRight, Pencil } from 'lucide-react-native';
 import { parseToPHT } from '@/src/utils/philippineTime';
 
 export interface Notebook {
@@ -17,9 +17,10 @@ interface NotebookCardProps {
   notebook: Notebook;
   onPress: (notebook: Notebook) => void;
   onDelete: (notebook: Notebook) => void;
+  onEdit?: (notebook: Notebook) => void;
 }
 
-export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps) {
+export function NotebookCard({ notebook, onPress, onDelete, onEdit }: NotebookCardProps) {
   const handleLongPress = () => {
     Alert.alert(
       'Delete Notebook',
@@ -84,6 +85,18 @@ export function NotebookCard({ notebook, onPress, onDelete }: NotebookCardProps)
 
         {/* Actions */}
         <View style={styles.actionsWrap}>
+          {onEdit && (
+            <Pressable
+              style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                onEdit(notebook);
+              }}
+              hitSlop={8}
+            >
+              <Pencil size={15} color="#6C8EFF" />
+            </Pressable>
+          )}
           <Pressable
             style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
             onPress={(e) => {
@@ -198,7 +211,15 @@ const styles = StyleSheet.create({
   actionsWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108,142,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteBtn: {
     width: 32,

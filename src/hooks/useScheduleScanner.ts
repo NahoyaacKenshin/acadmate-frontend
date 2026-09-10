@@ -103,7 +103,7 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.85,
+        quality: 0.75,
         allowsEditing: false,
       });
       if (result.canceled) return;
@@ -133,7 +133,7 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     }
     try {
       const result = await ImagePicker.launchCameraAsync({
-        quality: 0.85,
+        quality: 0.75,
         allowsEditing: true,
       });
       if (result.canceled) return;

@@ -5,6 +5,7 @@ import {
   Pressable,
   FlatList,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { X, MessageSquare, Plus, Clock } from 'lucide-react-native';
@@ -44,21 +45,23 @@ function formatRelativeDate(date: Date): string {
 
 function SessionRow({
   session,
+  isActive,
   onPress,
   onDelete,
 }: {
   session: ChatSession;
+  isActive?: boolean;
   onPress: () => void;
   onDelete: () => void;
 }) {
   return (
     <View style={styles.sessionRowContainer}>
       <Pressable
-        style={({ pressed }) => [styles.sessionRow, pressed && styles.sessionRowPressed]}
+        style={({ pressed }) => [styles.sessionRow, isActive && styles.sessionRowActive, pressed && styles.sessionRowPressed]}
         onPress={onPress}
       >
-        <View style={styles.sessionIcon}>
-          <MessageSquare size={15} color="#6C8EFF" />
+        <View style={[styles.sessionIcon, isActive && styles.sessionIconActive]}>
+          <MessageSquare size={15} color={isActive ? '#10131C' : '#6C8EFF'} />
         </View>
         <View style={styles.sessionContent}>
           <Text style={styles.sessionPreview} numberOfLines={2}>
@@ -68,6 +71,11 @@ function SessionRow({
             <Clock size={10} color="#3A4455" />
             <Text style={styles.sessionDate}>{formatRelativeDate(session.createdAt)}</Text>
             <Text style={styles.sessionCount}>{session.messageCount} messages</Text>
+            {isActive && (
+              <View style={styles.activePill}>
+                <Text style={styles.activePillText}>Viewing</Text>
+              </View>
+            )}
           </View>
         </View>
         <Pressable
@@ -163,13 +171,14 @@ export function ChatHistoryDrawer({
         {/* Past sessions */}
         {sessions.length > 0 ? (
           <>
-            <Text style={styles.sectionLabel}>Previous Conversations</Text>
+            <Text style={styles.sectionLabel}>Your Conversations ({sessions.length})</Text>
             <FlatList
               data={sessions}
               keyExtractor={(s) => s.id}
               renderItem={({ item }) => (
                 <SessionRow
                   session={item}
+                  isActive={item.id === currentSessionId}
                   onPress={() => {
                     onSelectSession?.(item);
                     onClose();
@@ -178,6 +187,10 @@ export function ChatHistoryDrawer({
                 />
               )}
               showsVerticalScrollIndicator={false}
+              windowSize={7}
+              maxToRenderPerBatch={10}
+              initialNumToRender={8}
+              removeClippedSubviews={Platform.OS === 'android'}
               contentContainerStyle={styles.listContent}
             />
           </>
@@ -346,5 +359,17 @@ const styles = StyleSheet.create({
     color: '#2A3143',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  activePill: {
+    backgroundColor: 'rgba(108,142,255,0.18)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  activePillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#6C8EFF',
+    letterSpacing: 0.4,
   },
 });

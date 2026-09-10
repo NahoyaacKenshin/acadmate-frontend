@@ -17,6 +17,7 @@ import { usePowerSync } from '@powersync/react';
 import { SubjectRow } from '@/src/hooks/useSubjects';
 import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
 import { TaskRow } from '@/src/hooks/useTasks';
+import { NotificationService } from '@/src/services/notificationService';
 
 interface EditTaskSheetProps {
   visible: boolean;
@@ -138,6 +139,26 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
          WHERE id = ?`,
         [title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, now, task.id]
       );
+
+      // Cancel previous notification alarms
+      await NotificationService.cancelTaskNotifications(task.id);
+
+      // Reschedule if dueDate exists and task is still pending
+      if (dueDateISO && task.completed === 0) {
+        NotificationService.scheduleTaskReminders({
+          id: task.id,
+          title: title.trim(),
+          description: description.trim() || null,
+          due_date: dueDateISO,
+          completed: 0,
+          subject_id: selectedSubjectId,
+          user_id: task.user_id,
+          created_at: task.created_at,
+          updated_at: now,
+          subject_name: selectedSubject?.name ?? null,
+          subject_color: selectedSubject?.color ?? null,
+        }).catch((e) => console.warn('[EditTask] scheduleTaskReminders error:', e));
+      }
 
       handleClose();
     } catch (err: any) {

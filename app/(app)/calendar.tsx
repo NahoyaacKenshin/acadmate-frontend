@@ -6,6 +6,9 @@ import { Text } from '@/src/components/ui/text';
 import { Plus, CalendarDays, BookOpen, GraduationCap, ScanLine } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ApiService } from '@/src/services/api';
+import { usePowerSync } from '@powersync/react';
+import { NotificationService } from '@/src/services/notificationService';
+import { parseToEpoch } from '@/src/utils/philippineTime';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
 import { WeekStrip } from '@/src/components/calendar/WeekStrip';
@@ -70,6 +73,7 @@ export default function CalendarScreen() {
   const { tasks } = useTasks();
   const { examWeeks } = useExamWeeks();
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const powerSync = usePowerSync();
 
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -85,6 +89,26 @@ export default function CalendarScreen() {
   }, [displayYear]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+
+  const handleToggleTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const newCompleted = task.completed === 0 ? 1 : 0;
+    const now = new Date().toISOString();
+    try {
+      await powerSync.execute(
+        `UPDATE Task SET completed = ?, updatedAt = ? WHERE id = ?`,
+        [newCompleted, now, id]
+      );
+      if (newCompleted === 1) {
+        await NotificationService.cancelTaskNotifications(id);
+      } else if (task.due_date && (parseToEpoch(task.due_date) ?? 0) > Date.now()) {
+        await NotificationService.scheduleTaskReminders(task);
+      }
+    } catch (err) {
+      console.error('[Calendar] Toggle task failed:', err);
+    }
+  };
 
   const handleDayPress = (date: Date) => {
     setSelectedDate(startOfDay(date));
@@ -279,6 +303,7 @@ export default function CalendarScreen() {
           onClassPress={(s) => setEditingClass(s)}
           onEventPress={(e) => setEditingEvent(e)}
           onExamWeekPress={(ew) => setEditingExamWeek(ew)}
+          onToggleTask={handleToggleTask}
         />
 
         {/* Sheets */}

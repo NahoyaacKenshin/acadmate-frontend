@@ -353,6 +353,23 @@ export function isTodayPHT(isoStr: string | null | undefined): boolean {
 }
 
 /**
+ * Returns true if the ISO string represents tomorrow's date in PHT.
+ */
+export function isTomorrowPHT(isoStr: string | null | undefined): boolean {
+  const parts = parseToPHT(isoStr);
+  if (!parts) return false;
+  const today = getPhilippineToday(); // "YYYY-MM-DD"
+  const [ty, tm, td] = today.split('-').map(Number);
+  const tomorrowDate = new Date(Date.UTC(ty, tm - 1, td));
+  tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+  return (
+    parts.year === tomorrowDate.getUTCFullYear() &&
+    parts.month === tomorrowDate.getUTCMonth() + 1 &&
+    parts.day === tomorrowDate.getUTCDate()
+  );
+}
+
+/**
  * Returns true if the task is either overdue OR due today in Philippine Time.
  * Used to populate urgent task feeds.
  */
@@ -383,9 +400,11 @@ export function formatDateTimePHT(isoStr: string | null | undefined): string {
  */
 export function formatTimePHT(isoStr: string | null | undefined): string {
   if (!isoStr) return '';
-  // If it's a plain HH:MM time string (class schedule), handle directly
-  if (/^\d{1,2}:\d{2}$/.test(isoStr.trim())) {
-    const [h, m] = isoStr.trim().split(':').map(Number);
+  // If it's a plain HH:MM or HH:MM:SS time string (class schedule), handle directly
+  if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(isoStr.trim())) {
+    const parts = isoStr.trim().split(':').map(Number);
+    const h = parts[0];
+    const m = parts[1];
     const ampm = h >= 12 ? 'PM' : 'AM';
     return `${h % 12 || 12}:${pad2(m)} ${ampm}`;
   }
@@ -393,6 +412,13 @@ export function formatTimePHT(isoStr: string | null | undefined): string {
   if (!p) return '';
   const ampm = p.hour >= 12 ? 'PM' : 'AM';
   return `${p.hour % 12 || 12}:${pad2(p.minute)} ${ampm}`;
+}
+
+/**
+ * Formats any HH:MM, HH:MM:SS, or ISO timestamp into a 12-hour AM/PM string.
+ */
+export function formatTime12(timeStr: string | null | undefined): string {
+  return formatTimePHT(timeStr);
 }
 
 /**
