@@ -6,6 +6,8 @@ import { Button } from '@/src/components/ui/button';
 import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { Image } from 'react-native';
+import { GoogleSignInButton } from './GoogleSignInButton';
+import { promptGoogleSignIn } from '@/src/lib/google-auth';
 
 type FieldErrors = {
   email?: string;
@@ -18,11 +20,12 @@ function validateEmail(email: string) {
 
 export function LoginForm() {
   const router = useRouter();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     clearError();
@@ -58,6 +61,21 @@ export function LoginForm() {
   const handleGoToForgotPassword = () => {
     clearError();
     router.push('/forgot-password' as Href);
+  };
+
+  const handleGoogleSignIn = async () => {
+    clearError();
+    setGoogleLoading(true);
+    try {
+      const idToken = await promptGoogleSignIn();
+      await loginWithGoogle(idToken);
+      // Navigation is handled by the root layout session listener
+    } catch (err) {
+      if (err instanceof Error && err.message === 'CANCELLED') return;
+      // Error is set in the store; it will be shown by the error text below
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -128,7 +146,7 @@ export function LoginForm() {
 
       <View className="mt-8">
         <Button
-          disabled={isLoading}
+          disabled={isLoading || googleLoading}
           onPress={handleSubmit}
           className="rounded-2xl h-14"
         >
@@ -138,6 +156,18 @@ export function LoginForm() {
             <Text className="font-bold text-lg font-sans">Log In</Text>
           )}
         </Button>
+
+        {/* OR Divider */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 10 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <Text className="text-xs text-muted-foreground font-sans tracking-widest">OR</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+        </View>
+
+        <GoogleSignInButton
+          onPress={handleGoogleSignIn}
+          isLoading={googleLoading}
+        />
       </View>
 
       <Pressable onPress={handleGoToSignup} className="mt-8">

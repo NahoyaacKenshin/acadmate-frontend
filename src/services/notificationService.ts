@@ -83,6 +83,16 @@ export const NotificationService = {
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
       });
+      await Notifications.setNotificationChannelAsync('events_alerts', {
+        name: 'General Event Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#F59E0B',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+      });
     }
   },
 
@@ -618,6 +628,132 @@ export const NotificationService = {
       }
     } catch (err) {
       console.error('Error in rescheduleAllExams:', err);
+    }
+  },
+  /**
+   * Schedules a single general CalendarEvent reminder (non-exam/quiz events only).
+   * For timed events: fires `leadMinutes` before startDate.
+   * For all-day events: fires at 8:00 AM on the event day.
+   * Returns the array of scheduled notification identifiers.
+   */
+  scheduleCalendarEventReminders: async (
+    event: CalendarEventRow,
+    leadMinutes: number
+  ): Promise<string[]> => {
+    const identifiers: string[] = [];
+
+    // Skip exam / quiz events — those are handled by examAlerts
+    const isExamLike =
+      event.color === '#8B5CF6' ||
+      (event.description != null && event.description.toLowerCase().includes('exam')) ||
+      event.title.toLowerCase().includes('exam') ||
+      event.title.toLowerCase().includes('quiz');
+    if (isExamLike) return [];
+
+    const now = Date.now();
+
+    if (event.all_day === 1) {
+      // All-day events: remind at 8:00 AM on the day of the event
+      const eventDate = parseDateLocal(event.start_date);
+      if (!eventDate) return [];
+      const reminderTime = new Date(eventDate);
+      reminderTime.setHours(8, 0, 0, 0);
+      if (reminderTime.getTime() > now) {
+        const id = `event_${event.id}_allday`;
+        try {
+          await NotificationService.cancelNotification(id);
+          await Notifications.scheduleNotificationAsync({
+            identifier: id,
+            content: {
+              title: `Today: ${event.title}`,
+              body: event.location ? `At ${event.location}` : 'All-day event today',
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: { type: 'event', eventId: event.id, title: event.title },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'events_alerts',
+              date: reminderTime,
+            },
+          });
+          identifiers.push(id);
+        } catch (e) {
+          console.error('Failed to schedule all-day event reminder', e);
+        }
+      }
+    } else {
+      // Timed events: remind N minutes before startDate
+      const startEpoch = parseToEpoch(event.start_date);
+      if (!startEpoch) return [];
+      const reminderTime = startEpoch - leadMinutes * 60 * 1000;
+      if (reminderTime > now) {
+        const id = `event_${event.id}_lead`;
+        try {
+          await NotificationService.cancelNotification(id);
+          await Notifications.scheduleNotificationAsync({
+            identifier: id,
+            content: {
+              title: `Event in ${leadMinutes}m: ${event.title}`,
+              body: event.location ? `Location: ${event.location}` : 'Upcoming event',
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: { type: 'event', eventId: event.id, title: event.title, location: event.location || '' },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'events_alerts',
+              date: new Date(reminderTime),
+            },
+          });
+          identifiers.push(id);
+        } catch (e) {
+          console.error('Failed to schedule timed event reminder', e);
+        }
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Synchronizes general CalendarEvent reminders.
+   * Called reactively by NotificationProvider when events list or prefs change.
+   */
+  rescheduleAllCalendarEvents: async (
+    events: CalendarEventRow[],
+    enabled: boolean,
+    leadMinutes: number
+  ): Promise<void> => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingEventNotifs = allNotifications.filter(
+        (n) => n.identifier.startsWith('event_')
+      );
+      const existingIds = new Set(existingEventNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingEventNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      const desiredIds = new Set<string>();
+
+      for (const ev of events) {
+        const ids = await NotificationService.scheduleCalendarEventReminders(ev, leadMinutes);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Cancel orphaned event notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllCalendarEvents:', err);
     }
   },
 };

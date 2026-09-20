@@ -21,6 +21,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
+import { SourceViewerModal } from '@/src/components/notebook/SourceViewerModal';
+import { useSystemStore } from '@/src/store/systemStore';
 import {
   ArrowLeft,
   Plus,
@@ -32,6 +34,7 @@ import {
   MessageSquare,
   Bell,
   Pencil,
+  WifiOff,
 } from 'lucide-react-native';
 
 export default function NotebookDetailScreen() {
@@ -49,6 +52,7 @@ export default function NotebookDetailScreen() {
   const currentNotebook = notebooks.find((n) => n.id === id);
   const displayTitle = currentNotebook?.title ?? notebookTitle ?? 'Notebook';
   const sources = id ? (sourcesByNotebook[id] || []) : [];
+  const { isOnline } = useSystemStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -58,6 +62,7 @@ export default function NotebookDetailScreen() {
   const [isSchedulerVisible, setIsSchedulerVisible] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isEditVisible, setIsEditVisible] = useState(false);
+  const [viewingSource, setViewingSource] = useState<Source | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -72,13 +77,15 @@ export default function NotebookDetailScreen() {
     try {
       await fetchSources(id, silent);
     } catch (err: any) {
-      setError('Could not load sources. Please check your connection.');
+      if (sources.length === 0) {
+        setError('Could not load sources. Please check your connection.');
+      }
       console.error('[NotebookDetail] fetch error:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [id, fetchSources]);
+  }, [id, fetchSources, sources.length]);
 
   useEffect(() => {
     loadSources();
@@ -246,7 +253,16 @@ export default function NotebookDetailScreen() {
         </View>
       </View>
 
-      {hasProcessing && (
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <WifiOff size={13} color="#F59E0B" />
+          <Text style={styles.offlineBannerText}>
+            Offline Mode — Viewing saved sources. Tap any ready source to read extracted text.
+          </Text>
+        </View>
+      )}
+
+      {hasProcessing && isOnline && (
         <View style={styles.processingBanner}>
           <ActivityIndicator size="small" color="#6C8EFF" />
           <Text style={styles.processingText}>
@@ -363,6 +379,7 @@ export default function NotebookDetailScreen() {
               source={item}
               onDelete={handleDeleteSource}
               onRetry={handleRetrySource}
+              onPress={(src) => setViewingSource(src)}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -428,6 +445,13 @@ export default function NotebookDetailScreen() {
         }
         onClose={() => setIsEditVisible(false)}
         onSave={handleUpdateNotebook}
+      />
+
+      {/* ── Source Viewer Modal (Offline Reader) ── */}
+      <SourceViewerModal
+        visible={!!viewingSource}
+        source={viewingSource}
+        onClose={() => setViewingSource(null)}
       />
     </SafeAreaView>
   );
@@ -640,6 +664,23 @@ const styles = StyleSheet.create({
     color: '#6C8EFF',
     flex: 1,
     lineHeight: 18,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.2)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  offlineBannerText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    flex: 1,
+    lineHeight: 18,
+    fontFamily: 'Inter_500Medium',
   },
   sectionTitle: {
     fontSize: 14,

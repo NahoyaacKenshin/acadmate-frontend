@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ApiService } from '@/src/services/api';
 import { ChatMessage } from '@/src/components/notebook/chat/ChatMessageBubble';
+import { NotebookStorage } from '@/src/services/notebookStorage';
 import { useSystemStore } from './systemStore';
 
 let _idCounter = 0;
@@ -21,11 +22,7 @@ interface ChatState {
   lastUserText: string | null;
 
   setSessionId: (sessionId: string | null) => void;
-  /**
-   * Must be called when the chat screen mounts with a notebookId.
-   * Clears stale state if switching between notebooks.
-   */
-  initForNotebook: (notebookId: string) => void;
+  initForNotebook: (notebookId: string) => Promise<void>;
   sendMessage: (notebookId: string, text: string) => Promise<void>;
   retryLastMessage: (notebookId: string) => Promise<void>;
   fetchSessions: (notebookId: string) => Promise<void>;
@@ -45,10 +42,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSessionId: (sessionId) => set({ sessionId }),
 
-  initForNotebook: (notebookId: string) => {
+  initForNotebook: async (notebookId: string) => {
     const { activeNotebookId } = get();
     if (activeNotebookId !== notebookId) {
-      // Switching notebooks — wipe previous chat state
+      // Switching notebooks — load cached sessions and last active session for this notebook
       set({
         messages: [],
         sessionId: null,
@@ -56,6 +53,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         error: null,
         lastUserText: null,
       });
+
+      // Hydrate sessions from disk cache
+      const cachedSessions = await NotebookStorage.loadSessions(notebookId);
+      if (cachedSessions && cachedSessions.length > 0) {
+        set({ sessions: cachedSessions });
+      }
+
+      // Try restoring the last active session's messages
+      const lastSessionId = await NotebookStorage.loadLastActiveSessionId(notebookId);
+      if (lastSessionId) {
+        const cachedMsgs = await NotebookStorage.loadMessages(notebookId, lastSessionId);
+        if (cachedMsgs && cachedMsgs.length > 0) {
+          set({ messages: cachedMsgs, sessionId: lastSessionId });
+        }
+      }
     }
   },
 
@@ -72,12 +84,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       timestamp: new Date(),
     };
 
-    set((state) => ({
-      messages: [...state.messages, userMsg],
+    const nextMessagesWithUser = [...get().messages, userMsg];
+    set({
+      messages: nextMessagesWithUser,
       isLoading: true,
       error: null,
       lastUserText: text,
-    }));
+    });
 
     try {
       const res = await ApiService.chat.send(notebookId, text, currentSessionId);
@@ -93,11 +106,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: new Date(),
       };
 
-      set((state) => ({
-        messages: [...state.messages, assistantMsg],
+      const finalMessages = [...nextMessagesWithUser, assistantMsg];
+      set({
+        messages: finalMessages,
         sessionId: newSessionId,
         isLoading: false,
-      }));
+      });
+
+      // Persist messages and active session to disk cache
+      if (newSessionId) {
+        NotebookStorage.saveMessages(notebookId, newSessionId, finalMessages);
+        NotebookStorage.saveLastActiveSessionId(notebookId, newSessionId);
+      }
 
       // Refresh session history so the new/updated conversation appears immediately in the drawer
       get().fetchSessions(notebookId);
@@ -137,6 +157,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   fetchSessions: async (notebookId: string) => {
+    // 1. Stale-while-revalidate: Hydrate cached sessions from disk first
+    if (get().sessions.length === 0) {
+      const cached = await NotebookStorage.loadSessions(notebookId);
+      if (cached && cached.length > 0) {
+        set({ sessions: cached });
+      }
+    }
+
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline && get().sessions.length > 0) {
+      return;
+    }
+
     try {
       const res = await ApiService.chat.history(notebookId);
       const data = res?.data ?? res;
@@ -148,14 +181,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
         : Array.isArray(data)
         ? data
         : [];
+
       set({ sessions: sessionList });
+      // Cache sessions list to disk
+      NotebookStorage.saveSessions(notebookId, sessionList);
     } catch (err) {
       console.warn('Failed to fetch chat sessions', err);
     }
   },
 
   loadSession: async (notebookId: string, sessionId: string) => {
-    set({ isLoading: true, error: null });
+    // 1. Stale-while-revalidate: Load from disk cache first
+    const cached = await NotebookStorage.loadMessages(notebookId, sessionId);
+    if (cached && cached.length > 0) {
+      set({
+        messages: cached,
+        sessionId,
+        isLoading: false,
+        error: null,
+      });
+      NotebookStorage.saveLastActiveSessionId(notebookId, sessionId);
+    } else {
+      set({ isLoading: true, error: null });
+    }
+
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) {
+      set({ isLoading: false });
+      return;
+    }
+
     try {
       const res = await ApiService.chat.getSession(notebookId, sessionId);
       const data = res?.data ?? res;
@@ -170,7 +225,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const parseCitations = (raw: any): any[] => {
         if (!raw) return [];
         if (Array.isArray(raw)) return raw;
-        // Prisma JSON may come back as a string in some drivers
         if (typeof raw === 'string') {
           try { return JSON.parse(raw); } catch { return []; }
         }
@@ -190,18 +244,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
         sessionId,
         isLoading: false,
       });
+
+      // Save to disk cache
+      NotebookStorage.saveMessages(notebookId, sessionId, formattedMsgs);
+      NotebookStorage.saveLastActiveSessionId(notebookId, sessionId);
     } catch (err: any) {
-      set({ isLoading: false, error: err?.message ?? 'Failed to load session' });
+      // If we already loaded cached messages, do not show error
+      if (!cached || cached.length === 0) {
+        set({ isLoading: false, error: err?.message ?? 'Failed to load session' });
+      } else {
+        set({ isLoading: false });
+      }
     }
   },
 
   deleteSession: async (notebookId: string, sessionId: string) => {
     try {
       await ApiService.chat.deleteSession(notebookId, sessionId);
+      const updatedSessions = get().sessions.filter((s) => s.id !== sessionId);
       set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== sessionId),
+        sessions: updatedSessions,
         ...(state.sessionId === sessionId ? { sessionId: null, messages: [] } : {}),
       }));
+      NotebookStorage.saveSessions(notebookId, updatedSessions);
     } catch (err) {
       console.warn('Failed to delete session', err);
     }

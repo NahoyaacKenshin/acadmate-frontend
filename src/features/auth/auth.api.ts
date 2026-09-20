@@ -34,4 +34,8 @@ export const authApi = {
       method: 'POST',
       body: { token, password },
     }),
+  updateMe: (data: Record<string, unknown>) =>
+    apiRequest<AuthResponse>('/auth/v1/me', { method: 'PATCH', body: data }),
+  loginWithGoogle: (idToken: string) =>
+    apiRequest<AuthResponse>('/auth/v1/google', { method: 'POST', body: { idToken } }),
 };

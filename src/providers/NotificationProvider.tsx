@@ -22,6 +22,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const prevSchedulesSigRef = useRef<string>('');
   const prevTasksSigRef = useRef<string>('');
   const prevExamsSigRef = useRef<string>('');
+  const prevEventsSigRef = useRef<string>('');
   const prevPrefsRef = useRef(prefs);
   const prevStudentSetRef = useRef(studentSet);
 
@@ -52,9 +53,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const examsSig = `${examWeeks.map((ew) => `${ew.id}_${ew.startDate}_${ew.endDate}_${ew.title}`).join('|')}#${events.filter((e) => e.color === '#8B5CF6' || e.title.toLowerCase().includes('exam') || (e.description && e.description.toLowerCase().includes('exam'))).map((e) => `${e.id}_${e.start_date}_${e.title}`).join('|')}`;
 
+    // General events signature (non-exam events only)
+    const generalEventsSig = events
+      .filter((e) => e.color !== '#8B5CF6' && !e.title.toLowerCase().includes('exam') && !e.title.toLowerCase().includes('quiz') && !(e.description && e.description.toLowerCase().includes('exam')))
+      .map((e) => `${e.id}_${e.start_date}_${e.title}_${e.all_day}_${e.location}`)
+      .join('|');
+
     const schedulesChanged = prevSchedulesSigRef.current !== schedulesSig;
     const tasksChanged = prevTasksSigRef.current !== tasksSig;
     const examsChanged = prevExamsSigRef.current !== examsSig;
+    const eventsChanged = prevEventsSigRef.current !== generalEventsSig;
     const prefsChanged = prevPrefsRef.current !== prefs;
     const setChanged = prevStudentSetRef.current !== studentSet;
 
@@ -92,6 +100,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     ) {
       NotificationService.rescheduleAllExams(examWeeks, events, prefs.examAlerts);
       prevExamsSigRef.current = examsSig;
+    }
+
+    // Reschedule general calendar event reminders if events or eventReminders prefs changed
+    if (
+      eventsChanged ||
+      (prefsChanged &&
+        (prevPrefsRef.current.eventReminders !== prefs.eventReminders ||
+          prevPrefsRef.current.eventLeadMinutes !== prefs.eventLeadMinutes))
+    ) {
+      NotificationService.rescheduleAllCalendarEvents(events, prefs.eventReminders, prefs.eventLeadMinutes);
+      prevEventsSigRef.current = generalEventsSig;
     }
 
     prevPrefsRef.current = prefs;

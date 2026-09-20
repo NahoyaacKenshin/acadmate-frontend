@@ -10,6 +10,10 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { AppProviders } from '@/src/providers/AppProviders';
+import { configureGoogleSignIn } from '@/src/lib/google-auth';
+
+// Configure Google Sign-In once at the top level before any rendering
+configureGoogleSignIn();
 
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';

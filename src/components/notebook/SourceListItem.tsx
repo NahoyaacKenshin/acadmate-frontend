@@ -21,6 +21,7 @@ export interface Source {
   fileName: string;
   fileType: SourceFileType;
   status: SourceStatus;
+  rawText?: string | null;
   chunkCount?: number;
   createdAt: string;
 }
@@ -29,6 +30,7 @@ interface SourceListItemProps {
   source: Source;
   onDelete: (source: Source) => void;
   onRetry?: (source: Source) => void;
+  onPress?: (source: Source) => void;
 }
 
 function FileTypeIcon({ type }: { type: SourceFileType }) {
@@ -97,7 +99,7 @@ function formatDatePHT(iso: string): string {
   return `${months[p.month - 1]} ${p.day}`;
 }
 
-export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProps) {
+export function SourceListItem({ source, onDelete, onRetry, onPress }: SourceListItemProps) {
   const handleDeletePress = () => {
     Alert.alert(
       'Remove Source',
@@ -109,8 +111,17 @@ export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProp
     );
   };
 
+  const isReady = source.status === 'READY';
+
   return (
-    <View style={styles.row}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        isReady && onPress && pressed && { backgroundColor: '#1C2234', opacity: 0.9 },
+      ]}
+      onPress={isReady && onPress ? () => onPress(source) : undefined}
+      disabled={!isReady || !onPress}
+    >
       {/* File type icon */}
       <View style={styles.iconWrap}>
         <FileTypeIcon type={source.fileType} />
@@ -148,7 +159,7 @@ export function SourceListItem({ source, onDelete, onRetry }: SourceListItemProp
           <Trash2 size={16} color="#64748B" />
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

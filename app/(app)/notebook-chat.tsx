@@ -20,6 +20,7 @@ import {
   BookOpen,
   Zap,
   ChevronDown,
+  WifiOff,
 } from 'lucide-react-native';
 
 import { ChatMessageBubble, ChatMessage } from '@/src/components/notebook/chat/ChatMessageBubble';
@@ -286,6 +287,16 @@ export default function NotebookChatScreen() {
         </Pressable>
       </View>
 
+      {/* ── Offline Notice Bar ── */}
+      {!isOnline && (
+        <View style={styles.offlineNoticeBar}>
+          <WifiOff size={13} color="#F59E0B" />
+          <Text style={styles.offlineNoticeText}>
+            Offline Mode — Viewing saved conversation history.
+          </Text>
+        </View>
+      )}
+
       {/* ── Message list ── */}
       <View style={styles.listContainer}>
         <FlatList
@@ -539,5 +550,21 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     fontWeight: '500',
+  },
+  offlineNoticeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(245,158,11,0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  offlineNoticeText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontFamily: 'Inter_500Medium',
   },
 });

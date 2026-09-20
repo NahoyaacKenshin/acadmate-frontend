@@ -26,7 +26,7 @@ export default function OnboardingScreen() {
       await setNickname(nicknameInput.trim());
     }
     await setStudentSet(selectedSet);
-    await completeOnboarding();
+    await completeOnboarding(selectedSet);
   };
 
   const handleScanSchedule = async () => {

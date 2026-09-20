@@ -17,6 +17,7 @@ type AuthState = {
   clearError: () => void;
   restoreSession: () => Promise<void>;
   login: (input: LoginInput) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   signup: (input: SignupInput) => Promise<'verification-required' | 'authenticated'>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
@@ -88,6 +89,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isRestoring: false,
         error: error instanceof Error ? error.message : 'Unable to restore session',
       });
+    }
+  },
+
+  loginWithGoogle: async (idToken: string) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await authApi.loginWithGoogle(idToken);
+      const tokens = response.data?.tokens;
+
+      if (!tokens) {
+        throw new Error('Google sign-in did not return session tokens');
+      }
+
+      await get().setSession(tokens, response.data?.user ?? null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google sign-in failed';
+      set({ error: message });
+      throw error;
+    } finally {
+      set({ isLoading: false });
     }
   },
 

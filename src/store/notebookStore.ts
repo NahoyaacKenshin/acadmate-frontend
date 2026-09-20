@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { ApiService } from '@/src/services/api';
 import { Notebook } from '@/src/components/notebook/NotebookCard';
 import { Source } from '@/src/components/notebook/SourceListItem';
+import { NotebookStorage } from '@/src/services/notebookStorage';
+import { useSystemStore } from '@/src/store/systemStore';
 
 interface NotebookState {
   notebooks: Notebook[];
@@ -26,6 +28,21 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   notebooksError: null,
 
   fetchNotebooks: async (silent = false) => {
+    // 1. Stale-while-revalidate: Hydrate from disk cache immediately if memory is empty
+    if (get().notebooks.length === 0) {
+      const cached = await NotebookStorage.loadNotebooks();
+      if (cached && cached.length > 0) {
+        set({ notebooks: cached });
+      }
+    }
+
+    // If device is offline, rely on cached notebooks without erroring
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline && get().notebooks.length > 0) {
+      set({ isLoadingNotebooks: false, notebooksError: null });
+      return;
+    }
+
     if (!silent) set({ isLoadingNotebooks: true, notebooksError: null });
     try {
       const data = await ApiService.notebooks.list();
@@ -38,13 +55,23 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
       }));
-      
+
       // Sort notebooks by createdAt descending (newest first)
       mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
-      set({ notebooks: mapped, isLoadingNotebooks: false });
+
+      set({ notebooks: mapped, isLoadingNotebooks: false, notebooksError: null });
+      // Persist to local disk
+      NotebookStorage.saveNotebooks(mapped);
     } catch (err: any) {
-      set({ notebooksError: 'Could not load notebooks. Please check your connection.', isLoadingNotebooks: false });
+      // If we have cached notebooks, keep them and do not break the screen
+      if (get().notebooks.length > 0) {
+        set({ isLoadingNotebooks: false, notebooksError: null });
+      } else {
+        set({
+          notebooksError: 'Could not load notebooks. Please check your connection.',
+          isLoadingNotebooks: false,
+        });
+      }
       console.error('[NotebookStore] fetch error:', err);
     }
   },
@@ -60,8 +87,10 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       createdAt: nb.createdAt ?? new Date().toISOString(),
       updatedAt: nb.updatedAt ?? new Date().toISOString(),
     };
-    
-    set((state) => ({ notebooks: [mapped, ...state.notebooks] }));
+
+    const nextNotebooks = [mapped, ...get().notebooks];
+    set({ notebooks: nextNotebooks });
+    NotebookStorage.saveNotebooks(nextNotebooks);
     return mapped;
   },
 
@@ -69,31 +98,52 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     const res = await ApiService.notebooks.update(id, data);
     const updated = res?.data ?? res?.notebook ?? res;
     let mappedNotebook: Notebook | null = null;
-    set((state) => {
-      const updatedList = state.notebooks.map((n) => {
-        if (n.id === id) {
-          const m: Notebook = {
-            ...n,
-            title: updated.title ?? (data.title ?? n.title),
-            description: updated.description !== undefined ? updated.description : (data.description !== undefined ? data.description : n.description),
-            updatedAt: updated.updatedAt ?? new Date().toISOString(),
-          };
-          mappedNotebook = m;
-          return m;
-        }
-        return n;
-      });
-      return { notebooks: updatedList };
+    const updatedList = get().notebooks.map((n) => {
+      if (n.id === id) {
+        const m: Notebook = {
+          ...n,
+          title: updated.title ?? (data.title ?? n.title),
+          description: updated.description !== undefined ? updated.description : (data.description !== undefined ? data.description : n.description),
+          updatedAt: updated.updatedAt ?? new Date().toISOString(),
+        };
+        mappedNotebook = m;
+        return m;
+      }
+      return n;
     });
+    set({ notebooks: updatedList });
+    NotebookStorage.saveNotebooks(updatedList);
     return mappedNotebook ?? updated;
   },
 
   deleteNotebook: async (id) => {
     await ApiService.notebooks.delete(id);
-    set((state) => ({ notebooks: state.notebooks.filter((n) => n.id !== id) }));
+    const filtered = get().notebooks.filter((n) => n.id !== id);
+    set({ notebooks: filtered });
+    NotebookStorage.saveNotebooks(filtered);
   },
 
   fetchSources: async (notebookId, silent = false) => {
+    // 1. Stale-while-revalidate: Load cached sources from disk first
+    const existing = get().sourcesByNotebook[notebookId];
+    if (!existing || existing.length === 0) {
+      const cached = await NotebookStorage.loadSources(notebookId);
+      if (cached && cached.length > 0) {
+        set((state) => ({
+          sourcesByNotebook: {
+            ...state.sourcesByNotebook,
+            [notebookId]: cached,
+          },
+        }));
+      }
+    }
+
+    // If offline and we have cached sources, do not fail
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline && (get().sourcesByNotebook[notebookId]?.length ?? 0) > 0) {
+      return;
+    }
+
     try {
       const data = await ApiService.notebooks.get(notebookId);
       const notebookObj = data?.data ?? data?.notebook ?? data;
@@ -103,50 +153,60 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         fileName: s.fileName,
         fileType: s.fileType ?? 'TEXT',
         status: s.status ?? 'PENDING',
+        rawText: s.rawText ?? null,
         chunkCount: s._count?.chunks ?? s.chunkCount ?? undefined,
         createdAt: s.createdAt,
       }));
-      
+
       // Sort sources by createdAt descending
       mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
+
       set((state) => ({
         sourcesByNotebook: {
           ...state.sourcesByNotebook,
           [notebookId]: mapped,
         },
       }));
+
+      // Persist to local disk cache
+      NotebookStorage.saveSources(notebookId, mapped);
     } catch (err: any) {
       console.error('[NotebookStore] fetchSources error:', err);
-      throw err;
+      // If we have cached sources for this notebook, do not crash the view
+      if ((get().sourcesByNotebook[notebookId]?.length ?? 0) === 0) {
+        throw err;
+      }
     }
   },
 
   deleteSource: async (notebookId, sourceId) => {
     await ApiService.sources.delete(notebookId, sourceId);
-    set((state) => {
-      const currentSources = state.sourcesByNotebook[notebookId] || [];
-      return {
-        sourcesByNotebook: {
-          ...state.sourcesByNotebook,
-          [notebookId]: currentSources.filter(s => s.id !== sourceId),
-        }
-      };
-    });
+    const currentSources = get().sourcesByNotebook[notebookId] || [];
+    const filtered = currentSources.filter((s) => s.id !== sourceId);
+    set((state) => ({
+      sourcesByNotebook: {
+        ...state.sourcesByNotebook,
+        [notebookId]: filtered,
+      },
+    }));
+    NotebookStorage.saveSources(notebookId, filtered);
   },
 
   retrySource: async (notebookId, sourceId) => {
     await ApiService.sources.retry(notebookId, sourceId);
     set((state) => {
       const currentSources = state.sourcesByNotebook[notebookId] || [];
+      const updated = currentSources.map((s) =>
+        s.id === sourceId ? { ...s, status: 'PROCESSING' as const } : s
+      );
+      NotebookStorage.saveSources(notebookId, updated);
       return {
         sourcesByNotebook: {
           ...state.sourcesByNotebook,
-          [notebookId]: currentSources.map((s) =>
-            s.id === sourceId ? { ...s, status: 'PROCESSING' as const } : s
-          ),
+          [notebookId]: updated,
         },
       };
     });
   },
 }));
+

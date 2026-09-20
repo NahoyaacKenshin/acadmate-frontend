@@ -6,7 +6,9 @@ export interface NotificationPrefs {
   taskReminders: boolean;
   examAlerts: boolean;
   studyReminders: boolean;
+  eventReminders: boolean;
   classLeadMinutes: number;
+  eventLeadMinutes: number;
 }
 
 interface NotificationState {
@@ -23,7 +25,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     taskReminders: true,
     examAlerts: true,
     studyReminders: true,
+    eventReminders: true,
     classLeadMinutes: 15,
+    eventLeadMinutes: 15,
   },
   updatePrefs: async (newPrefs) => {
     const updatedPrefs = { ...get().prefs, ...newPrefs };

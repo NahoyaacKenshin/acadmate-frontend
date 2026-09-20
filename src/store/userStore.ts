@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
+import type { AuthUser } from '@/src/features/auth/auth.types';
+import { authApi } from '@/src/features/auth/auth.api';
 
 const USER_PROGRAM_KEY = 'acadmate.userProgram';
 const STUDENT_SET_KEY = 'acadmate.studentSet';
@@ -15,10 +17,11 @@ type UserState = {
   hasCompletedOnboarding: boolean;
   isLoaded: boolean;
   loadUserPreferences: () => Promise<void>;
+  syncFromAuthUser: (user: AuthUser) => Promise<void>;
   setProgram: (programName: string, studentSet?: StudentSet | null) => Promise<void>;
   setStudentSet: (studentSet: StudentSet) => Promise<void>;
   setNickname: (nickname: string) => Promise<void>;
-  completeOnboarding: () => Promise<void>;
+  completeOnboarding: (studentSet?: StudentSet) => Promise<void>;
 };
 
 export const useUserStore = create<UserState>((set, get) => ({
@@ -50,6 +53,37 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
+  /**
+   * Syncs user preferences from the backend AuthUser profile.
+   * Called after login and session restore. If the backend indicates
+   * onboarding was completed, we persist it locally so reinstalls
+   * don't re-prompt the user for onboarding.
+   */
+  syncFromAuthUser: async (user: AuthUser) => {
+    try {
+      const backendCompleted = user.hasCompletedOnboarding === true;
+
+      if (backendCompleted) {
+        // Persist backend state locally
+        await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
+        if (user.studentSet) {
+          await SecureStore.setItemAsync(STUDENT_SET_KEY, user.studentSet);
+        }
+        if (user.programName) {
+          await SecureStore.setItemAsync(USER_PROGRAM_KEY, user.programName);
+        }
+        set({
+          hasCompletedOnboarding: true,
+          studentSet: (user.studentSet as StudentSet) ?? get().studentSet,
+          programName: user.programName ?? get().programName,
+          isLoaded: true,
+        });
+      }
+    } catch (e) {
+      console.warn('syncFromAuthUser failed:', e);
+    }
+  },
+
   setProgram: async (programName, studentSet = null) => {
     await SecureStore.setItemAsync(USER_PROGRAM_KEY, programName);
     set({ programName });
@@ -70,9 +104,22 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ nickname: nickname.trim() });
   },
 
-  completeOnboarding: async () => {
+  completeOnboarding: async (studentSet?: StudentSet) => {
+    // Persist locally
     await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
     set({ hasCompletedOnboarding: true });
+
+    // Persist to backend so it survives reinstalls
+    try {
+      const body: Record<string, unknown> = { hasCompletedOnboarding: true };
+      if (studentSet) body.studentSet = studentSet;
+      const currentProgram = get().programName;
+      if (currentProgram) body.programName = currentProgram;
+      await authApi.updateMe(body);
+    } catch (e) {
+      // Non-fatal: local storage has it covered; backend sync is best-effort
+      console.warn('Failed to sync onboarding completion to backend:', e);
+    }
   },
 }));
 

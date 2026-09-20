@@ -30,7 +30,7 @@ import {
 
 import { useNotificationStore, NotificationPrefs } from '@/src/store/notificationStore';
 
-type ToggleablePref = 'classReminders' | 'taskReminders' | 'examAlerts' | 'studyReminders';
+type ToggleablePref = 'classReminders' | 'taskReminders' | 'examAlerts' | 'studyReminders' | 'eventReminders';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -296,6 +296,43 @@ export default function SettingsScreen() {
               <View style={[styles.switchThumb, prefs.studyReminders && styles.switchThumbActive]} />
             </View>
           </Pressable>
+
+          {/* General Event Reminders Toggle */}
+          <Pressable
+            style={styles.tile}
+            onPress={() => handleTogglePref('eventReminders')}
+          >
+            <Bell size={20} color={prefs.eventReminders ? '#F59E0B' : '#94A3B8'} />
+            <View style={styles.tileContent}>
+              <Text style={styles.tileTitleFlex}>General Event Reminders</Text>
+              <Text style={styles.tileValueSub}>
+                {prefs.eventReminders ? `Active (${prefs.eventLeadMinutes}m before)` : 'Disabled'}
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, prefs.eventReminders && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, prefs.eventReminders && styles.switchThumbActive]} />
+            </View>
+          </Pressable>
+
+          {/* Event Lead Time Selector */}
+          {prefs.eventReminders && (
+            <View style={styles.leadMinutesRow}>
+              {([10, 15, 30, 60] as const).map((mins) => {
+                const isSel = prefs.eventLeadMinutes === mins;
+                return (
+                  <Pressable
+                    key={mins}
+                    style={[styles.leadMinutesPill, isSel && styles.leadMinutesPillActive]}
+                    onPress={() => updatePrefs({ eventLeadMinutes: mins })}
+                  >
+                    <Text style={[styles.leadMinutesText, isSel && styles.leadMinutesTextActive]}>
+                      {mins === 60 ? '1h' : `${mins}m`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
           {/* Device Specific Guidance Card */}
           <View style={styles.deviceNoteBox}>

@@ -16,7 +16,8 @@ import { NotebookCard, Notebook } from '@/src/components/notebook/NotebookCard';
 import { CreateNotebookSheet } from '@/src/components/notebook/CreateNotebookSheet';
 import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import { useNotebookStore } from '@/src/store/notebookStore';
-import { Plus, BookOpen, Sparkles } from 'lucide-react-native';
+import { useSystemStore } from '@/src/store/systemStore';
+import { Plus, BookOpen, Sparkles, WifiOff } from 'lucide-react-native';
 
 export default function NotebookScreen() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function NotebookScreen() {
     updateNotebook,
     deleteNotebook,
   } = useNotebookStore();
+  const { isOnline } = useSystemStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreateVisible, setIsCreateVisible] = useState(false);
@@ -97,6 +99,15 @@ export default function NotebookScreen() {
         </Text>
       </View>
 
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <WifiOff size={13} color="#F59E0B" />
+          <Text style={styles.offlineBannerText}>
+            Offline Mode — Viewing saved notebooks.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.sectionRow}>
         <Text style={styles.sectionTitle}>My Notebooks</Text>
         <Text style={styles.sectionCount}>{notebooks.length}</Text>
@@ -123,7 +134,13 @@ export default function NotebookScreen() {
         <Text style={styles.headerTitle}>Notebook</Text>
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
-          onPress={() => setIsCreateVisible(true)}
+          onPress={() => {
+            if (!isOnline) {
+              Alert.alert('Offline Mode', 'Creating new notebooks requires an active internet connection.');
+              return;
+            }
+            setIsCreateVisible(true);
+          }}
         >
           <Plus size={22} color="#6C8EFF" />
         </Pressable>
@@ -234,6 +251,26 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.25)',
     borderRadius: 10,
     padding: 12,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 10,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.2)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  offlineBannerText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    flex: 1,
+    lineHeight: 18,
+    fontFamily: 'Inter_500Medium',
   },
   errorText: {
     fontSize: 13,
