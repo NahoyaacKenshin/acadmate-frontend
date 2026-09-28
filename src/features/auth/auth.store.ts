@@ -6,6 +6,7 @@ import type { AuthTokens, AuthUser, LoginInput, SignupInput } from './auth.types
 
 const ACCESS_TOKEN_KEY = 'acadmate.accessToken';
 const REFRESH_TOKEN_KEY = 'acadmate.refreshToken';
+const USER_PROFILE_KEY = 'acadmate.userProfile';
 
 type AuthState = {
   user: AuthUser | null;
@@ -22,6 +23,7 @@ type AuthState = {
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   setSession: (tokens: AuthTokens, user?: AuthUser | null) => Promise<void>;
+  setUser: (user: AuthUser | null) => Promise<void>;
 };
 
 const saveTokens = async (tokens: AuthTokens) => {
@@ -29,10 +31,56 @@ const saveTokens = async (tokens: AuthTokens) => {
   await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken);
 };
 
-const clearTokens = async () => {
+const saveUser = async (user: AuthUser | null) => {
+  if (user) {
+    await SecureStore.setItemAsync(USER_PROFILE_KEY, JSON.stringify(user));
+  } else {
+    await SecureStore.deleteItemAsync(USER_PROFILE_KEY);
+  }
+};
+
+const clearSessionStorage = async () => {
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await SecureStore.deleteItemAsync(USER_PROFILE_KEY);
 };
+
+function decodeBase64(str: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  let buffer = 0;
+  let bits = 0;
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charAt(i);
+    const index = chars.indexOf(char);
+    if (index >= 0 && char !== '=') {
+      buffer = (buffer << 6) | index;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        output += String.fromCharCode((buffer >> bits) & 0xff);
+      }
+    }
+  }
+  return output;
+}
+
+function parseJwtPayload(token: string): { sub?: string; role?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const jsonStr = typeof atob === 'function' ? atob(base64) : decodeBase64(base64);
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -46,7 +94,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setSession: async (tokens, user = null) => {
     await saveTokens(tokens);
-    set({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user, error: null });
+    const resolvedUser = user ?? get().user;
+    if (resolvedUser) {
+      await saveUser(resolvedUser);
+    }
+    set({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user: resolvedUser, error: null });
+  },
+
+  setUser: async (user) => {
+    if (user) {
+      await saveUser(user);
+    } else {
+      await SecureStore.deleteItemAsync(USER_PROFILE_KEY);
+    }
+    set({ user });
   },
 
   restoreSession: async () => {
@@ -55,33 +116,62 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
       const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const savedUserStr = await SecureStore.getItemAsync(USER_PROFILE_KEY);
 
       if (!accessToken || !refreshToken) {
         set({ user: null, accessToken: null, refreshToken: null, isRestoring: false });
         return;
       }
 
-      set({ accessToken, refreshToken });
+      let restoredUser: AuthUser | null = null;
+      if (savedUserStr) {
+        try {
+          restoredUser = JSON.parse(savedUserStr);
+        } catch {
+          // ignore json parse error
+        }
+      }
+
+      // Fallback: extract sub and role from JWT access token if user profile was not yet cached
+      if (!restoredUser && accessToken) {
+        const payload = parseJwtPayload(accessToken);
+        if (payload?.sub) {
+          restoredUser = {
+            id: payload.sub,
+            role: (payload.role as 'USER' | 'ADMIN') || 'USER',
+            email: null,
+            name: null,
+          };
+        }
+      }
+
+      // Set restored credentials and user immediately so offline features and local DB operations work seamlessly
+      set({ accessToken, refreshToken, user: restoredUser });
 
       try {
         const me = await authApi.getMe(accessToken);
-        set({ user: me.data?.user ?? null, isRestoring: false });
+        if (me.data?.user) {
+          await saveUser(me.data.user);
+          set({ user: me.data.user, isRestoring: false });
+        } else {
+          set({ isRestoring: false });
+        }
       } catch (error) {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           const refreshed = await get().refreshSession();
           set({ isRestoring: false });
 
           if (!refreshed) {
-            await clearTokens();
+            await clearSessionStorage();
             set({ user: null, accessToken: null, refreshToken: null });
           }
         } else {
-          // Offline or 5xx server error, keep session intact for offline-first capabilities
+          // Offline or 5xx server error, keep restored session & cached user intact for offline-first capabilities
           set({ isRestoring: false });
         }
       }
     } catch (error) {
-      await clearTokens();
+      await clearSessionStorage();
       set({
         user: null,
         accessToken: null,
@@ -165,7 +255,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Local logout should still succeed if the backend is unreachable.
     } finally {
-      await clearTokens();
+      await clearSessionStorage();
       set({ user: null, accessToken: null, refreshToken: null, isLoading: false });
     }
   },
@@ -189,7 +279,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        await clearTokens();
+        await clearSessionStorage();
         set({ user: null, accessToken: null, refreshToken: null });
       }
       return false;

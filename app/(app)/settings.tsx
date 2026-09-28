@@ -43,12 +43,13 @@ export default function SettingsScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Compute 2-letter user initials for avatar
+  const displayName = nickname || user?.name || (user?.email ? user.email.split('@')[0] : '');
   const userInitials = useMemo(() => {
-    if (!user?.name) return null;
-    const parts = user.name.trim().split(/\s+/);
+    if (!displayName) return null;
+    const parts = displayName.trim().split(/[\s._-]+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }, [user?.name]);
+  }, [displayName]);
 
   const triggerHaptic = () => {
     try {
@@ -102,7 +103,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName} numberOfLines={1}>
-              {user?.name ?? 'AcadMate Student'}
+              {nickname || user?.name || (user?.email ? user.email.split('@')[0] : 'AcadMate Student')}
             </Text>
             <Text style={styles.profileEmail} numberOfLines={1}>
               {user?.email ?? 'No email'}

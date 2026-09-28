@@ -33,7 +33,7 @@ export type LoginInput = {
 };
 
 export type SignupInput = {
-  name: string;
+  name?: string;
   email: string;
   password: string;
 };

@@ -115,7 +115,11 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (studentSet) body.studentSet = studentSet;
       const currentProgram = get().programName;
       if (currentProgram) body.programName = currentProgram;
-      await authApi.updateMe(body);
+      const res = await authApi.updateMe(body);
+      if (res.data?.user) {
+        const { useAuthStore } = await import('@/src/features/auth/auth.store');
+        await useAuthStore.getState().setUser(res.data.user);
+      }
     } catch (e) {
       // Non-fatal: local storage has it covered; backend sync is best-effort
       console.warn('Failed to sync onboarding completion to backend:', e);

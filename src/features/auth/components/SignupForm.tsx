@@ -10,7 +10,6 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 import { promptGoogleSignIn } from '@/src/lib/google-auth';
 
 type FieldErrors = {
-  name?: string;
   email?: string;
   password?: string;
 };
@@ -22,7 +21,6 @@ function validateEmail(email: string) {
 export function SignupForm() {
   const router = useRouter();
   const { signup, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,12 +33,6 @@ export function SignupForm() {
 
   const validate = (): boolean => {
     const errors: FieldErrors = {};
-
-    if (!name.trim()) {
-      errors.name = 'Please enter your full name.';
-    } else if (name.trim().length < 2) {
-      errors.name = 'Name must be at least 2 characters.';
-    }
 
     if (!email.trim()) {
       errors.email = 'Please enter your email address.';
@@ -65,7 +57,7 @@ export function SignupForm() {
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const result = await signup({ name: name.trim(), email: email.trim(), password });
+    const result = await signup({ email: email.trim(), password });
 
     if (result === 'verification-required') {
       router.replace({ pathname: '/verify-email', params: { email: email.trim() } } as unknown as Href);
@@ -107,20 +99,6 @@ export function SignupForm() {
       </View>
 
       <View className="gap-5">
-        {/* Full Name */}
-        <View>
-          <TextInput
-            placeholder="Full Name"
-            placeholderTextColor="#94A3B8"
-            value={name}
-            onChangeText={(val) => { setName(val); setFieldErrors((e) => ({ ...e, name: undefined })); }}
-            className="rounded-2xl border border-border bg-input/50 px-5 py-4 text-foreground font-sans text-base"
-          />
-          {fieldErrors.name ? (
-            <Text className="mt-1 ml-1 text-xs text-red-500 font-sans">{fieldErrors.name}</Text>
-          ) : null}
-        </View>
-
         {/* Email */}
         <View>
           <TextInput
