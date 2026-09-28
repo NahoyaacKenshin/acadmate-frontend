@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Modal, Pressable, StyleSheet, TextInput, Platform, ActivityIndicator } from 'react-native';
+import { View, Modal, Pressable, StyleSheet, TextInput, Platform, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { Text } from '../ui/text';
-import { X, Calendar as CalendarIcon } from 'lucide-react-native';
+import { X, Calendar as CalendarIcon, RotateCcw } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
@@ -64,10 +64,15 @@ export function AddExamWeekModal({
       DateTimePickerAndroid.open({
         value: val,
         mode: 'date',
+        minimumDate: field === 'startDate' ? new Date() : startDate,
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === 'dismissed' || !selectedDate) return;
-          if (field === 'startDate') setStartDate(selectedDate);
-          else setEndDate(selectedDate);
+          if (field === 'startDate') {
+            setStartDate(selectedDate);
+            if (endDate < selectedDate) setEndDate(selectedDate);
+          } else {
+            setEndDate(selectedDate);
+          }
         },
       });
     } else {
@@ -95,8 +100,8 @@ export function AddExamWeekModal({
     setError(null);
     try {
       const now = toPhilippineISO(new Date());
-      const sd = formatDateLocal(startDate);
-      const ed = formatDateLocal(endDate);
+      const sd = toPhilippineISO(startDate, '00:00');
+      const ed = toPhilippineISO(endDate, '00:00');
 
       // Format clean title with category tag prefix if not already present
       let formattedTitle = title.trim();
@@ -148,7 +153,10 @@ export function AddExamWeekModal({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.centeredView}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.centeredView}
+      >
         <View style={styles.modalContent}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{initialData ? 'Edit Period / Holiday' : 'Add Period / Holiday'}</Text>
@@ -199,7 +207,17 @@ export function AddExamWeekModal({
 
           <View style={[styles.formGroup, styles.row]}>
             <View style={styles.flex1}>
-              <Text style={styles.label}>Start Date</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Start Date</Text>
+                <Pressable
+                  onPress={() => setStartDate(new Date())}
+                  style={styles.resetBtn}
+                  hitSlop={8}
+                >
+                  <RotateCcw size={10} color="#94A3B8" />
+                  <Text style={styles.resetBtnText}>Today</Text>
+                </Pressable>
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
                 <CalendarIcon size={14} color="#94A3B8" />
@@ -209,7 +227,17 @@ export function AddExamWeekModal({
             <View style={styles.separator}><Text style={styles.separatorText}>—</Text></View>
 
             <View style={styles.flex1}>
-              <Text style={styles.label}>End Date</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>End Date</Text>
+                <Pressable
+                  onPress={() => setEndDate(startDate)}
+                  style={styles.resetBtn}
+                  hitSlop={8}
+                >
+                  <RotateCcw size={10} color="#94A3B8" />
+                  <Text style={styles.resetBtnText}>Same</Text>
+                </Pressable>
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
                 <Text style={styles.pickerText}>{formatDate(endDate)}</Text>
                 <CalendarIcon size={14} color="#94A3B8" />
@@ -222,6 +250,7 @@ export function AddExamWeekModal({
                <DateTimePicker
                  value={activePickerField === 'startDate' ? startDate : endDate}
                  mode="date"
+                 minimumDate={activePickerField === 'startDate' ? new Date() : startDate}
                  display="spinner"
                  onChange={handleDateChange}
                  textColor="#ffffff"
@@ -248,7 +277,7 @@ export function AddExamWeekModal({
             </Button>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -263,6 +292,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#10131C',
+  },
+  resetBtnText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   modalContent: {
     width: '100%',

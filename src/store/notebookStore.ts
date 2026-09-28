@@ -19,6 +19,7 @@ interface NotebookState {
   fetchSources: (notebookId: string, silent?: boolean) => Promise<void>;
   deleteSource: (notebookId: string, sourceId: string) => Promise<void>;
   retrySource: (notebookId: string, sourceId: string) => Promise<void>;
+  updateSource: (notebookId: string, sourceId: string, data: { fileName?: string; rawText?: string }) => Promise<void>;
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
@@ -199,6 +200,36 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       const updated = currentSources.map((s) =>
         s.id === sourceId ? { ...s, status: 'PROCESSING' as const } : s
       );
+      NotebookStorage.saveSources(notebookId, updated);
+      return {
+        sourcesByNotebook: {
+          ...state.sourcesByNotebook,
+          [notebookId]: updated,
+        },
+      };
+    });
+  },
+
+  updateSource: async (notebookId, sourceId, data) => {
+    const res = await ApiService.sources.update(notebookId, sourceId, data);
+    const updatedSource = res?.data ?? res?.source ?? res;
+    set((state) => {
+      const currentSources = state.sourcesByNotebook[notebookId] || [];
+      const updated = currentSources.map((s) => {
+        if (s.id === sourceId) {
+          return {
+            ...s,
+            fileName: data.fileName?.trim() || s.fileName,
+            rawText: data.rawText !== undefined ? data.rawText : s.rawText,
+            ...(updatedSource ? {
+              fileName: updatedSource.fileName ?? s.fileName,
+              rawText: updatedSource.rawText ?? s.rawText,
+              chunkCount: updatedSource.chunkCount ?? s.chunkCount,
+            } : {}),
+          };
+        }
+        return s;
+      });
       NotebookStorage.saveSources(notebookId, updated);
       return {
         sourcesByNotebook: {

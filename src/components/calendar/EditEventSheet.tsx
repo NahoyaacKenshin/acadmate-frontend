@@ -10,15 +10,16 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, MapPin, Clock, Trash2 } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { formatDateLocal, toPhilippineISO, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
 
 interface EditEventSheetProps {
   visible: boolean;
@@ -56,11 +57,16 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   const powerSync = usePowerSync();
   const { subjects } = useSubjects();
 
+  const isExam =
+    event?.color === '#8B5CF6' ||
+    Boolean(event?.description && event.description.toLowerCase().includes('exam')) ||
+    Boolean(event?.title && event.title.toLowerCase().includes('exam'));
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [allDay, setAllDay] = useState(false);
+  const [allTime, setAllTime] = useState(false);
   const [location, setLocation] = useState('');
   const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
@@ -71,19 +77,16 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Populate form when event changes
+  // Populate form when event changes without date drifting
   useEffect(() => {
     if (event) {
       setTitle(event.title);
       setDescription(event.description ?? '');
-      if (event.all_day === 1) {
-        setStartDate(parseDateLocal(event.start_date) ?? new Date(event.start_date));
-        setEndDate(event.end_date ? (parseDateLocal(event.end_date) ?? new Date(event.end_date)) : null);
-      } else {
-        setStartDate(new Date(event.start_date));
-        setEndDate(event.end_date ? new Date(event.end_date) : null);
-      }
-      setAllDay(event.all_day === 1);
+      const parsedStart = parseToPHTDate(event.start_date) ?? parseDateLocal(event.start_date) ?? new Date();
+      const parsedEnd = event.end_date ? (parseToPHTDate(event.end_date) ?? parseDateLocal(event.end_date)) : null;
+      setStartDate(parsedStart);
+      setEndDate(parsedEnd);
+      setAllTime(event.all_day === 1);
       setLocation(event.location ?? '');
       setSelectedColor(event.color ?? PRESET_COLORS[0]);
       setSelectedSubjectId(event.subject_id);
@@ -108,43 +111,32 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
     setShowSubjectPicker(false);
     if (Platform.OS === 'android') {
       const baseDate = field === 'start' ? startDate : (endDate ?? new Date());
-      if (allDay) {
-        DateTimePickerAndroid.open({
-          value: baseDate,
-          mode: 'date',
-          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
-            if (event.type === 'dismissed' || !selectedDate) return;
-            if (field === 'start') setStartDate(selectedDate);
-            else setEndDate(selectedDate);
-          },
-        });
-      } else {
-        DateTimePickerAndroid.open({
-          value: baseDate,
-          mode: 'date',
-          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
-            if (event.type === 'dismissed' || !selectedDate) return;
-            const merged = new Date(selectedDate);
-            merged.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
-            DateTimePickerAndroid.open({
-              value: merged,
-              mode: 'time',
-              is24Hour: false,
-              onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
-                if (timeEvent.type === 'dismissed' || !selectedTime) {
-                  if (field === 'start') setStartDate(merged);
-                  else setEndDate(merged);
-                  return;
-                }
-                const finalDate = new Date(merged);
-                finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-                if (field === 'start') setStartDate(finalDate);
-                else setEndDate(finalDate);
-              },
-            });
-          },
-        });
-      }
+      DateTimePickerAndroid.open({
+        value: baseDate,
+        mode: 'date',
+        minimumDate: new Date(),
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                if (field === 'start') setStartDate(merged);
+                else setEndDate(merged);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              if (field === 'start') setStartDate(finalDate);
+              else setEndDate(finalDate);
+            },
+          });
+        },
+      });
     } else {
       setActiveDateField(field);
       setDatePickerStep('date');
@@ -161,12 +153,22 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   const handleIOSDone = () => { setDatePickerStep(null); setActiveDateField(null); };
 
   const handleSave = async () => {
-    if (!title.trim()) { setError('Event title is required.'); return; }
     if (!event) return;
+    if (!title.trim()) {
+      setError(isExam ? 'Exam title is required.' : 'Event title is required.');
+      return;
+    }
+    if (!allTime && endDate && endDate < startDate) {
+      setError('End date/time must be after start date/time.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
       const now = toPhilippineISO(new Date());
+      const startISO = toPhilippineISO(startDate);
+      const endISO = !allTime && endDate ? toPhilippineISO(endDate) : null;
+      const isAllTimeVal = allTime ? 1 : 0;
       await powerSync.execute(
         `UPDATE CalendarEvent SET
           title = ?, description = ?, startDate = ?, endDate = ?,
@@ -175,9 +177,9 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
         [
           title.trim(),
           description.trim() || null,
-          allDay ? formatDateLocal(startDate) : toPhilippineISO(startDate),
-          endDate ? (allDay ? formatDateLocal(endDate) : toPhilippineISO(endDate)) : null,
-          allDay ? 1 : 0,
+          startISO,
+          endISO,
+          isAllTimeVal,
           location.trim() || null,
           selectedColor,
           selectedSubjectId,
@@ -196,8 +198,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Event',
-      'Are you sure you want to delete this event? This cannot be undone.',
+      isExam ? 'Delete Exam' : 'Delete Event',
+      `Are you sure you want to delete this ${isExam ? 'exam' : 'event'}? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -211,7 +213,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
               handleClose();
             } catch (err) {
               console.error('[EditEvent] delete failed:', err);
-              setError('Failed to delete event.');
+              setError('Failed to delete.');
             } finally {
               setIsDeleting(false);
             }
@@ -225,206 +227,247 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Event</Text>
-          <View style={styles.headerActions}>
-            <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
-              {isDeleting
-                ? <ActivityIndicator size="small" color="#EF4444" />
-                : <Trash2 size={20} color="#EF4444" />
-              }
-            </Pressable>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={24} color="#94A3B8" />
-            </Pressable>
-          </View>
-        </View>
-
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Title */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Event Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="What's the event?"
-              placeholderTextColor="#94A3B8"
-              value={title}
-              onChangeText={setTitle}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              placeholder="Optional details..."
-              placeholderTextColor="#94A3B8"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* All Day toggle */}
-          <View style={[styles.formGroup, styles.toggleRow]}>
-            <View>
-              <Text style={styles.label}>All Day</Text>
-              <Text style={styles.sublabel}>No specific time</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheetContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
+            <View style={styles.headerActions}>
+              <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
+                {isDeleting
+                  ? <ActivityIndicator size="small" color="#EF4444" />
+                  : <Trash2 size={20} color="#EF4444" />
+                }
+              </Pressable>
+              <Pressable onPress={handleClose} style={styles.closeBtn}>
+                <X size={24} color="#94A3B8" />
+              </Pressable>
             </View>
-            <Switch
-              value={allDay}
-              onValueChange={setAllDay}
-              trackColor={{ false: '#2A3143', true: '#6C8EFF' }}
-              thumbColor="#ffffff"
-            />
           </View>
 
-          {/* Start Date */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Start {allDay ? 'Date' : 'Date & Time'} *</Text>
-            <Pressable style={styles.picker} onPress={() => openDatePicker('start')}>
-              <Text style={styles.pickerText}>{formatDateTime(startDate)}</Text>
-              <Calendar size={16} color="#94A3B8" />
-            </Pressable>
-            {Platform.OS === 'ios' && activeDateField === 'start' && datePickerStep !== null && (
-              <View style={styles.iosPickerWrapper}>
-                <DateTimePicker
-                  value={startDate}
-                  mode={allDay ? 'date' : 'datetime'}
-                  display="spinner"
-                  onChange={handleDateChange}
-                  textColor="#ffffff"
-                  themeVariant="dark"
-                  style={styles.iosPicker}
-                />
-                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                  <Text style={styles.iosDoneBtnText}>Done</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.formContainer}
+          >
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {/* End Date */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>End {allDay ? 'Date' : 'Date & Time'} (Optional)</Text>
-            <Pressable style={styles.picker} onPress={() => openDatePicker('end')}>
-              <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
-                {endDate ? formatDateTime(endDate) : 'Select end time...'}
-              </Text>
-              <Clock size={16} color="#94A3B8" />
-            </Pressable>
-            {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && (
-              <View style={styles.iosPickerWrapper}>
-                <DateTimePicker
-                  value={endDate ?? startDate}
-                  mode={allDay ? 'date' : 'datetime'}
-                  display="spinner"
-                  onChange={handleDateChange}
-                  textColor="#ffffff"
-                  themeVariant="dark"
-                  style={styles.iosPicker}
-                />
-                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                  <Text style={styles.iosDoneBtnText}>Done</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-
-          {/* Location */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Location</Text>
-            <View style={styles.inputWithIcon}>
-              <MapPin size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+            {/* Title */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>{isExam ? 'Exam Title *' : 'Event Title *'}</Text>
               <TextInput
-                style={styles.inputInline}
-                placeholder="Room, building, or online link..."
+                style={styles.input}
+                placeholder={isExam ? "e.g. Midterm Examination" : "What's the event?"}
                 placeholderTextColor="#94A3B8"
-                value={location}
-                onChangeText={setLocation}
+                value={title}
+                onChangeText={setTitle}
                 onFocus={() => setShowSubjectPicker(false)}
               />
             </View>
-          </View>
 
-          {/* Color */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Color</Text>
-            <View style={styles.colorRow}>
-              {PRESET_COLORS.map((color) => (
-                <Pressable
-                  key={color}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: color },
-                    selectedColor === color && styles.colorSwatchSelected
-                  ]}
-                  onPress={() => setSelectedColor(color)}
-                />
-              ))}
+            {/* Description */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                placeholder="Optional details..."
+                placeholderTextColor="#94A3B8"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
             </View>
-          </View>
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject (Optional)</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <View style={styles.subjectPickerInner}>
-                {selectedSubject ? (
-                  <>
-                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
-                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
-                )}
-              </View>
-              <ChevronDown size={16} color="#94A3B8" />
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
-                  <Pressable
-                    style={styles.pickerItem}
-                    onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
-                  >
-                    <Text style={styles.pickerItemText}>None</Text>
-                  </Pressable>
-                  {subjects.map((s) => (
-                    <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
-                    >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+            {/* All Time toggle (Only for events, omitted for exams) */}
+            {!isExam && (
+              <View style={[styles.formGroup, styles.toggleRow]}>
+                <View>
+                  <Text style={styles.label}>All Time</Text>
+                  <Text style={styles.sublabel}>Marks all dates starting from start date</Text>
+                </View>
+                <Switch
+                  value={allTime}
+                  onValueChange={(val) => {
+                    setAllTime(val);
+                    if (val) setEndDate(null);
+                  }}
+                  trackColor={{ false: '#2A3143', true: '#6C8EFF' }}
+                  thumbColor="#ffffff"
+                />
               </View>
             )}
-          </View>
 
-          <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
-          </Button>
-        </ScrollView>
-      </View>
+            {/* Start Date */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Start Date & Time *</Text>
+                <Pressable
+                  onPress={() => {
+                    if (event) {
+                      const orig = parseToPHTDate(event.start_date) ?? new Date();
+                      setStartDate(orig);
+                    }
+                  }}
+                  style={styles.resetBtn}
+                  hitSlop={8}
+                >
+                  <RotateCcw size={12} color="#94A3B8" />
+                  <Text style={styles.resetBtnText}>Reset</Text>
+                </Pressable>
+              </View>
+              <Pressable style={styles.picker} onPress={() => openDatePicker('start')}>
+                <Text style={styles.pickerText}>{formatDateTime(startDate)}</Text>
+                <Calendar size={16} color="#94A3B8" />
+              </Pressable>
+              {Platform.OS === 'ios' && activeDateField === 'start' && datePickerStep !== null && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={startDate}
+                    mode="datetime"
+                    minimumDate={new Date()}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor="#ffffff"
+                    themeVariant="dark"
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* End Date (hidden if All Time is ON) */}
+            {!allTime && (
+              <View style={styles.formGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Date & Time (Optional)</Text>
+                  {endDate && (
+                    <Pressable
+                      onPress={() => setEndDate(null)}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <X size={12} color="#EF4444" />
+                      <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openDatePicker('end')}>
+                  <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                    {endDate ? formatDateTime(endDate) : 'Select end time...'}
+                  </Text>
+                  <Clock size={16} color="#94A3B8" />
+                </Pressable>
+                {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && (
+                  <View style={styles.iosPickerWrapper}>
+                    <DateTimePicker
+                      value={endDate ?? startDate}
+                      mode="datetime"
+                      minimumDate={new Date()}
+                      display="spinner"
+                      onChange={handleDateChange}
+                      textColor="#ffffff"
+                      themeVariant="dark"
+                      style={styles.iosPicker}
+                    />
+                    <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                      <Text style={styles.iosDoneBtnText}>Done</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Location */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Location (Optional)</Text>
+              <View style={styles.inputWithIcon}>
+                <MapPin size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+                <TextInput
+                  style={styles.inputInline}
+                  placeholder="Room, building, or online link..."
+                  placeholderTextColor="#94A3B8"
+                  value={location}
+                  onChangeText={setLocation}
+                  onFocus={() => setShowSubjectPicker(false)}
+                />
+              </View>
+            </View>
+
+            {/* Color */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Color</Text>
+              <View style={styles.colorRow}>
+                {PRESET_COLORS.map((color) => (
+                  <Pressable
+                    key={color}
+                    style={[
+                      styles.colorSwatch,
+                      { backgroundColor: color },
+                      selectedColor === color && styles.colorSwatchSelected
+                    ]}
+                    onPress={() => setSelectedColor(color)}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Subject */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject (Optional)</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => setShowSubjectPicker((prev) => !prev)}
+              >
+                <View style={styles.subjectPickerInner}>
+                  {selectedSubject ? (
+                    <>
+                      <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
+                      <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
+                  )}
+                </View>
+                <ChevronDown size={16} color="#94A3B8" />
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+                    <Pressable
+                      style={styles.pickerItem}
+                      onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                    >
+                      <Text style={styles.pickerItemText}>None</Text>
+                    </Pressable>
+                    {subjects.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        style={styles.pickerItem}
+                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>{isExam ? 'Save Exam' : 'Save Changes'}</Text>}
+            </Button>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -433,6 +476,30 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#1E2433',
+  },
+  resetBtnText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   sheetContent: {
     position: 'absolute',

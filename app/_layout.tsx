@@ -83,7 +83,7 @@ export default function RootLayout() {
         {!isAnimationDone && (
           <Animated.View pointerEvents="none" style={[styles.splashOverlay, animatedSplashStyle]}>
             <Animated.Image
-              source={require('../assets/images/logo.png')}
+              source={require('../assets/images/new-splash-favicon-icon.png')}
               style={styles.splashLogo}
               resizeMode="contain"
             />

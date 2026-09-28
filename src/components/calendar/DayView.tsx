@@ -29,7 +29,7 @@ import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
 import { Holiday } from './MonthGrid';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
-import { isSameDayPHT, formatTimePHT } from '@/src/utils/philippineTime';
+import { isSameDayPHT, formatTimePHT, parseToPHTDate } from '@/src/utils/philippineTime';
 import { useUserStore } from '@/src/store/userStore';
 
 interface DayViewProps {
@@ -229,7 +229,8 @@ function TaskDueCard({
   onToggleComplete?: () => void;
 }) {
   const isCompleted = task.completed === 1;
-  const subjectColor = task.subject_color ?? '#94A3B8';
+  const taskDisplayColor = task.color ?? task.subject_color ?? '#94A3B8';
+  const subjectColor = task.subject_color ?? '#6C8EFF';
   const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
 
   const handleCheckboxPress = () => {
@@ -240,7 +241,7 @@ function TaskDueCard({
   return (
     <View style={[styles.taskCard, isCompleted && styles.taskCardCompleted]}>
       {/* Color bar */}
-      <View style={[styles.eventColorBar, { backgroundColor: subjectColor }]} />
+      <View style={[styles.eventColorBar, { backgroundColor: taskDisplayColor }]} />
 
       {/* Checkbox */}
       <Pressable
@@ -330,15 +331,31 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
   // Filter class schedules for this day — respects start/end date bounds and blockers
   const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks, combinedHolidays));
 
-  // Filter one-off events for this date
-  const dayEvents = events.filter((e) => isSameDayPHT(e.start_date, selectedDate));
+  // Check if an event falls on this date (supports multi-day ranges)
+  const isEventActiveOnDate = (e: CalendarEventRow, targetDate: Date): boolean => {
+    if (isSameDayPHT(e.start_date, targetDate)) return true;
+    if (e.end_date) {
+      const start = parseToPHTDate(e.start_date) ?? new Date(e.start_date);
+      const end = parseToPHTDate(e.end_date) ?? new Date(e.end_date);
+      const target = new Date(targetDate);
+      target.setHours(0, 0, 0, 0);
+      const startDay = new Date(start);
+      startDay.setHours(0, 0, 0, 0);
+      const endDay = new Date(end);
+      endDay.setHours(23, 59, 59, 999);
+      return target >= startDay && target <= endDay;
+    }
+    return false;
+  };
+
+  // Filter events for this date
+  const dayEvents = events.filter((e) => isEventActiveOnDate(e, selectedDate));
 
   // Categorize subject exams vs general events
   const isExamEvent = (e: CalendarEventRow) =>
     e.color === '#8B5CF6' ||
     (e.description != null && e.description.toLowerCase().includes('exam')) ||
-    e.title.toLowerCase().includes('exam') ||
-    e.title.toLowerCase().includes('quiz');
+    e.title.toLowerCase().includes('exam');
 
   const dayExams = dayEvents.filter(isExamEvent);
   const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));

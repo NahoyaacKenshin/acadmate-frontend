@@ -10,6 +10,7 @@ import {
   Clock,
   AlertCircle,
   RotateCw,
+  Pencil,
 } from 'lucide-react-native';
 import { parseToPHT } from '@/src/utils/philippineTime';
 
@@ -31,6 +32,7 @@ interface SourceListItemProps {
   onDelete: (source: Source) => void;
   onRetry?: (source: Source) => void;
   onPress?: (source: Source) => void;
+  onEdit?: (source: Source) => void;
 }
 
 function FileTypeIcon({ type }: { type: SourceFileType }) {
@@ -99,7 +101,7 @@ function formatDatePHT(iso: string): string {
   return `${months[p.month - 1]} ${p.day}`;
 }
 
-export function SourceListItem({ source, onDelete, onRetry, onPress }: SourceListItemProps) {
+export function SourceListItem({ source, onDelete, onRetry, onPress, onEdit }: SourceListItemProps) {
   const handleDeletePress = () => {
     Alert.alert(
       'Remove Source',
@@ -148,6 +150,16 @@ export function SourceListItem({ source, onDelete, onRetry, onPress }: SourceLis
             hitSlop={8}
           >
             <RotateCw size={14} color="#6C8EFF" />
+          </Pressable>
+        )}
+
+        {source.status === 'READY' && onEdit && (
+          <Pressable
+            style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
+            onPress={() => onEdit(source)}
+            hitSlop={8}
+          >
+            <Pencil size={14} color="#A78BFA" />
           </Pressable>
         )}
 
@@ -237,6 +249,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(108, 142, 255, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(108, 142, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(167, 139, 250, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },

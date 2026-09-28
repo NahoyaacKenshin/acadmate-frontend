@@ -45,12 +45,11 @@ export function getPhilippineToday(): string {
 export function toPhilippineDateOnly(date: Date | string | null | undefined): string {
   if (!date) return '';
   if (typeof date === 'string') {
-    const trimmed = date.trim();
-    const match = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-    if (match) {
-      return `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}`;
+    const p = parseToPHT(date);
+    if (p) {
+      return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
     }
-    const parsed = new Date(trimmed);
+    const parsed = new Date(date);
     if (isNaN(parsed.getTime())) return '';
     return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
   }
@@ -177,10 +176,9 @@ export function formatDatePHT(date: Date | string | null | undefined): string {
   if (date instanceof Date) {
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   }
-  const match = date.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (match) {
-    const mIdx = Number(match[2]) - 1;
-    return `${months[mIdx]} ${Number(match[3])}, ${match[1]}`;
+  const p = parseToPHT(date);
+  if (p) {
+    return `${months[p.month - 1]} ${p.day}, ${p.year}`;
   }
   const parsed = new Date(date);
   if (isNaN(parsed.getTime())) return String(date);
@@ -217,11 +215,23 @@ export function parseToPHT(isoStr: string | null | undefined): PHTComponents | n
   if (!isoStr) return null;
   const trimmed = isoStr.trim();
 
-  // Match: YYYY-MM-DD + optional T HH:MM:SS + optional timezone
+  // Match: YYYY-MM-DD + optional T HH:MM:SS + optional timezone (Z, +08:00, +0800, +00, +08)
   const m = trimmed.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?/
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}(?::?\d{2})?)?)?/
   );
-  if (!m) return null;
+  if (!m) {
+    const parsed = new Date(trimmed);
+    if (isNaN(parsed.getTime())) return null;
+    const phtDate = new Date(parsed.getTime() + 8 * 60 * 60 * 1000);
+    return {
+      year: phtDate.getUTCFullYear(),
+      month: phtDate.getUTCMonth() + 1,
+      day: phtDate.getUTCDate(),
+      hour: phtDate.getUTCHours(),
+      minute: phtDate.getUTCMinutes(),
+      second: phtDate.getUTCSeconds(),
+    };
+  }
 
   let year = Number(m[1]);
   let month = Number(m[2]);
@@ -246,8 +256,8 @@ export function parseToPHT(isoStr: string | null | undefined): PHTComponents | n
   } else {
     const sign = tz[0] === '-' ? -1 : 1;
     const clean = tz.replace(':', '');
-    const tzH = Number(clean.slice(1, 3));
-    const tzM = Number(clean.slice(3, 5));
+    const tzH = Number(clean.slice(1, 3)) || 0;
+    const tzM = Number(clean.slice(3, 5)) || 0;
     offsetMs = sign * (tzH * 60 + tzM) * 60 * 1000;
   }
 

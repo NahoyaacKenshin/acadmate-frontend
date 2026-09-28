@@ -68,7 +68,7 @@ export default function IntroScreen() {
       {/* Header Skip */}
       <View style={styles.header}>
         <Image
-          source={require('../assets/images/logo.png')}
+          source={require('../assets/images/new-splash-favicon-icon.png')}
           style={styles.logo}
           resizeMode="contain"
         />

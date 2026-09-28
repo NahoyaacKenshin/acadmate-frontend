@@ -6,6 +6,7 @@ export interface TaskRow {
   description: string | null;
   due_date: string | null;
   completed: number; // 0 or 1 (SQLite integer)
+  color: string | null;
   subject_id: string | null;
   user_id: string | null;
   created_at: string | null;
@@ -28,6 +29,7 @@ export function useTasks() {
       Task.description,
       Task.dueDate AS due_date,
       Task.completed,
+      Task.color,
       Task.subjectId AS subject_id,
       Task.userId AS user_id,
       Task.createdAt AS created_at,

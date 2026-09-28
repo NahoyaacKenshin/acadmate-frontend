@@ -1,9 +1,13 @@
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import { Home, CalendarDays, Book, Settings, ListTodo } from 'lucide-react-native';
 
 export default function AppLayout() {
+  const pathname = usePathname();
+  const isInNotebook = pathname.includes('/notebook');
+
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         headerStyle: {
@@ -43,7 +47,13 @@ export default function AppLayout() {
         name="notebook"
         options={{
           title: 'Notebook',
-          tabBarIcon: ({ color, size }) => <Book size={size} color={color} />,
+          tabBarIcon: ({ size }) => (
+            <Book size={size} color={isInNotebook ? '#6C8EFF' : '#94A3B8'} />
+          ),
+          tabBarLabel: 'Notebook',
+          tabBarLabelStyle: isInNotebook
+            ? { color: '#6C8EFF' }
+            : { color: '#94A3B8' },
         }}
       />
       <Tabs.Screen

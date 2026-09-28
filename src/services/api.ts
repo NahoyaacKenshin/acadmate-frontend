@@ -146,6 +146,14 @@ export const ApiService = {
       });
       return handleResponse(response);
     },
+    update: async (notebookId: string, sourceId: string, data: { fileName?: string; rawText?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/sources/${sourceId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
   },
 
   // --- Notebook Chat (RAG) ---

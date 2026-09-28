@@ -8,11 +8,12 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, RotateCcw } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { SubjectRow } from '@/src/hooks/useSubjects';
 import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
@@ -27,6 +28,19 @@ interface EditTaskSheetProps {
 }
 
 type DatePickerStep = 'date' | 'time' | null;
+
+const PRESET_COLORS = [
+  '#6C8EFF', // blue
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // purple
+  '#06B6D4', // cyan
+  '#EC4899', // pink
+  '#14B8A6', // teal
+  '#6366F1', // indigo
+  '#F97316', // orange
+];
 
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -43,6 +57,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
@@ -55,6 +70,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       setTitle(task.title);
       setDescription(task.description ?? '');
       setDueDate(task.due_date ? (parseToPHTDate(task.due_date) ?? new Date(task.due_date)) : null);
+      setSelectedColor(task.color ?? PRESET_COLORS[0]);
       setSelectedSubjectId(task.subject_id);
       setShowSubjectPicker(false);
       setDatePickerStep(null);
@@ -80,6 +96,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       DateTimePickerAndroid.open({
         value: base,
         mode: 'date',
+        minimumDate: new Date(),
         is24Hour: false,
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === 'dismissed' || !selectedDate) return;
@@ -135,9 +152,9 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
 
       await powerSync.execute(
-        `UPDATE Task SET title = ?, description = ?, dueDate = ?, subjectId = ?, updatedAt = ?
+        `UPDATE Task SET title = ?, description = ?, dueDate = ?, color = ?, subjectId = ?, updatedAt = ?
          WHERE id = ?`,
-        [title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, now, task.id]
+        [title.trim(), description.trim() || null, dueDateISO, selectedColor, selectedSubjectId, now, task.id]
       );
 
       // Cancel previous notification alarms
@@ -151,6 +168,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
           description: description.trim() || null,
           due_date: dueDateISO,
           completed: 0,
+          color: selectedColor,
           subject_id: selectedSubjectId,
           user_id: task.user_id,
           created_at: task.created_at,
@@ -176,121 +194,157 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       {/* Backdrop tap-to-dismiss */}
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Task</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
-
-        {/* Scrollable form */}
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Title */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Task Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="What needs to be done?"
-              placeholderTextColor="#94A3B8"
-              value={title}
-              onChangeText={setTitle}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              placeholder="Optional details..."
-              placeholderTextColor="#94A3B8"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Due Date & Time */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Due Date & Time</Text>
-            <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
-              <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
-                {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
-              </Text>
-              <Calendar size={16} color="#94A3B8" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheetContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Edit Task</Text>
+            <Pressable onPress={handleClose} style={styles.closeBtn}>
+              <X size={24} color="#94A3B8" />
             </Pressable>
-
-            {/* iOS inline datetime spinner */}
-            {Platform.OS === 'ios' && datePickerStep !== null && (
-              <View style={styles.iosPickerWrapper}>
-                <DateTimePicker
-                  value={dueDate ?? new Date()}
-                  mode="datetime"
-                  display="spinner"
-                  onChange={handleDateChange}
-                  textColor="#ffffff"
-                  themeVariant="dark"
-                  style={styles.iosPicker}
-                />
-                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                  <Text style={styles.iosDoneBtnText}>Done</Text>
-                </Pressable>
-              </View>
-            )}
           </View>
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
-                {selectedSubject ? selectedSubject.name : 'Select a subject...'}
-              </Text>
-              <ChevronDown size={16} color="#94A3B8" />
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+          {/* Scrollable form */}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.formContainer}
+          >
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            {/* Title */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Task Title *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="What needs to be done?"
+                placeholderTextColor="#94A3B8"
+                value={title}
+                onChangeText={setTitle}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+
+            {/* Description */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                placeholder="Optional details..."
+                placeholderTextColor="#94A3B8"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+
+            {/* Due Date & Time */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Due Date & Time (Optional)</Text>
+                {dueDate && (
                   <Pressable
-                    style={styles.pickerItem}
-                    onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                    onPress={() => setDueDate(null)}
+                    style={styles.resetBtn}
+                    hitSlop={8}
                   >
-                    <Text style={styles.pickerItemText}>None</Text>
+                    <X size={12} color="#EF4444" />
+                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
                   </Pressable>
-                  {subjects.map((s) => (
-                    <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
-                    >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                )}
               </View>
-            )}
-          </View>
+              <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
+                <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
+                </Text>
+                <Calendar size={16} color="#94A3B8" />
+              </Pressable>
 
-          <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
-          </Button>
-        </ScrollView>
-      </View>
+              {/* iOS inline datetime spinner */}
+              {Platform.OS === 'ios' && datePickerStep !== null && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={dueDate ?? new Date()}
+                    mode="datetime"
+                    minimumDate={new Date()}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor="#ffffff"
+                    themeVariant="dark"
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Color Picker */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Color</Text>
+              <View style={styles.colorRow}>
+                {PRESET_COLORS.map((color) => (
+                  <Pressable
+                    key={color}
+                    style={[
+                      styles.colorSwatch,
+                      { backgroundColor: color },
+                      selectedColor === color && styles.colorSwatchSelected,
+                    ]}
+                    onPress={() => setSelectedColor(color)}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Subject */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject (Optional)</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => setShowSubjectPicker((prev) => !prev)}
+              >
+                <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
+                  {selectedSubject ? selectedSubject.name : 'Select a subject...'}
+                </Text>
+                <ChevronDown size={16} color="#94A3B8" />
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+                    <Pressable
+                      style={styles.pickerItem}
+                      onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                    >
+                      <Text style={styles.pickerItemText}>None</Text>
+                    </Pressable>
+                    {subjects.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        style={styles.pickerItem}
+                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
+            </Button>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -299,6 +353,30 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#1E2433',
+  },
+  resetBtnText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   sheetContent: {
     position: 'absolute',
@@ -383,6 +461,24 @@ const styles = StyleSheet.create({
   },
   pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
   subjectDot: { width: 10, height: 10, borderRadius: 5 },
+  // Color Picker
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  colorSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  colorSwatchSelected: {
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    transform: [{ scale: 1.15 }],
+  },
   // iOS inline picker
   iosPickerWrapper: {
     marginTop: 8,

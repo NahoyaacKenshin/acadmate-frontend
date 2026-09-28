@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -6,9 +6,12 @@ import {
   Pressable,
   TouchableOpacity,
   Vibration,
+  BackHandler,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
 import {
   Sparkles,
@@ -266,6 +269,24 @@ function StudentHomeScreen() {
 
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
   const greeting = getGreeting();
+
+  // Android hardware back button — show exit confirmation when on Home
+  useFocusEffect(
+    useCallback(() => {
+      const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(
+          'Exit AcadMate',
+          'Are you sure you want to exit?',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => {} },
+            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+          ]
+        );
+        return true; // prevent default back behavior
+      });
+      return () => handler.remove();
+    }, [])
+  );
   const dateSubtitle = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',

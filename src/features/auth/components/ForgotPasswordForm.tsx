@@ -55,7 +55,7 @@ export function ForgotPasswordForm() {
     <View className="flex-1 justify-center bg-background px-8">
       <View className="mb-8 items-center">
         <Image
-          source={require('../../../../assets/images/logo.png')}
+          source={require('../../../../assets/images/new-splash-favicon-icon.png')}
           style={{ width: 90, height: 90, marginBottom: 12 }}
           resizeMode="contain"
         />

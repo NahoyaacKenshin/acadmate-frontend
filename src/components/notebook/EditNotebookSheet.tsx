@@ -68,7 +68,7 @@ export function EditNotebookSheet({ visible, notebook, onClose, onSave }: EditNo
     >
       <Pressable style={styles.backdrop} onPress={handleClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.sheetWrapper}
       >
         <View style={styles.sheet}>

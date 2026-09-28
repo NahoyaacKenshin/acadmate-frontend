@@ -13,6 +13,7 @@ export const Task = new Table({
   description: column.text,
   dueDate: column.text,
   completed: column.integer,
+  color: column.text,
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text,

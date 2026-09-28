@@ -130,16 +130,9 @@ export default function NotebookChatScreen() {
       setIsHistoryOpen(false);
       return true;
     }
-    if (notebookId) {
-      router.replace({
-        pathname: '/(app)/notebook/[id]' as any,
-        params: { id: notebookId, title: notebookTitle ?? 'Notebook' },
-      });
-    } else {
-      router.replace('/(app)/notebook' as any);
-    }
+    router.back();
     return true;
-  }, [router, notebookId, notebookTitle, isHistoryOpen]);
+  }, [router, isHistoryOpen]);
 
   useEffect(() => {
     const backSubscription = BackHandler.addEventListener(

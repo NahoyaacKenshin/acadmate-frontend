@@ -7,6 +7,8 @@ import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
+import { TaskRow } from '@/src/hooks/useTasks';
+import { parseToPHTDate } from '@/src/utils/philippineTime';
 
 export interface Holiday {
   id: string;
@@ -23,6 +25,7 @@ interface MonthGridProps {
   schedules: ClassScheduleRow[];
   examWeeks: ExamWeekRow[];
   holidays: Holiday[];
+  tasks?: TaskRow[];
   onDayPress: (date: Date) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
@@ -58,6 +61,23 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate();
 }
 
+/** Check if an event falls on a given date (supports multi-day ranges) */
+function isEventActiveOnDate(e: CalendarEventRow, targetDate: Date): boolean {
+  if (isSameDayPHT(e.start_date, targetDate)) return true;
+  if (e.end_date) {
+    const start = parseToPHTDate(e.start_date) ?? new Date(e.start_date);
+    const end = parseToPHTDate(e.end_date) ?? new Date(e.end_date);
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(23, 59, 59, 999);
+    return target >= startDay && target <= endDay;
+  }
+  return false;
+}
+
 /** Collect up to 3 dot colors for a given calendar date */
 function getDotColors(
   date: Date,
@@ -65,6 +85,7 @@ function getDotColors(
   schedules: ClassScheduleRow[],
   examWeeks: ExamWeekRow[],
   holidays: Holiday[],
+  tasks?: TaskRow[],
 ): string[] {
   const colors: string[] = [];
 
@@ -96,11 +117,20 @@ function getDotColors(
     colors.push(activeClass.subject_color ?? '#6C8EFF');
   }
 
-  // CalendarEvent dot (one-off — check startDate)
-  const dayEvents = events.filter((e) => isSameDayPHT(e.start_date, date));
+  // CalendarEvent dot (supports multi-day ranges)
+  const dayEvents = events.filter((e) => isEventActiveOnDate(e, date));
   for (const ev of dayEvents) {
     if (colors.length >= 3) break;
     colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');
+  }
+
+  // Task dots (show task color on calendar)
+  if (tasks && colors.length < 3) {
+    const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, date));
+    for (const t of dayTasks) {
+      if (colors.length >= 3) break;
+      colors.push(t.color ?? t.subject_color ?? '#6C8EFF');
+    }
   }
 
   return colors;
@@ -114,6 +144,7 @@ export function MonthGrid({
   schedules,
   examWeeks,
   holidays,
+  tasks,
   onDayPress,
   onPrevMonth,
   onNextMonth,
@@ -156,7 +187,7 @@ export function MonthGrid({
           const isToday = isSameDay(cellDate, today);
           const isSelected = isSameDay(cellDate, selectedDate);
           const isPast = cellDate < todayNoTime;
-          const dots = getDotColors(cellDate, events, schedules, examWeeks, holidays);
+          const dots = getDotColors(cellDate, events, schedules, examWeeks, holidays, tasks);
 
           return (
             <Pressable

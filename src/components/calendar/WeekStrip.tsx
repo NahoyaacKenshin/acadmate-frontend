@@ -8,6 +8,8 @@ import { Holiday } from './MonthGrid';
 import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
+import { TaskRow } from '@/src/hooks/useTasks';
+import { parseToPHTDate } from '@/src/utils/philippineTime';
 
 interface WeekStripProps {
   selectedDate: Date;
@@ -15,6 +17,7 @@ interface WeekStripProps {
   schedules: ClassScheduleRow[];
   examWeeks: ExamWeekRow[];
   holidays: Holiday[];
+  tasks?: TaskRow[];
   isMonthExpanded: boolean;
   onDayPress: (date: Date) => void;
   onPrevWeek: () => void;
@@ -61,6 +64,23 @@ function weekRangeLabel(days: Date[]): string {
   return `${start} – ${end}`;
 }
 
+/** Check if an event falls on a given date (supports multi-day ranges) */
+function isEventActiveOnDate(e: CalendarEventRow, targetDate: Date): boolean {
+  if (isSameDayPHT(e.start_date, targetDate)) return true;
+  if (e.end_date) {
+    const start = parseToPHTDate(e.start_date) ?? new Date(e.start_date);
+    const end = parseToPHTDate(e.end_date) ?? new Date(e.end_date);
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(23, 59, 59, 999);
+    return target >= startDay && target <= endDay;
+  }
+  return false;
+}
+
 /** Dot colors for a single day (max 3) */
 function getDayDots(
   date: Date,
@@ -68,6 +88,7 @@ function getDayDots(
   schedules: ClassScheduleRow[],
   examWeeks: ExamWeekRow[],
   holidays: Holiday[],
+  tasks?: TaskRow[],
 ): string[] {
   const colors: string[] = [];
   const isHoliday = holidays.some((h) => isSameDay(new Date(h.date), date));
@@ -91,12 +112,23 @@ function getDayDots(
   // Class schedule dot (recurring — respects bounds and blockers)
   const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
-  for (const ev of events) {
+
+  // Calendar events
+  const dayEvents = events.filter((e) => isEventActiveOnDate(e, date));
+  for (const ev of dayEvents) {
     if (colors.length >= 3) break;
-    if (isSameDayPHT(ev.start_date, date)) {
-      colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');
+    colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');
+  }
+
+  // Tasks (show task color on calendar)
+  if (tasks && colors.length < 3) {
+    const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, date));
+    for (const t of dayTasks) {
+      if (colors.length >= 3) break;
+      colors.push(t.color ?? t.subject_color ?? '#6C8EFF');
     }
   }
+
   return colors;
 }
 
@@ -106,6 +138,7 @@ export function WeekStrip({
   schedules,
   examWeeks,
   holidays,
+  tasks,
   isMonthExpanded,
   onDayPress,
   onPrevWeek,
@@ -147,7 +180,7 @@ export function WeekStrip({
           const isSelected = isSameDay(d, selectedDate);
           const isToday = isSameDay(d, today);
           const isPast = d < todayNoTime;
-          const dots = getDayDots(d, events, schedules, examWeeks, holidays);
+          const dots = getDayDots(d, events, schedules, examWeeks, holidays, tasks);
 
           return (
             <Pressable

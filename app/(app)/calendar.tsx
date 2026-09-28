@@ -218,8 +218,8 @@ export default function CalendarScreen() {
                   <GraduationCap size={18} color="#8B5CF6" />
                 </View>
                 <View>
-                  <Text style={styles.actionMenuLabel}>Add Exam / Quiz</Text>
-                  <Text style={styles.actionMenuSub}>Subject test session & room</Text>
+                  <Text style={styles.actionMenuLabel}>Add Exam</Text>
+                  <Text style={styles.actionMenuSub}>Subject exam session & room</Text>
                 </View>
               </Pressable>
 
@@ -272,6 +272,7 @@ export default function CalendarScreen() {
             schedules={schedules}
             examWeeks={examWeeks}
             holidays={holidays}
+            tasks={tasks}
             onDayPress={handleDayPress}
             onPrevMonth={handlePrevMonth}
             onNextMonth={handleNextMonth}
@@ -285,6 +286,7 @@ export default function CalendarScreen() {
           schedules={schedules}
           examWeeks={examWeeks}
           holidays={holidays}
+          tasks={tasks}
           isMonthExpanded={isMonthExpanded}
           onDayPress={handleDayPress}
           onPrevWeek={handlePrevWeek}

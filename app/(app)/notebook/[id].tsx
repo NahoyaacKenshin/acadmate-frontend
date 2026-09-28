@@ -16,6 +16,7 @@ import { SourceListItem, Source } from '@/src/components/notebook/SourceListItem
 import { UploadSourceSheet } from '@/src/components/notebook/UploadSourceSheet';
 import { NoteEditor } from '@/src/components/notebook/NoteEditor';
 import { StudySchedulerModal } from '@/src/components/notebook/StudySchedulerModal';
+import { EditSourceModal } from '@/src/components/notebook/EditSourceModal';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/src/config/env';
@@ -47,6 +48,7 @@ export default function NotebookDetailScreen() {
     fetchSources,
     deleteSource,
     retrySource,
+    updateSource,
     updateNotebook,
   } = useNotebookStore();
   const currentNotebook = notebooks.find((n) => n.id === id);
@@ -63,6 +65,7 @@ export default function NotebookDetailScreen() {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isEditVisible, setIsEditVisible] = useState(false);
   const [viewingSource, setViewingSource] = useState<Source | null>(null);
+  const [editingSource, setEditingSource] = useState<Source | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -294,7 +297,7 @@ export default function NotebookDetailScreen() {
         style={styles.header}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
-        <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/notebook' as any)}>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <ArrowLeft size={20} color="#6C8EFF" />
         </Pressable>
         <Pressable
@@ -380,6 +383,7 @@ export default function NotebookDetailScreen() {
               onDelete={handleDeleteSource}
               onRetry={handleRetrySource}
               onPress={(src) => setViewingSource(src)}
+              onEdit={(src) => setEditingSource(src)}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -452,6 +456,17 @@ export default function NotebookDetailScreen() {
         visible={!!viewingSource}
         source={viewingSource}
         onClose={() => setViewingSource(null)}
+      />
+
+      {/* ── Edit Source Modal ── */}
+      <EditSourceModal
+        visible={!!editingSource}
+        source={editingSource}
+        onClose={() => setEditingSource(null)}
+        onSave={async (sourceId, data) => {
+          if (!id) return;
+          await updateSource(id, sourceId, data);
+        }}
       />
     </SafeAreaView>
   );

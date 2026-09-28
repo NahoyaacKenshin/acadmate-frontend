@@ -1,24 +1,5 @@
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
-
-/**
- * Safely parses a date string as LOCAL midnight to avoid UTC timezone shifts.
- *
- * Handles:
- *  - 'YYYY-MM-DD'              (standard stored format)
- *  - 'YYYY-MM-DDTHH:mm:ss.sssZ' (full ISO, strips the time part)
- *  - null / undefined           (returns null — means "no bound")
- */
-export function parseDateLocal(dateStr: string | null | undefined): Date | null {
-  if (!dateStr) return null;
-  const datePart = dateStr.split('T')[0];
-  const parts = datePart.split('-');
-  if (parts.length !== 3) return null;
-  const [year, month, day] = parts.map(Number);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-  return new Date(year, month - 1, day); // local midnight
-}
-
 import {
   toPhilippineISO,
   toPhilippineDateOnly,
@@ -33,6 +14,23 @@ import {
   formatDateTimePHT,
   formatTimePHT,
 } from './philippineTime';
+
+/**
+ * Safely parses a date string as LOCAL midnight corresponding to the Philippine Time calendar date.
+ * Avoids the UTC-shift bug where 16:00 UTC (midnight PHT) drops back by 1 day when splitting on 'T'.
+ *
+ * Handles:
+ *  - 'YYYY-MM-DD'              (standard stored format)
+ *  - 'YYYY-MM-DDTHH:mm:ss.sssZ' (full ISO in UTC or offset)
+ *  - 'YYYY-MM-DD HH:mm:ss+00'   (Postgres timestamptz string)
+ *  - null / undefined           (returns null — means "no bound")
+ */
+export function parseDateLocal(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const p = parseToPHT(dateStr);
+  if (!p) return null;
+  return new Date(p.year, p.month - 1, p.day); // local midnight of Philippine calendar day
+}
 export {
   toPhilippineISO,
   toPhilippineDateOnly,

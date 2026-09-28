@@ -9,16 +9,17 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
+import { X, Clock, Calendar, Trash2, RotateCcw } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { formatDateLocal, toPhilippineISO, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
 
 interface EditClassSheetProps {
   visible: boolean;
@@ -104,8 +105,8 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
       setSetType((schedule.set_type as SetType) ?? null);
       setRoom(schedule.room ?? '');
       setSelectedSubjectId(schedule.subject_id);
-      setStartDate(parseDateLocal(schedule.start_date) ?? new Date(schedule.start_date));
-      setEndDate(schedule.end_date ? (parseDateLocal(schedule.end_date) ?? new Date(schedule.end_date)) : null);
+      setStartDate(parseToPHTDate(schedule.start_date) ?? parseDateLocal(schedule.start_date) ?? new Date(schedule.start_date));
+      setEndDate(schedule.end_date ? (parseToPHTDate(schedule.end_date) ?? parseDateLocal(schedule.end_date) ?? new Date(schedule.end_date)) : null);
       setShowSubjectPicker(false);
       setActivePickerField(null);
       setError(null);
@@ -150,9 +151,11 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
         });
       } else {
         const d = field === 'startDate' ? startDate : (endDate ?? new Date());
+        const minDate = d < new Date() ? d : new Date();
         DateTimePickerAndroid.open({
           value: d,
           mode: 'date',
+          minimumDate: field === 'startDate' ? minDate : (startDate || minDate),
           onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
             if (event.type === 'dismissed' || !selectedDate) {
               setActivePickerField(null);
@@ -249,144 +252,193 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Class</Text>
-          <View style={styles.headerActions}>
-            <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
-              {isDeleting
-                ? <ActivityIndicator size="small" color="#EF4444" />
-                : <Trash2 size={20} color="#EF4444" />
-              }
-            </Pressable>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={24} color="#94A3B8" />
-            </Pressable>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheetContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Edit Class</Text>
+            <View style={styles.headerActions}>
+              <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
+                {isDeleting
+                  ? <ActivityIndicator size="small" color="#EF4444" />
+                  : <Trash2 size={20} color="#EF4444" />
+                }
+              </Pressable>
+              <Pressable onPress={handleClose} style={styles.closeBtn}>
+                <X size={24} color="#94A3B8" />
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.formContainer}
+          >
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <View style={styles.subjectPickerInner}>
-                {selectedSubject ? (
-                  <>
-                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
-                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
-                )}
+            {/* Subject */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => setShowSubjectPicker((prev) => !prev)}
+              >
+                <View style={styles.subjectPickerInner}>
+                  {selectedSubject ? (
+                    <>
+                      <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
+                      <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
+                  )}
+                </View>
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
+                    {subjects.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        style={styles.pickerItem}
+                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {/* Day of Week */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Day of Week</Text>
+              <View style={styles.pillRow}>
+                {DAYS.map((d) => (
+                  <Pressable
+                    key={d.value}
+                    style={[styles.pill, selectedDay === d.value && styles.pillSelected]}
+                    onPress={() => setSelectedDay(d.value)}
+                  >
+                    <Text style={[styles.pillText, selectedDay === d.value && styles.pillTextSelected]}>
+                      {d.label}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
-                  {subjects.map((s) => (
+            </View>
+
+            {/* Start & End Date — side by side */}
+            <View style={[styles.formGroup, styles.timeRow]}>
+              {/* Start Date */}
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Start Date</Text>
+                  <Pressable
+                    onPress={() => setStartDate(new Date())}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <RotateCcw size={10} color="#94A3B8" />
+                    <Text style={styles.resetBtnText}>Today</Text>
+                  </Pressable>
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
+                  <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                  <Calendar size={14} color="#94A3B8" />
+                </Pressable>
+              </View>
+              <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
+              {/* End Date */}
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Date (Optional)</Text>
+                  {endDate && (
                     <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                      onPress={() => setEndDate(null)}
+                      style={styles.resetBtn}
+                      hitSlop={8}
                     >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
+                      <X size={10} color="#EF4444" />
+                      <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
                     </Pressable>
-                  ))}
-                </ScrollView>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
+                  <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                    {endDate ? formatDate(endDate) : 'None'}
+                  </Text>
+                  <Calendar size={14} color="#94A3B8" />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* iOS date picker */}
+            {Platform.OS === 'ios' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
+              <View style={styles.iosPickerWrapper}>
+                <DateTimePicker
+                  value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  textColor="#ffffff"
+                  themeVariant="dark"
+                  style={styles.iosPicker}
+                />
+                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                  <Text style={styles.iosDoneBtnText}>Done</Text>
+                </Pressable>
               </View>
             )}
-          </View>
 
-          {/* Day of Week */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Day of Week</Text>
-            <View style={styles.pillRow}>
-              {DAYS.map((d) => (
-                <Pressable
-                  key={d.value}
-                  style={[styles.pill, selectedDay === d.value && styles.pillSelected]}
-                  onPress={() => setSelectedDay(d.value)}
-                >
-                  <Text style={[styles.pillText, selectedDay === d.value && styles.pillTextSelected]}>
-                    {d.label}
-                  </Text>
+            {/* Start & End Time */}
+            <View style={[styles.formGroup, styles.timeRow]}>
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Start Time</Text>
+                  {startTime !== '08:00' && (
+                    <Pressable
+                      onPress={() => setStartTime('08:00')}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <RotateCcw size={10} color="#94A3B8" />
+                      <Text style={styles.resetBtnText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
+                  <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
+                  <Clock size={14} color="#94A3B8" />
                 </Pressable>
-              ))}
+              </View>
+              <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Time</Text>
+                  {endTime !== '09:30' && (
+                    <Pressable
+                      onPress={() => setEndTime('09:30')}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <RotateCcw size={10} color="#94A3B8" />
+                      <Text style={styles.resetBtnText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
+                  <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
+                  <Clock size={14} color="#94A3B8" />
+                </Pressable>
+              </View>
             </View>
-          </View>
-
-          {/* Start & End Date — side by side */}
-          <View style={[styles.formGroup, styles.timeRow]}>
-            {/* Start Date */}
-            <View style={styles.timeField}>
-              <Text style={styles.label}>Start Date</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
-                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
-            {/* End Date */}
-            <View style={styles.timeField}>
-              <Text style={styles.label}>End Date</Text>
-              <Text style={styles.sublabel}>Optional</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
-                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
-                  {endDate ? formatDate(endDate) : 'None'}
-                </Text>
-                <Calendar size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* iOS date picker */}
-          {Platform.OS === 'ios' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
-            <View style={styles.iosPickerWrapper}>
-              <DateTimePicker
-                value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
-                style={styles.iosPicker}
-              />
-              <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                <Text style={styles.iosDoneBtnText}>Done</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Start & End Time */}
-          <View style={[styles.formGroup, styles.timeRow]}>
-            <View style={styles.timeField}>
-              <Text style={styles.label}>Start Time</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
-                <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
-            <View style={styles.timeField}>
-              <Text style={styles.label}>End Time</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
-                <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-          </View>
 
           {/* iOS time picker */}
           {Platform.OS === 'ios' && (activePickerField === 'startTime' || activePickerField === 'endTime') && (
@@ -490,6 +542,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
           </Button>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -498,6 +551,30 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#1E2433',
+  },
+  resetBtnText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   sheetContent: {
     position: 'absolute',

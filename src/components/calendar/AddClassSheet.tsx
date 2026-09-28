@@ -8,11 +8,12 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
+import { X, Clock, Calendar, Trash2, RotateCcw } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
@@ -229,10 +230,15 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
         DateTimePickerAndroid.open({
           value: val,
           mode: 'date',
+          minimumDate: field === 'startDate' ? new Date() : (startDate || new Date()),
           onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
             if (event.type === 'dismissed' || !selectedDate) return;
-            if (field === 'startDate') setStartDate(selectedDate);
-            else setEndDate(selectedDate);
+            if (field === 'startDate') {
+              setStartDate(selectedDate);
+              if (endDate && endDate < selectedDate) setEndDate(selectedDate);
+            } else {
+              setEndDate(selectedDate);
+            }
           },
         });
       }
@@ -340,8 +346,12 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
-      <View style={styles.sheetContent}>
-        {/* Header */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheetContent}>
+          {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Add Class Schedule</Text>
           <Pressable onPress={handleClose} style={styles.closeBtn}>
@@ -477,7 +487,17 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           <View style={[styles.formGroup, styles.timeRow]}>
             {/* Start Date */}
             <View style={styles.timeField}>
-              <Text style={styles.label}>Start Date</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Start Date</Text>
+                <Pressable
+                  onPress={() => setStartDate(new Date())}
+                  style={styles.resetBtn}
+                  hitSlop={8}
+                >
+                  <RotateCcw size={10} color="#94A3B8" />
+                  <Text style={styles.resetBtnText}>Today</Text>
+                </Pressable>
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
                 <Calendar size={14} color="#94A3B8" />
@@ -490,7 +510,19 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
             {/* End Date */}
             <View style={styles.timeField}>
-              <Text style={styles.label}>End Date (Optional)</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>End Date (Optional)</Text>
+                {endDate && (
+                  <Pressable
+                    onPress={() => setEndDate(null)}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <X size={10} color="#EF4444" />
+                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
+                  </Pressable>
+                )}
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
                 <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {endDate ? formatDate(endDate) : 'Select end date...'}
@@ -504,7 +536,19 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           <View style={[styles.formGroup, styles.timeRow]}>
             {/* Start Time */}
             <View style={styles.timeField}>
-              <Text style={styles.label}>Start Time</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Start Time</Text>
+                {startTime !== '08:00' && (
+                  <Pressable
+                    onPress={() => setStartTime('08:00')}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <RotateCcw size={10} color="#94A3B8" />
+                    <Text style={styles.resetBtnText}>Reset</Text>
+                  </Pressable>
+                )}
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
@@ -517,7 +561,19 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
             {/* End Time */}
             <View style={styles.timeField}>
-              <Text style={styles.label}>End Time</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>End Time</Text>
+                {endTime !== '09:30' && (
+                  <Pressable
+                    onPress={() => setEndTime('09:30')}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <RotateCcw size={10} color="#94A3B8" />
+                    <Text style={styles.resetBtnText}>Reset</Text>
+                  </Pressable>
+                )}
+              </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
                 <Clock size={14} color="#94A3B8" />
@@ -688,6 +744,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           </Button>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -696,6 +753,30 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#1E2433',
+  },
+  resetBtnText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   sheetContent: {
     position: 'absolute',

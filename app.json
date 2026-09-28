@@ -4,7 +4,7 @@
     "slug": "acadmate",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/new-splash-favicon-icon.png",
     "scheme": "acadmate",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -15,7 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0b0f19",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/new-splash-favicon-icon.png"
       },
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
@@ -32,13 +32,16 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/new-splash-favicon-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/new-splash-favicon-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "backgroundColor": "#10131C"
         }
       ],
