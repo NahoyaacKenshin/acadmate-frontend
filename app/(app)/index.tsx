@@ -254,7 +254,7 @@ function StudentHomeScreen() {
   const handleCompleteTask = async (task: TaskRow) => {
     try {
       Vibration.vibrate(15);
-    } catch {}
+    } catch { }
     const now = new Date().toISOString();
     try {
       await powerSync.execute(
@@ -278,7 +278,7 @@ function StudentHomeScreen() {
           'Exit AcadMate',
           'Are you sure you want to exit?',
           [
-            { text: 'Cancel', style: 'cancel', onPress: () => {} },
+            { text: 'Cancel', style: 'cancel', onPress: () => { } },
             { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
           ]
         );
@@ -338,31 +338,31 @@ function StudentHomeScreen() {
       modality?: string;
       sortKey: string;
     }> = [
-      ...todayResolvedClasses.map(({ schedule: s, resolution }) => ({
-        id: s.id,
-        label: s.subject_name ?? 'Class',
-        time: `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`,
-        color: s.subject_color ?? '#6C8EFF',
-        sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom}` : undefined,
-        modality: resolution.badgeText,
-        sortKey: s.start_time,
-      })),
-      ...todayEvents.map((e) => {
-        let timeDisplay = 'All day';
-        if (e.all_day !== 1 && e.start_date) {
-          const startFmt = fmtTime(e.start_date);
-          const endFmt = e.end_date ? fmtTime(e.end_date) : '';
-          timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
-        }
-        return {
-          id: e.id,
-          label: e.title,
-          time: timeDisplay,
-          color: e.color ?? e.subject_color ?? '#10B981',
-          sortKey: e.start_date ? e.start_date.substring(11, 16) : '00:00',
-        };
-      }),
-    ];
+        ...todayResolvedClasses.map(({ schedule: s, resolution }) => ({
+          id: s.id,
+          label: s.subject_name ?? 'Class',
+          time: `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`,
+          color: s.subject_color ?? '#6C8EFF',
+          sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom}` : undefined,
+          modality: resolution.badgeText,
+          sortKey: s.start_time,
+        })),
+        ...todayEvents.map((e) => {
+          let timeDisplay = 'All day';
+          if (e.all_day !== 1 && e.start_date) {
+            const startFmt = fmtTime(e.start_date);
+            const endFmt = e.end_date ? fmtTime(e.end_date) : '';
+            timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
+          }
+          return {
+            id: e.id,
+            label: e.title,
+            time: timeDisplay,
+            color: e.color ?? e.subject_color ?? '#10B981',
+            sortKey: e.start_date ? e.start_date.substring(11, 16) : '00:00',
+          };
+        }),
+      ];
     return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [todayResolvedClasses, todayEvents]);
 
@@ -392,7 +392,7 @@ function StudentHomeScreen() {
     {
       icon: <Sparkles size={20} color="#6C8EFF" />,
       label: 'AI Study Assistant',
-      sub: 'Grounded note search & Q&A',
+      sub: 'Study notes with AI',
       accent: '#6C8EFF',
       onPress: () => router.push('/(app)/notebook' as any),
     },
@@ -420,8 +420,8 @@ function StudentHomeScreen() {
             networkStatus === 'online'
               ? styles.onlinePillGreen
               : networkStatus === 'syncing'
-              ? styles.onlinePillBlue
-              : styles.onlinePillAmber
+                ? styles.onlinePillBlue
+                : styles.onlinePillAmber
           ]}>
             {networkStatus === 'online' ? (
               <Wifi size={12} color="#34D399" />
@@ -435,8 +435,8 @@ function StudentHomeScreen() {
               networkStatus === 'online'
                 ? styles.onlineTextGreen
                 : networkStatus === 'syncing'
-                ? styles.onlineTextBlue
-                : styles.onlineTextAmber
+                  ? styles.onlineTextBlue
+                  : styles.onlineTextAmber
             ]}>
               {networkStatus === 'online' ? 'Online' : networkStatus === 'syncing' ? 'Syncing...' : 'Offline'}
             </Text>

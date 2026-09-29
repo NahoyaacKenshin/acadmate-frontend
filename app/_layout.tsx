@@ -2,7 +2,7 @@
 import '@azure/core-asynciterator-polyfill';
 import '../global.css';
 
-import { Inter_400Regular } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,12 +16,14 @@ import { configureGoogleSignIn } from '@/src/lib/google-auth';
 configureGoogleSignIn();
 
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
+  withDelay,
+  withSequence,
   runOnJS,
 } from 'react-native-reanimated';
 
@@ -37,11 +39,21 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     Inter: Inter_400Regular,
+    'Inter-Bold': Inter_700Bold,
   });
 
   const [isAnimationDone, setIsAnimationDone] = useState(false);
-  const scale = useSharedValue(0.85);
-  const opacity = useSharedValue(1);
+
+  // Logo animation values
+  const logoScale = useSharedValue(0.6);
+  const logoOpacity = useSharedValue(0);
+
+  // Text animation values
+  const textOpacity = useSharedValue(0);
+  const textTranslateY = useSharedValue(20);
+
+  // Overall overlay fade-out
+  const overlayOpacity = useSharedValue(1);
 
   useEffect(() => {
     if (error) throw error;
@@ -49,21 +61,41 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      // Hide native splash screen
       SplashScreen.hideAsync().catch(() => {});
 
-      // Start custom smooth splash animation
-      scale.value = withSpring(1.05, { damping: 12, stiffness: 90 }, () => {
-        opacity.value = withTiming(0, { duration: 350 }, () => {
+      // Phase 1: Logo bounces in (0ms)
+      logoOpacity.value = withTiming(1, { duration: 350 });
+      logoScale.value = withSpring(1, { damping: 10, stiffness: 80 });
+
+      // Phase 2: App name slides up (after 400ms)
+      textOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
+      textTranslateY.value = withDelay(
+        400,
+        withSpring(0, { damping: 14, stiffness: 100 })
+      );
+
+      // Phase 3: Everything fades out together (after 1400ms hold)
+      overlayOpacity.value = withDelay(
+        1600,
+        withTiming(0, { duration: 500 }, () => {
           runOnJS(setIsAnimationDone)(true);
-        });
-      });
+        })
+      );
     }
   }, [loaded]);
 
-  const animatedSplashStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
+  const logoAnimStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
+  }));
+
+  const textAnimStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+    transform: [{ translateY: textTranslateY.value }],
+  }));
+
+  const overlayAnimStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
   }));
 
   if (!loaded) {
@@ -81,12 +113,21 @@ export default function RootLayout() {
         </Stack>
 
         {!isAnimationDone && (
-          <Animated.View pointerEvents="none" style={[styles.splashOverlay, animatedSplashStyle]}>
+          <Animated.View pointerEvents="none" style={[styles.splashOverlay, overlayAnimStyle]}>
+            {/* Logo */}
             <Animated.Image
               source={require('../assets/images/new-splash-favicon-icon.png')}
-              style={styles.splashLogo}
+              style={[styles.splashLogo, logoAnimStyle]}
               resizeMode="contain"
             />
+
+            {/* App name — slides up beneath logo */}
+            <Animated.View style={[styles.textContainer, textAnimStyle]}>
+              <Text style={styles.appName}>
+                <Text style={styles.appNameAccent}>Acad</Text>Mate
+              </Text>
+              <Text style={styles.tagline}>Your academic companion</Text>
+            </Animated.View>
           </Animated.View>
         )}
       </View>
@@ -108,8 +149,29 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   splashLogo: {
-    width: 180,
-    height: 180,
+    width: 160,
+    height: 160,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  appName: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 36,
+    letterSpacing: 1.5,
+    color: '#FFFFFF',
+  },
+  appNameAccent: {
+    color: '#7C6EF7', // violet accent matching app theme
+  },
+  tagline: {
+    fontFamily: 'Inter',
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 6,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
 });
 
