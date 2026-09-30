@@ -76,10 +76,75 @@ export function toDateOnlyString(val?: string | null): string | null {
 }
 
 
+export type PeriodCategory = 'EXAM' | 'HOLIDAY' | 'SUSPENSION';
+
+/**
+ * Returns whether a period entry is an EXAM week, user-inputted HOLIDAY, or user-inputted SUSPENSION.
+ */
+export function getPeriodCategory(item: { title: string }): PeriodCategory {
+  if (!item?.title) return 'EXAM';
+  const t = item.title.toLowerCase();
+  if (item.title.startsWith('🏖️') || t.includes('holiday') || t.includes('[holiday]')) {
+    return 'HOLIDAY';
+  }
+  if (item.title.startsWith('⚠️') || t.includes('suspension') || t.includes('[suspension]')) {
+    return 'SUSPENSION';
+  }
+  return 'EXAM';
+}
+
+/**
+ * Returns the theme color for a period category based on the Add Exam Week / Period selection tab:
+ * Exam = #F59E0B (Amber)
+ * Holiday = #10B981 (Emerald Green)
+ * Suspension = #EF4444 (Red)
+ */
+export function getPeriodColor(category: PeriodCategory): string {
+  switch (category) {
+    case 'EXAM':
+      return '#F59E0B';
+    case 'HOLIDAY':
+      return '#10B981';
+    case 'SUSPENSION':
+      return '#EF4444';
+  }
+}
+
+/**
+ * Removes emoji tags (🎓, 🏖️, ⚠️) from period titles for clean display.
+ */
+export function getCleanPeriodTitle(title: string): string {
+  if (!title) return '';
+  return title.replace(/^[🎓🏖️⚠️]\s*/, '').trim();
+}
+
 export interface SimpleHoliday {
   date: string;
   name?: string;
   type?: string;
+}
+
+/**
+ * Resolves the active days of week for a schedule row.
+ * Checks `days_of_week` first (JSON array like "[1, 3]" or comma string "1,3").
+ * Falls back to `[schedule.day_of_week]` for legacy single-day entries.
+ */
+export function getScheduleDays(schedule: { day_of_week?: number | null; days_of_week?: string | null }): number[] {
+  if (schedule.days_of_week) {
+    try {
+      const parsed = JSON.parse(schedule.days_of_week);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(Number);
+      }
+    } catch {
+      const parts = schedule.days_of_week.split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n));
+      if (parts.length > 0) return parts;
+    }
+  }
+  if (schedule.day_of_week != null) {
+    return [schedule.day_of_week];
+  }
+  return [];
 }
 
 /**
@@ -97,12 +162,31 @@ export function isScheduleActiveOnDate(
   schedule: ClassScheduleRow,
   date: Date,
   examWeeks: ExamWeekRow[] = [],
-  holidays: SimpleHoliday[] = []
+  holidays: SimpleHoliday[] = [],
+  studentSet: 'A' | 'B' | 'Standard' | null = null
 ): boolean {
-  // 1. Day-of-week match
-  if (schedule.day_of_week !== date.getDay()) return false;
+  // 1. Day-of-week match (supports multi-day schedules)
+  const days = getScheduleDays(schedule);
+  if (!days.includes(date.getDay())) return false;
 
-  // 2. Date range bounds check
+  // 2. Schedule Set / Student Set filter
+  const st = schedule.set_type ? String(schedule.set_type).trim().toUpperCase() : null;
+  const isSetA = st === 'A';
+  const isSetB = st === 'B';
+  const isEveryWeek = !isSetA && !isSetB;
+
+  if (studentSet === 'Standard' || studentSet === null) {
+    // In Standard mode, only classes set to every week are shown
+    if (!isEveryWeek) return false;
+  } else if (studentSet === 'A') {
+    // In Set A mode, show Set A classes and every-week classes
+    if (isSetB) return false;
+  } else if (studentSet === 'B') {
+    // In Set B mode, show Set B classes and every-week classes
+    if (isSetA) return false;
+  }
+
+  // 3. Date range bounds check
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
 
@@ -115,54 +199,24 @@ export function isScheduleActiveOnDate(
   const rangeEnd = parseDateLocal(schedule.end_date);
   if (rangeEnd && target > rangeEnd) return false;
 
-  // 3. Exam Week logic
-  // Check if target date falls inside any exam week
+  // 4. Period Blocker logic — ALL period types (EXAM, HOLIDAY, SUSPENSION) block classes
   for (const ew of examWeeks) {
     const ewStart = parseDateLocal(ew.startDate);
     const ewEnd = parseDateLocal(ew.endDate);
     if (ewStart && ewEnd) {
       if (target >= ewStart && target <= ewEnd) {
-        return false; // Class does not happen during exam weeks
+        return false; // Class does not happen during any blocked period
       }
     }
   }
 
-  // 4. Holiday & Suspension Blocker logic
+  // 5. Holiday & Suspension Blocker logic
   for (const h of holidays) {
     const hDate = parseDateLocal(h.date);
     if (hDate && hDate.getFullYear() === target.getFullYear() &&
         hDate.getMonth() === target.getMonth() &&
         hDate.getDate() === target.getDate()) {
       return false; // Class blocked by holiday or suspension
-    }
-  }
-
-  // 5. Set A/B alternation
-  if ((schedule.set_type === 'A' || schedule.set_type === 'B') && rangeStart) {
-    const diffMs = target.getTime() - rangeStart.getTime();
-    let diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
-    
-    // Subtract any exam weeks that occurred between rangeStart and target
-    // so that Set A/B alternating pattern resumes correctly.
-    let pastExamWeeksCount = 0;
-    for (const ew of examWeeks) {
-      const ewStart = parseDateLocal(ew.startDate);
-      const ewEnd = parseDateLocal(ew.endDate);
-      if (ewStart && ewEnd) {
-        if (ewStart >= rangeStart && ewStart <= target) {
-          pastExamWeeksCount++;
-        }
-      }
-    }
-    
-    diffWeeks -= pastExamWeeksCount;
-    
-    if (schedule.set_type === 'A') {
-      // Set A: Only show on week 0, week 2, week 4, etc. (Even weeks)
-      if (diffWeeks % 2 !== 0) return false;
-    } else if (schedule.set_type === 'B') {
-      // Set B: Only show on week 1, week 3, week 5, etc. (Odd weeks)
-      if (diffWeeks % 2 === 0) return false;
     }
   }
 

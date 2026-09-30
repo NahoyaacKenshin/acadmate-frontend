@@ -63,21 +63,22 @@ export default function RootLayout() {
     if (loaded) {
       SplashScreen.hideAsync().catch(() => {});
 
-      // Phase 1: Logo bounces in (0ms)
-      logoOpacity.value = withTiming(1, { duration: 350 });
-      logoScale.value = withSpring(1, { damping: 10, stiffness: 80 });
+      // Phase 1: Logo bounces in (0ms) — slower, smoother entrance
+      logoOpacity.value = withTiming(1, { duration: 500 });
+      logoScale.value = withSpring(1, { damping: 12, stiffness: 60 });
 
-      // Phase 2: App name slides up (after 400ms)
-      textOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
+      // Phase 2: App name slides up (after 600ms) — give logo time to settle
+      textOpacity.value = withDelay(600, withTiming(1, { duration: 500 }));
       textTranslateY.value = withDelay(
-        400,
-        withSpring(0, { damping: 14, stiffness: 100 })
+        600,
+        withSpring(0, { damping: 16, stiffness: 90 })
       );
 
-      // Phase 3: Everything fades out together (after 1400ms hold)
+      // Phase 3: Hold for a comfortable read, then gently fade out
+      // Total visible time: logo in by ~600ms, text in by ~1200ms, hold until ~2800ms
       overlayOpacity.value = withDelay(
-        1600,
-        withTiming(0, { duration: 500 }, () => {
+        2800,
+        withTiming(0, { duration: 600 }, () => {
           runOnJS(setIsAnimationDone)(true);
         })
       );

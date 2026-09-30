@@ -88,16 +88,6 @@ export default function NotebookScreen() {
 
   const ListHeader = () => (
     <View style={styles.listHeader}>
-      {/* Hero section */}
-      <View style={styles.hero}>
-        <View style={styles.heroIconWrap}>
-          <BookOpen size={22} color="#6C8EFF" />
-        </View>
-        <Text style={styles.heroTitle}>Course Notebooks</Text>
-        <Text style={styles.heroSubtitle}>
-          Upload lecture slides, notes, and study resources for grounded AI review.
-        </Text>
-      </View>
 
       {!isOnline && (
         <View style={styles.offlineBanner}>
@@ -297,38 +287,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   listHeader: {
-    paddingBottom: 8,
-  },
-  // ── Hero ──────────────────────────────────────────────────────────────────
-  hero: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    gap: 6,
-  },
-  heroIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.25)',
-    marginBottom: 4,
-  },
-  heroTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 300,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   sectionRow: {
     flexDirection: 'row',

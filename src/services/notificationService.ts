@@ -4,7 +4,7 @@ import { ClassScheduleRow } from '../hooks/useClassSchedules';
 import { TaskRow } from '../hooks/useTasks';
 import { ExamWeekRow } from '../hooks/useExamWeeks';
 import { CalendarEventRow } from '../hooks/useCalendarEvents';
-import { parseDateLocal, toPhilippineISO } from '../utils/scheduleUtils';
+import { parseDateLocal, toPhilippineISO, getScheduleDays } from '../utils/scheduleUtils';
 import { parseToEpoch } from '../utils/philippineTime';
 
 // Configure notification behavior when app is in foreground
@@ -125,60 +125,64 @@ export const NotificationService = {
     leadMinutes: number
   ): Promise<string[]> => {
     const identifiers: string[] = [];
-    const { id, start_time, day_of_week, subject_name, room, modality } = schedule;
-    if (!start_time) return [];
+    const days = getScheduleDays(schedule);
+    const { id, start_time, subject_name, room, modality } = schedule;
+    if (!start_time || days.length === 0) return [];
 
     // Parse class time "HH:MM"
     const [hours, minutes] = start_time.split(':').map(Number);
-    let totalMinutes = hours * 60 + minutes - leadMinutes;
-    let targetDayOfWeek = day_of_week;
 
-    if (totalMinutes < 0) {
-      totalMinutes += 24 * 60; // Wrap around to previous day
-      targetDayOfWeek = (day_of_week - 1 + 7) % 7;
-    }
+    for (const dow of days) {
+      let totalMinutes = hours * 60 + minutes - leadMinutes;
+      let targetDayOfWeek = dow;
 
-    const scheduledHour = Math.floor(totalMinutes / 60);
-    const scheduledMinute = totalMinutes % 60;
+      if (totalMinutes < 0) {
+        totalMinutes += 24 * 60; // Wrap around to previous day
+        targetDayOfWeek = (dow - 1 + 7) % 7;
+      }
 
-    // Map 0-6 to expo-notifications WeeklyTrigger: 1 = Sun, 2 = Mon ... 7 = Sat
-    const triggerWeekday = targetDayOfWeek + 1;
-    const identifier = `class_${id}_${day_of_week}`;
+      const scheduledHour = Math.floor(totalMinutes / 60);
+      const scheduledMinute = totalMinutes % 60;
 
-    try {
-      // First cancel existing to prevent duplication
-      await NotificationService.cancelNotification(identifier);
+      // Map 0-6 to expo-notifications WeeklyTrigger: 1 = Sun, 2 = Mon ... 7 = Sat
+      const triggerWeekday = targetDayOfWeek + 1;
+      const identifier = `class_${id}_${dow}`;
 
-      await Notifications.scheduleNotificationAsync({
-        identifier,
-        content: {
-          title: `Upcoming Class: ${subject_name || 'Class'}`,
-          body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.MAX,
-          data: {
-            type: 'class',
-            scheduleId: id,
-            subjectName: subject_name || 'Class',
-            room: room || '',
-            modality: modality || '',
-            startTime: start_time,
-            dayOfWeek: day_of_week,
-            leadMinutes,
+      try {
+        // First cancel existing to prevent duplication
+        await NotificationService.cancelNotification(identifier);
+
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content: {
+            title: `Upcoming Class: ${subject_name || 'Class'}`,
+            body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'class',
+              scheduleId: id,
+              subjectName: subject_name || 'Class',
+              room: room || '',
+              modality: modality || '',
+              startTime: start_time,
+              dayOfWeek: dow,
+              leadMinutes,
+            },
           },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          channelId: 'classes_alerts',
-          weekday: triggerWeekday,
-          hour: scheduledHour,
-          minute: scheduledMinute,
-        },
-      });
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            channelId: 'classes_alerts',
+            weekday: triggerWeekday,
+            hour: scheduledHour,
+            minute: scheduledMinute,
+          },
+        });
 
-      identifiers.push(identifier);
-    } catch (e) {
-      console.error('Failed to schedule class reminder', e);
+        identifiers.push(identifier);
+      } catch (e) {
+        console.error('Failed to schedule class reminder', e);
+      }
     }
 
     return identifiers;
@@ -392,16 +396,27 @@ export const NotificationService = {
 
       // Filter for student set if set
       const filtered = schedules.filter((s) => {
-        if (!studentSet || !s.set_type || s.set_type === 'BOTH') return true;
-        return s.set_type === studentSet;
+        if (studentSet === 'Standard' || studentSet === null) {
+          return !s.set_type;
+        }
+        if (studentSet === 'A') {
+          return s.set_type === 'A' || !s.set_type;
+        }
+        if (studentSet === 'B') {
+          return s.set_type === 'B' || !s.set_type;
+        }
+        return true;
       });
 
       const desiredIds = new Set<string>();
 
       for (const schedule of filtered) {
         if (!schedule.start_time) continue;
-        const identifier = `class_${schedule.id}_${schedule.day_of_week}`;
-        desiredIds.add(identifier);
+        const days = getScheduleDays(schedule);
+        for (const dow of days) {
+          const identifier = `class_${schedule.id}_${dow}`;
+          desiredIds.add(identifier);
+        }
         await NotificationService.scheduleClassReminders(schedule, leadMinutes);
       }
 

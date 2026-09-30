@@ -485,11 +485,14 @@ export default function ScheduleConfirmScreen() {
           ? toIsoDateString(universalEndDate.trim() || c.endDate)
           : null;
 
+        const normalizedSetType = (c.setType === 'BOTH' || !c.setType) ? null : c.setType;
+        const normalizedModality = c.modality === 'HYBRID' ? 'F2F' : (c.modality ?? 'F2F');
+        const effectiveDays = c.daysOfWeek && c.daysOfWeek.length > 0 ? c.daysOfWeek : [c.dayOfWeek];
         queries.push(
           powerSync.execute(
-            `INSERT INTO ClassSchedule (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, c.dayOfWeek, c.startTime, c.endTime, effectiveStartDate, effectiveEndDate, c.room ?? null, c.modality ?? null, c.setType ?? null, userId, c.resolvedSubjectId, now, now]
+            `INSERT INTO ClassSchedule (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, effectiveDays[0] ?? c.dayOfWeek, JSON.stringify(effectiveDays), c.startTime, c.endTime, effectiveStartDate, effectiveEndDate, c.room ?? null, normalizedModality, normalizedSetType, userId, c.resolvedSubjectId, now, now]
           )
         );
       }

@@ -135,7 +135,7 @@ export function SourceListItem({ source, onDelete, onRetry, onPress, onEdit }: S
         <View style={styles.metaRow}>
           <StatusBadge status={source.status} />
           {source.status === 'READY' && source.chunkCount != null && (
-            <Text style={styles.metaText}>{source.chunkCount} chunks</Text>
+            <Text style={styles.metaText}>{source.chunkCount} sections</Text>
           )}
           <Text style={styles.dateText}>{formatDatePHT(source.createdAt)}</Text>
         </View>

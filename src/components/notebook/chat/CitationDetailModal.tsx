@@ -85,7 +85,7 @@ export function CitationDetailModal({ visible, citation, onClose }: CitationDeta
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Layers size={13} color="#6C8EFF" />
-            <Text style={styles.metaLabel}>Chunk</Text>
+            <Text style={styles.metaLabel}>Section</Text>
             <Text style={styles.metaValue}>#{citation.chunkIndex + 1}</Text>
           </View>
           <View style={styles.metaDivider} />

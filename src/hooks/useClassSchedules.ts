@@ -3,6 +3,7 @@ import { useQuery } from '@powersync/react';
 export interface ClassScheduleRow {
   id: string;
   day_of_week: number;        // 0=Sun, 1=Mon, ... 6=Sat
+  days_of_week?: string | null; // JSON string e.g. "[1,3]"
   start_time: string;         // "HH:MM" 24-hour
   end_time: string;           // "HH:MM" 24-hour
   start_date: string;         // "YYYY-MM-DD"
@@ -27,6 +28,7 @@ export function useClassSchedules() {
     SELECT
       ClassSchedule.id,
       ClassSchedule.dayOfWeek   AS day_of_week,
+      ClassSchedule.daysOfWeek  AS days_of_week,
       ClassSchedule.startTime   AS start_time,
       ClassSchedule.endTime     AS end_time,
       ClassSchedule.startDate   AS start_date,

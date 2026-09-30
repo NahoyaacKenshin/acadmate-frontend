@@ -13,6 +13,7 @@ export interface ParsedSemesterInfo {
 
 export interface ParsedClassSchedule {
   dayOfWeek: number;
+  daysOfWeek?: number[];
   startTime: string;
   endTime: string;
   subjectName: string;

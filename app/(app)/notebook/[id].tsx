@@ -34,7 +34,6 @@ import {
   RefreshCw,
   MessageSquare,
   Bell,
-  Pencil,
   WifiOff,
 } from 'lucide-react-native';
 
@@ -297,17 +296,13 @@ export default function NotebookDetailScreen() {
         style={styles.header}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={20} color="#6C8EFF" />
-        </Pressable>
-        <Pressable
-          style={styles.headerCenter}
-          onPress={() => setIsEditVisible(true)}
-          hitSlop={8}
-        >
+        <View style={styles.headerLeft}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <ArrowLeft size={20} color="#6C8EFF" />
+          </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>{displayTitle}</Text>
-          <Pencil size={13} color="#64748B" style={{ marginLeft: 6, flexShrink: 0 }} />
-        </Pressable>
+        </View>
+
         <View style={styles.headerRight}>
           {isPolling && (
             <Pressable style={styles.refreshBtn} onPress={handleRefresh}>
@@ -481,11 +476,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1A1F2E',
+    gap: 12,
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
+    minWidth: 0,
+    marginRight: 8,
   },
   backBtn: {
     width: 36,
@@ -494,13 +498,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexShrink: 0,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 17,
     fontWeight: '700',
     color: '#ffffff',
@@ -509,6 +510,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
   refreshBtn: {
     width: 36,

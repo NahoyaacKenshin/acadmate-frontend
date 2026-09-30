@@ -1,14 +1,15 @@
-import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Pressable, StyleSheet, PanResponder } from 'react-native';
 import { Text } from '../ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 import { TaskRow } from '@/src/hooks/useTasks';
 import { parseToPHTDate } from '@/src/utils/philippineTime';
+import { useUserStore, computeCurrentSet, StudentSet } from '@/src/store/userStore';
 
 export interface Holiday {
   id: string;
@@ -86,33 +87,40 @@ function getDotColors(
   examWeeks: ExamWeekRow[],
   holidays: Holiday[],
   tasks?: TaskRow[],
+  studentSet?: StudentSet | null,
 ): string[] {
   const colors: string[] = [];
 
-  // Holiday dot (Danger Red for all holidays)
-  const isHoliday = holidays.some((h) => {
-    const hd = new Date(h.date);
+  // Holiday dot (Regular/Suspension = Red #EF4444, Special = Green #10B981)
+  const dayHoliday = holidays.find((h) => {
+    const hd = parseDateLocal(h.date) ?? new Date(h.date);
     return isSameDay(hd, date);
   });
-  if (isHoliday) {
-    colors.push('#EF4444');
+  if (dayHoliday) {
+    const isSpecial =
+      dayHoliday.type === 'SPECIAL' ||
+      (dayHoliday.type !== 'REGULAR' &&
+        dayHoliday.type !== 'SUSPENSION' &&
+        !dayHoliday.name?.toLowerCase().includes('suspension'));
+    colors.push(isSpecial ? '#10B981' : '#EF4444');
   }
 
-  // Exam week dot (Amber)
-  const isExamWeek = examWeeks.some((ew) => {
+  // User-defined period dots — color depends on category (EXAM=amber, HOLIDAY=green, SUSPENSION=red)
+  for (const ew of examWeeks) {
+    if (colors.length >= 3) break;
     const ewStart = parseDateLocal(ew.startDate);
     const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
-    if (!ewStart || !ewEnd) return false;
+    if (!ewStart || !ewEnd) continue;
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
-    return target >= ewStart && target <= ewEnd;
-  });
-  if (isExamWeek && colors.length < 3) {
-    colors.push('#F59E0B');
+    if (target >= ewStart && target <= ewEnd) {
+      colors.push(getPeriodColor(getPeriodCategory(ew)));
+      break; // one period dot per date is enough
+    }
   }
 
-  // Class schedule dot (recurring — respects bounds and blockers)
-  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
+  // Class schedule dot (recurring — respects bounds, blockers, and active Set)
+  const activeClass = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays, studentSet));
   if (activeClass && colors.length < 3) {
     colors.push(activeClass.subject_color ?? '#6C8EFF');
   }
@@ -149,13 +157,41 @@ export function MonthGrid({
   onPrevMonth,
   onNextMonth,
 }: MonthGridProps) {
+  const { studentSet, anchorMonday, anchorSet } = useUserStore();
   const today = new Date();
   const todayNoTime = new Date();
   todayNoTime.setHours(0, 0, 0, 0);
   const cells = buildMonthCells(year, month);
 
+  const onPrevMonthRef = useRef(onPrevMonth);
+  const onNextMonthRef = useRef(onNextMonth);
+  useEffect(() => {
+    onPrevMonthRef.current = onPrevMonth;
+    onNextMonthRef.current = onNextMonth;
+  }, [onPrevMonth, onNextMonth]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+      },
+      onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dx < -40 || (gestureState.dx < -20 && gestureState.vx < -0.3)) {
+          onNextMonthRef.current();
+        } else if (gestureState.dx > 40 || (gestureState.dx > 20 && gestureState.vx > 0.3)) {
+          onPrevMonthRef.current();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       {/* Month navigation header */}
       <View style={styles.header}>
         <Pressable onPress={onPrevMonth} style={styles.navBtn} hitSlop={12}>
@@ -187,7 +223,8 @@ export function MonthGrid({
           const isToday = isSameDay(cellDate, today);
           const isSelected = isSameDay(cellDate, selectedDate);
           const isPast = cellDate < todayNoTime;
-          const dots = getDotColors(cellDate, events, schedules, examWeeks, holidays, tasks);
+          const currentSetForCell = computeCurrentSet(studentSet, anchorMonday, anchorSet, cellDate);
+          const dots = getDotColors(cellDate, events, schedules, examWeeks, holidays, tasks, currentSetForCell);
 
           return (
             <Pressable

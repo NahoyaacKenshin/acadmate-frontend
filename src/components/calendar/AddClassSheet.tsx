@@ -26,7 +26,7 @@ interface AddClassSheetProps {
   onClose: () => void;
 }
 
-type Modality = 'F2F' | 'ONLINE' | 'HYBRID';
+type Modality = 'F2F' | 'ONLINE';
 type SetType = 'A' | 'B' | null;
 type PickerField = 'startTime' | 'endTime' | 'startDate' | 'endDate';
 
@@ -60,7 +60,6 @@ const PRESET_COLORS = [
 const MODALITIES: { label: string; value: Modality }[] = [
   { label: 'F2F', value: 'F2F' },
   { label: 'Online', value: 'ONLINE' },
-  { label: 'Hybrid', value: 'HYBRID' },
 ];
 
 function generateId(): string {
@@ -88,7 +87,8 @@ function dateFromHHMM(hhmm: string): Date {
   return new Date(2000, 0, 1, h, m, 0, 0);
 }
 
-function formatDate(date: Date): string {
+function formatDate(date: Date | null): string {
+  if (!date) return '';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
@@ -104,8 +104,6 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   const [endTime, setEndTime] = useState('09:30');
   // Schedule mode: 'everyWeek' (null setType) or 'bySet' (alternating A/B)
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('everyWeek');
-  // For By Set: which set starts first
-  const [startsWithSet, setStartsWithSet] = useState<'A' | 'B'>('A');
   // Modality fields
   const [modality, setModality] = useState<Modality>('F2F');         // Every Week
   const [modalitySetA, setModalitySetA] = useState<Modality>('F2F'); // By Set — Set A
@@ -140,7 +138,6 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
     setEndTime('09:30');
     setModality('F2F');
     setScheduleMode('everyWeek');
-    setStartsWithSet('A');
     setModalitySetA('F2F');
     setModalitySetB('F2F');
     setRoom('');
@@ -211,6 +208,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
   const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
+    if (field === 'endDate' && !startDate) return;
+
     if (Platform.OS === 'android') {
       if (field === 'startTime' || field === 'endTime') {
         const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
@@ -226,18 +225,19 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           },
         });
       } else {
-        const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+        const val = field === 'startDate' ? (startDate ?? new Date()) : (endDate ?? startDate ?? new Date());
         DateTimePickerAndroid.open({
           value: val,
           mode: 'date',
-          minimumDate: field === 'startDate' ? new Date() : (startDate || new Date()),
+          minimumDate: field === 'startDate' ? undefined : (startDate ?? undefined),
           onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
             if (event.type === 'dismissed' || !selectedDate) return;
             if (field === 'startDate') {
               setStartDate(selectedDate);
               if (endDate && endDate < selectedDate) setEndDate(selectedDate);
             } else {
-              setEndDate(selectedDate);
+              const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
+              setEndDate(safeEnd);
             }
           },
         });
@@ -256,8 +256,13 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
 
   const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (!selected) return;
-    if (activePickerField === 'startDate') setStartDate(selected);
-    else if (activePickerField === 'endDate') setEndDate(selected);
+    if (activePickerField === 'startDate') {
+      setStartDate(selected);
+      if (endDate && endDate < selected) setEndDate(selected);
+    } else if (activePickerField === 'endDate') {
+      const safeEnd = startDate && selected < startDate ? startDate : selected;
+      setEndDate(safeEnd);
+    }
   };
 
   const handleIOSDone = () => setActivePickerField(null);
@@ -267,7 +272,9 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   const handleAdd = async () => {
     if (!userId) { setError('You must be logged in.'); return; }
     if (!selectedSubjectId) { setError('Please select a subject for this class.'); return; }
-    if (selectedDays.length === 0) { setError('Please select at least one day.'); return; }
+    if (!startDate) { setError('Please select a start date for the schedule.'); return; }
+    if (!endDate) { setError('Please select an end date for the schedule.'); return; }
+    if (endDate < startDate) { setError('End date cannot be earlier than start date.'); return; }
 
     setIsLoading(true);
     setError(null);
@@ -277,58 +284,76 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
       const isBySet = scheduleMode === 'bySet';
 
       if (isBySet) {
-        // For By Set: insert TWO records per day — one for Set A, one for Set B.
-        // startsWithSet determines which set the startDate week belongs to,
-        // which controls the alternation via isScheduleActiveOnDate.
-        await Promise.all(selectedDays.flatMap(day => [
+        // For By Set: insert ONE record for Set A and ONE for Set B, both containing all selectedDays
+        await Promise.all([
           // Set A record
           powerSync.execute(
             `INSERT INTO ClassSchedule
-              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-              generateId(), day, startTime, endTime,
+              generateId(),
+              selectedDays[0] ?? 0,
+              JSON.stringify(selectedDays),
+              startTime,
+              endTime,
               formatDateLocal(startDate),
               endDate ? formatDateLocal(endDate) : null,
               roomSetA.trim() || null,
-              modalitySetA, 'A',
-              selectedSubjectId, userId, now, now,
+              modalitySetA,
+              'A',
+              selectedSubjectId,
+              userId,
+              now,
+              now,
             ]
           ),
           // Set B record
           powerSync.execute(
             `INSERT INTO ClassSchedule
-              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-              generateId(), day, startTime, endTime,
-              startsWithSet === 'A'
-                ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + 7); return formatDateLocal(d); })()
-                : formatDateLocal(startDate),
-              endDate ? formatDateLocal(endDate) : null,
-              roomSetB.trim() || null,
-              modalitySetB, 'B',
-              selectedSubjectId, userId, now, now,
-            ]
-          ),
-        ]));
-      } else {
-        // Every Week — single record per day
-        await Promise.all(selectedDays.map(day => {
-          return powerSync.execute(
-            `INSERT INTO ClassSchedule
-              (id, dayOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              generateId(), day, startTime, endTime,
+              generateId(),
+              selectedDays[0] ?? 0,
+              JSON.stringify(selectedDays),
+              startTime,
+              endTime,
               formatDateLocal(startDate),
               endDate ? formatDateLocal(endDate) : null,
-              room.trim() || null,
-              modality, null,
-              selectedSubjectId, userId, now, now,
+              roomSetB.trim() || null,
+              modalitySetB,
+              'B',
+              selectedSubjectId,
+              userId,
+              now,
+              now,
             ]
-          );
-        }));
+          ),
+        ]);
+      } else {
+        // Every Week — ONE single record with all selectedDays
+        await powerSync.execute(
+          `INSERT INTO ClassSchedule
+            (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            generateId(),
+            selectedDays[0] ?? 0,
+            JSON.stringify(selectedDays),
+            startTime,
+            endTime,
+            formatDateLocal(startDate),
+            endDate ? formatDateLocal(endDate) : null,
+            room.trim() || null,
+            modality,
+            null,
+            selectedSubjectId,
+            userId,
+            now,
+            now,
+          ]
+        );
       }
 
       handleClose();
@@ -347,7 +372,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
       >
         <View style={styles.sheetContent}>
@@ -490,7 +515,11 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Start Date</Text>
                 <Pressable
-                  onPress={() => setStartDate(new Date())}
+                  onPress={() => {
+                    const today = new Date();
+                    setStartDate(today);
+                    if (endDate && endDate < today) setEndDate(today);
+                  }}
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
@@ -499,7 +528,9 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
-                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                <Text style={startDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {startDate ? formatDate(startDate) : 'Select start date...'}
+                </Text>
                 <Calendar size={14} color="#94A3B8" />
               </Pressable>
             </View>
@@ -508,28 +539,22 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
               <Text style={styles.timeSeparatorText}>—</Text>
             </View>
 
-            {/* End Date */}
-            <View style={styles.timeField}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>End Date (Optional)</Text>
-                {endDate && (
-                  <Pressable
-                    onPress={() => setEndDate(null)}
-                    style={styles.resetBtn}
-                    hitSlop={8}
-                  >
-                    <X size={10} color="#EF4444" />
-                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
-                  </Pressable>
-                )}
+              {/* End Date */}
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Date</Text>
+                </View>
+                <Pressable
+                  style={[styles.picker, !startDate && styles.pickerDisabled]}
+                  onPress={() => openPicker('endDate')}
+                  disabled={!startDate}
+                >
+                  <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                    {!startDate ? 'Select start date first' : endDate ? formatDate(endDate) : 'Select end date...'}
+                  </Text>
+                  <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                </Pressable>
               </View>
-              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
-                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
-                  {endDate ? formatDate(endDate) : 'Select end date...'}
-                </Text>
-                <Calendar size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
           </View>
 
           {/* Start & End Time — side by side */}
@@ -588,9 +613,18 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 value={
                   activePickerField === 'startTime' || activePickerField === 'endTime'
                     ? dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)
-                    : (activePickerField === 'startDate' ? startDate : (endDate ?? startDate))
+                    : (activePickerField === 'startDate'
+                        ? (startDate ?? new Date())
+                        : (endDate && startDate && endDate >= startDate ? endDate : (startDate ?? new Date())))
                 }
                 mode={activePickerField === 'startTime' || activePickerField === 'endTime' ? 'time' : 'date'}
+                minimumDate={
+                  activePickerField === 'startDate'
+                    ? undefined
+                    : activePickerField === 'endDate'
+                      ? (startDate ?? undefined)
+                      : undefined
+                }
                 display="spinner"
                 onChange={
                   activePickerField === 'startTime' || activePickerField === 'endTime'
@@ -661,26 +695,9 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
               />
             </View>
           ) : (
-            // By Set: Starts With + paired Set A & Set B (Modality + Room each)
+            // By Set: paired Set A & Set B (Modality + Room each)
             <View style={styles.formGroup}>
               <Text style={styles.label}>Set Configuration</Text>
-
-              {/* Which set starts first */}
-              <Text style={styles.setRoomLabel}>Starts With</Text>
-              <View style={[styles.pillRow, { marginBottom: 16 }]}>
-                <Pressable
-                  style={[styles.pill, styles.pillWide, startsWithSet === 'A' && styles.pillSelected]}
-                  onPress={() => setStartsWithSet('A')}
-                >
-                  <Text style={[styles.pillText, startsWithSet === 'A' && styles.pillTextSelected]}>Set A First</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.pill, styles.pillWide, startsWithSet === 'B' && styles.pillSelected]}
-                  onPress={() => setStartsWithSet('B')}
-                >
-                  <Text style={[styles.pillText, startsWithSet === 'B' && styles.pillTextSelected]}>Set B First</Text>
-                </Pressable>
-              </View>
 
               {/* Set A — Modality + Room */}
               <View style={styles.setGroup}>
@@ -898,6 +915,11 @@ const styles = StyleSheet.create({
   },
   pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
   pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
+  pickerDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#0F131D',
+    borderColor: '#1E2433',
+  },
   subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
   subjectDot: { width: 10, height: 10, borderRadius: 5 },
   pickerList: {

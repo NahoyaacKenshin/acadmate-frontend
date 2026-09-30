@@ -1,15 +1,16 @@
-import React from 'react';
-import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Pressable, StyleSheet, PanResponder } from 'react-native';
 import { Text } from '../ui/text';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
-import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 import { TaskRow } from '@/src/hooks/useTasks';
 import { parseToPHTDate } from '@/src/utils/philippineTime';
+import { useUserStore, computeCurrentSet, StudentSet } from '@/src/store/userStore';
 
 interface WeekStripProps {
   selectedDate: Date;
@@ -89,28 +90,39 @@ function getDayDots(
   examWeeks: ExamWeekRow[],
   holidays: Holiday[],
   tasks?: TaskRow[],
+  studentSet?: StudentSet | null,
 ): string[] {
   const colors: string[] = [];
-  const isHoliday = holidays.some((h) => isSameDay(new Date(h.date), date));
-  if (isHoliday) {
-    colors.push('#EF4444');
+  // Holiday dot (Regular/Suspension = Red #EF4444, Special = Green #10B981)
+  const dayHoliday = holidays.find((h) => {
+    const hd = parseDateLocal(h.date) ?? new Date(h.date);
+    return isSameDay(hd, date);
+  });
+  if (dayHoliday) {
+    const isSpecial =
+      dayHoliday.type === 'SPECIAL' ||
+      (dayHoliday.type !== 'REGULAR' &&
+        dayHoliday.type !== 'SUSPENSION' &&
+        !dayHoliday.name?.toLowerCase().includes('suspension'));
+    colors.push(isSpecial ? '#10B981' : '#EF4444');
   }
 
-  // Exam week dot (Amber)
-  const isExamWeek = examWeeks.some((ew) => {
+  // User-defined period dots — color depends on category (EXAM=amber, HOLIDAY=green, SUSPENSION=red)
+  for (const ew of examWeeks) {
+    if (colors.length >= 3) break;
     const ewStart = parseDateLocal(ew.startDate);
     const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
-    if (!ewStart || !ewEnd) return false;
+    if (!ewStart || !ewEnd) continue;
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
-    return target >= ewStart && target <= ewEnd;
-  });
-  if (isExamWeek && colors.length < 3) {
-    colors.push('#F59E0B');
+    if (target >= ewStart && target <= ewEnd) {
+      colors.push(getPeriodColor(getPeriodCategory(ew)));
+      break; // one period dot per date is enough
+    }
   }
 
-  // Class schedule dot (recurring — respects bounds and blockers)
-  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays));
+  // Class schedule dot (recurring — respects bounds, blockers, and active Set)
+  const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays, studentSet));
   if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
 
   // Calendar events
@@ -145,14 +157,42 @@ export function WeekStrip({
   onNextWeek,
   onToggleMonth,
 }: WeekStripProps) {
+  const { studentSet, anchorMonday, anchorSet } = useUserStore();
   const today = new Date();
   const todayNoTime = new Date();
   todayNoTime.setHours(0, 0, 0, 0);
   const weekDays = getWeekDays(selectedDate);
   const rangeLabel = weekRangeLabel(weekDays);
 
+  const onPrevWeekRef = useRef(onPrevWeek);
+  const onNextWeekRef = useRef(onNextWeek);
+  useEffect(() => {
+    onPrevWeekRef.current = onPrevWeek;
+    onNextWeekRef.current = onNextWeek;
+  }, [onPrevWeek, onNextWeek]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+      },
+      onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dx < -40 || (gestureState.dx < -20 && gestureState.vx < -0.3)) {
+          onNextWeekRef.current();
+        } else if (gestureState.dx > 40 || (gestureState.dx > 20 && gestureState.vx > 0.3)) {
+          onPrevWeekRef.current();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       {/* Week navigation row */}
       <View style={styles.navRow}>
         <Pressable onPress={onPrevWeek} style={styles.navBtn} hitSlop={12}>
@@ -180,7 +220,8 @@ export function WeekStrip({
           const isSelected = isSameDay(d, selectedDate);
           const isToday = isSameDay(d, today);
           const isPast = d < todayNoTime;
-          const dots = getDayDots(d, events, schedules, examWeeks, holidays, tasks);
+          const currentSetForDay = computeCurrentSet(studentSet, anchorMonday, anchorSet, d);
+          const dots = getDayDots(d, events, schedules, examWeeks, holidays, tasks, currentSetForDay);
 
           return (
             <Pressable

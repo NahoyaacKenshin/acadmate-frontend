@@ -61,8 +61,9 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
     >
       <Pressable style={styles.backdrop} onPress={handleClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.sheetWrapper}
+        behavior="padding"
+        style={styles.keyboardAvoid}
+        pointerEvents="box-none"
       >
         <View style={styles.sheet}>
           {/* Handle */}
@@ -82,9 +83,11 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
           </View>
 
           <ScrollView
+            style={styles.scrollView}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.formContent}
             showsVerticalScrollIndicator={false}
+            bounces={false}
           >
             {/* Title */}
             <View style={styles.fieldGroup}>
@@ -144,20 +147,22 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  sheetWrapper: {
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
     backgroundColor: '#161A26',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderColor: '#2A3143',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
-    maxHeight: '75%',
-  },
-  sheet: {
     paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    maxHeight: '85%',
   },
   handle: {
     alignSelf: 'center',
@@ -199,6 +204,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E2330',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scrollView: {
+    flexShrink: 1,
   },
   formContent: {
     gap: 16,

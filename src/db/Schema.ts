@@ -28,6 +28,7 @@ export const Task = new Table({
 
 export const ClassSchedule = new Table({
   dayOfWeek: column.integer,
+  daysOfWeek: column.text,
   startTime: column.text,
   endTime: column.text,
   startDate: column.text,

@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { useUserStore } from '@/src/store/userStore';
+import { useUserStore, computeCurrentSet, getNextSetFlipMonday } from '@/src/store/userStore';
 import { Button } from '@/src/components/ui/button';
 import { Text } from '@/src/components/ui/text';
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
@@ -35,8 +35,17 @@ type ToggleablePref = 'classReminders' | 'taskReminders' | 'examAlerts' | 'study
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuthStore();
-  const { studentSet, nickname, setStudentSet, setNickname } = useUserStore();
+  const { studentSet, anchorMonday, anchorSet, nickname, setStudentSet, setNickname } = useUserStore();
   const { prefs, updatePrefs } = useNotificationStore();
+
+  const currentActiveSet = useMemo(() => {
+    return computeCurrentSet(studentSet, anchorMonday, anchorSet, new Date());
+  }, [studentSet, anchorMonday, anchorSet]);
+
+  const flipDateLabel = useMemo(() => {
+    const nextFlip = getNextSetFlipMonday(new Date());
+    return nextFlip.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }, []);
 
   const [nicknameInput, setNicknameInput] = useState(nickname ?? '');
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -179,11 +188,9 @@ export default function SettingsScreen() {
             <View style={styles.tileContent}>
               <Text style={styles.tileTitle}>Schedule Set</Text>
               <Text style={styles.tileValue}>
-                {studentSet === 'A'
-                  ? 'Set A – Alternating'
-                  : studentSet === 'B'
-                  ? 'Set B – Alternating'
-                  : 'Standard / Regular'}
+                {studentSet === 'Standard' || !studentSet
+                  ? 'Standard (Every-week classes only)'
+                  : `Currently Set ${currentActiveSet} (Alternating)`}
               </Text>
             </View>
           </View>
@@ -204,6 +211,20 @@ export default function SettingsScreen() {
               );
             })}
           </View>
+
+          {studentSet === 'A' || studentSet === 'B' ? (
+            <View style={styles.setInfoBadge}>
+              <Text style={styles.setInfoBadgeText}>
+                Active this week: <Text style={{ fontWeight: '700', color: '#6C8EFF' }}>Set {currentActiveSet}</Text> • Flips to Set {currentActiveSet === 'A' ? 'B' : 'A'} on {flipDateLabel}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.setInfoBadge}>
+              <Text style={styles.setInfoBadgeText}>
+                Standard mode displays only classes scheduled for every week.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Preferences & Notifications */}
@@ -568,6 +589,20 @@ const styles = StyleSheet.create({
     padding: 4,
     borderWidth: 1,
     borderColor: '#2A3143',
+  },
+  setInfoBadge: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#161A26',
+    borderWidth: 1,
+    borderColor: '#232A3B',
+  },
+  setInfoBadgeText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#8A99AD',
   },
   setPill: {
     paddingHorizontal: 12,

@@ -30,7 +30,7 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { useUserStore } from '@/src/store/userStore';
+import { useUserStore, computeCurrentSet } from '@/src/store/userStore';
 import { useStatus, usePowerSync } from '@powersync/react';
 import { useNetworkSyncStatus } from '@/src/hooks/useNetworkSyncStatus';
 import { NotificationService } from '@/src/services/notificationService';
@@ -41,6 +41,7 @@ import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
+import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 import {
   getPhilippineToday,
   formatTime12,
@@ -244,7 +245,7 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 
 function StudentHomeScreen() {
   const { user } = useAuthStore();
-  const { nickname, studentSet } = useUserStore();
+  const { nickname, studentSet, anchorMonday, anchorSet } = useUserStore();
   const powerSyncStatus = useStatus();
   const powerSync = usePowerSync();
 
@@ -314,13 +315,15 @@ function StudentHomeScreen() {
   // Today's classes with full schedule resolution pipeline (modality, exam weeks, holidays, Set A/B)
   const todayResolvedClasses = useMemo(() => {
     const today = new Date();
+    const currentSet = computeCurrentSet(studentSet, anchorMonday, anchorSet, today);
     return schedules
+      .filter((s) => isScheduleActiveOnDate(s, today, examWeeks, holidays, currentSet))
       .map((s) => ({
         schedule: s,
-        resolution: resolveScheduleForDate(s, today, studentSet, semesterRules, holidays, examWeeks),
+        resolution: resolveScheduleForDate(s, today, currentSet, semesterRules, holidays, examWeeks),
       }))
       .filter((item) => item.resolution.isActive);
-  }, [schedules, studentSet, semesterRules, holidays, examWeeks]);
+  }, [schedules, studentSet, anchorMonday, anchorSet, semesterRules, holidays, examWeeks]);
 
   // Today's events
   const todayEvents = useMemo<CalendarEventRow[]>(() => {

@@ -6,7 +6,7 @@ import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@rea
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { Button } from '../ui/button';
-import { formatDateLocal, parseDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, parseDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -37,7 +37,8 @@ export function AddExamWeekModal({
 
   React.useEffect(() => {
     if (initialData) {
-      setTitle(initialData.title);
+      setCategory(getPeriodCategory(initialData));
+      setTitle(getCleanPeriodTitle(initialData.title));
       if (initialData.startDate) {
         const parsed = parseDateLocal(initialData.startDate);
         if (parsed) setStartDate(parsed);
@@ -54,24 +55,28 @@ export function AddExamWeekModal({
     }
   }, [initialData, visible]);
 
-  const formatDate = (d: Date) => {
+  const formatDate = (d: Date | null) => {
+    if (!d) return '';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const openPicker = (field: 'startDate' | 'endDate') => {
+    if (field === 'endDate' && !startDate) return;
+
     if (Platform.OS === 'android') {
-      const val = field === 'startDate' ? startDate : endDate;
+      const val = field === 'startDate' ? (startDate ?? new Date()) : (endDate ?? startDate ?? new Date());
       DateTimePickerAndroid.open({
         value: val,
         mode: 'date',
-        minimumDate: field === 'startDate' ? new Date() : startDate,
+        minimumDate: field === 'startDate' ? new Date() : (startDate ?? new Date()),
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === 'dismissed' || !selectedDate) return;
           if (field === 'startDate') {
             setStartDate(selectedDate);
-            if (endDate < selectedDate) setEndDate(selectedDate);
+            if (endDate && endDate < selectedDate) setEndDate(selectedDate);
           } else {
-            setEndDate(selectedDate);
+            const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
+            setEndDate(safeEnd);
           }
         },
       });
@@ -82,13 +87,26 @@ export function AddExamWeekModal({
 
   const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (!selectedDate) return;
-    if (activePickerField === 'startDate') setStartDate(selectedDate);
-    else if (activePickerField === 'endDate') setEndDate(selectedDate);
+    if (activePickerField === 'startDate') {
+      setStartDate(selectedDate);
+      if (endDate && endDate < selectedDate) setEndDate(selectedDate);
+    } else if (activePickerField === 'endDate') {
+      const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
+      setEndDate(safeEnd);
+    }
   };
 
   const handleSave = async () => {
     if (!title.trim() || !userId) {
       setError('Please provide a title for the entry.');
+      return;
+    }
+    if (!startDate) {
+      setError('Please select a start date.');
+      return;
+    }
+    if (!endDate) {
+      setError('Please select an end date.');
       return;
     }
     if (endDate < startDate) {
@@ -103,14 +121,15 @@ export function AddExamWeekModal({
       const sd = toPhilippineISO(startDate, '00:00');
       const ed = toPhilippineISO(endDate, '00:00');
 
-      // Format clean title with category tag prefix if not already present
-      let formattedTitle = title.trim();
-      if (category === 'HOLIDAY' && !formattedTitle.toLowerCase().includes('holiday')) {
-        formattedTitle = `🏖️ ${formattedTitle}`;
-      } else if (category === 'SUSPENSION' && !formattedTitle.toLowerCase().includes('suspension')) {
-        formattedTitle = `⚠️ ${formattedTitle}`;
-      } else if (category === 'EXAM' && !formattedTitle.toLowerCase().includes('exam')) {
-        formattedTitle = `🎓 ${formattedTitle}`;
+      // Format clean title with category tag prefix
+      const clean = getCleanPeriodTitle(title.trim());
+      let formattedTitle = clean;
+      if (category === 'HOLIDAY') {
+        formattedTitle = `🏖️ ${clean}`;
+      } else if (category === 'SUSPENSION') {
+        formattedTitle = `⚠️ ${clean}`;
+      } else {
+        formattedTitle = `🎓 ${clean}`;
       }
 
       if (initialData?.id) {
@@ -150,16 +169,34 @@ export function AddExamWeekModal({
     }
   };
 
+  const getHeaderTitle = () => {
+    if (initialData) {
+      if (category === 'EXAM') return 'Edit Exam Period';
+      if (category === 'HOLIDAY') return 'Edit Holiday';
+      return 'Edit Class Suspension';
+    }
+    if (category === 'EXAM') return 'Add Exam Period';
+    if (category === 'HOLIDAY') return 'Add Holiday';
+    return 'Add Suspension';
+  };
+
+  const getSubmitButtonText = () => {
+    if (initialData) return 'Save Changes';
+    if (category === 'EXAM') return 'Add Exam Period';
+    if (category === 'HOLIDAY') return 'Add Holiday';
+    return 'Add Suspension';
+  };
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.centeredView}
       >
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{initialData ? 'Edit Period / Holiday' : 'Add Period / Holiday'}</Text>
+            <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
             <Pressable onPress={onClose} style={styles.closeBtn}>
               <X size={20} color="#94A3B8" />
             </Pressable>
@@ -168,31 +205,29 @@ export function AddExamWeekModal({
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {/* Type Selector */}
-          {!initialData && (
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Category Type</Text>
-              <View style={styles.categoryRow}>
-                <Pressable
-                  style={[styles.categoryPill, category === 'EXAM' && styles.categoryPillExam]}
-                  onPress={() => setCategory('EXAM')}
-                >
-                  <Text style={[styles.categoryText, category === 'EXAM' && styles.categoryTextActive]}>🎓 Exam</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.categoryPill, category === 'HOLIDAY' && styles.categoryPillHoliday]}
-                  onPress={() => setCategory('HOLIDAY')}
-                >
-                  <Text style={[styles.categoryText, category === 'HOLIDAY' && styles.categoryTextActive]}>🏖️ Holiday</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.categoryPill, category === 'SUSPENSION' && styles.categoryPillSuspension]}
-                  onPress={() => setCategory('SUSPENSION')}
-                >
-                  <Text style={[styles.categoryText, category === 'SUSPENSION' && styles.categoryTextActive]}>⚠️ Suspension</Text>
-                </Pressable>
-              </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Category Type</Text>
+            <View style={styles.categoryRow}>
+              <Pressable
+                style={[styles.categoryPill, category === 'EXAM' && styles.categoryPillExam]}
+                onPress={() => setCategory('EXAM')}
+              >
+                <Text style={[styles.categoryText, category === 'EXAM' && styles.categoryTextActive]}>🎓 Exam</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.categoryPill, category === 'HOLIDAY' && styles.categoryPillHoliday]}
+                onPress={() => setCategory('HOLIDAY')}
+              >
+                <Text style={[styles.categoryText, category === 'HOLIDAY' && styles.categoryTextActive]}>🏖️ Holiday</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.categoryPill, category === 'SUSPENSION' && styles.categoryPillSuspension]}
+                onPress={() => setCategory('SUSPENSION')}
+              >
+                <Text style={[styles.categoryText, category === 'SUSPENSION' && styles.categoryTextActive]}>⚠️ Suspension</Text>
+              </Pressable>
             </View>
-          )}
+          </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Title / Event Name</Text>
@@ -210,7 +245,11 @@ export function AddExamWeekModal({
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Start Date</Text>
                 <Pressable
-                  onPress={() => setStartDate(new Date())}
+                  onPress={() => {
+                    const today = new Date();
+                    setStartDate(today);
+                    if (endDate && endDate < today) setEndDate(today);
+                  }}
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
@@ -219,7 +258,9 @@ export function AddExamWeekModal({
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
-                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                <Text style={startDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {startDate ? formatDate(startDate) : 'Select start date...'}
+                </Text>
                 <CalendarIcon size={14} color="#94A3B8" />
               </Pressable>
             </View>
@@ -229,18 +270,26 @@ export function AddExamWeekModal({
             <View style={styles.flex1}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>End Date</Text>
-                <Pressable
-                  onPress={() => setEndDate(startDate)}
-                  style={styles.resetBtn}
-                  hitSlop={8}
-                >
-                  <RotateCcw size={10} color="#94A3B8" />
-                  <Text style={styles.resetBtnText}>Same</Text>
-                </Pressable>
+                {startDate && (
+                  <Pressable
+                    onPress={() => setEndDate(startDate)}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <RotateCcw size={10} color="#94A3B8" />
+                    <Text style={styles.resetBtnText}>Same</Text>
+                  </Pressable>
+                )}
               </View>
-              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
-                <Text style={styles.pickerText}>{formatDate(endDate)}</Text>
-                <CalendarIcon size={14} color="#94A3B8" />
+              <Pressable
+                style={[styles.picker, !startDate && styles.pickerDisabled]}
+                onPress={() => openPicker('endDate')}
+                disabled={!startDate}
+              >
+                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {!startDate ? 'Select start date first' : endDate ? formatDate(endDate) : 'Select end date...'}
+                </Text>
+                <CalendarIcon size={14} color={!startDate ? '#475569' : '#94A3B8'} />
               </Pressable>
             </View>
           </View>
@@ -248,9 +297,13 @@ export function AddExamWeekModal({
           {Platform.OS === 'ios' && activePickerField !== null && (
              <View style={{ marginBottom: 16 }}>
                <DateTimePicker
-                 value={activePickerField === 'startDate' ? startDate : endDate}
+                 value={
+                   activePickerField === 'startDate'
+                     ? (startDate ?? new Date())
+                     : (endDate && startDate && endDate >= startDate ? endDate : (startDate ?? new Date()))
+                 }
                  mode="date"
-                 minimumDate={activePickerField === 'startDate' ? new Date() : startDate}
+                 minimumDate={activePickerField === 'startDate' ? new Date() : (startDate ?? new Date())}
                  display="spinner"
                  onChange={handleDateChange}
                  textColor="#ffffff"
@@ -273,7 +326,7 @@ export function AddExamWeekModal({
               onPress={handleSave}
               disabled={isLoading}
             >
-              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>{initialData ? 'Save Changes' : 'Save Exam Week'}</Text>}
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>{getSubmitButtonText()}</Text>}
             </Button>
           </View>
         </View>
@@ -397,6 +450,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerText: { color: '#ffffff', fontSize: 14 },
+  pickerPlaceholder: { color: '#64748B', fontSize: 14 },
+  pickerDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#0F131D',
+    borderColor: '#1E2433',
+  },
   btnRow: {
     flexDirection: 'row',
     gap: 10,

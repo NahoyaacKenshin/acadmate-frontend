@@ -115,7 +115,7 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Extracted Text</Text>
               <Text style={styles.hint}>
-                Edit the AI-extracted text. Changes will re-generate chunks and embeddings automatically.
+                Edit the AI-extracted text. Changes will update the AI's understanding of this source automatically.
               </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}

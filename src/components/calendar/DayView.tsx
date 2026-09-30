@@ -28,9 +28,9 @@ import { SemesterRuleRow, useSemesterRules } from '@/src/hooks/useSemesterRules'
 import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
 import { Holiday } from './MonthGrid';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { isScheduleActiveOnDate, parseDateLocal } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT, formatTimePHT, parseToPHTDate } from '@/src/utils/philippineTime';
-import { useUserStore } from '@/src/store/userStore';
+import { useUserStore, computeCurrentSet } from '@/src/store/userStore';
 
 interface DayViewProps {
   selectedDate: Date;
@@ -315,7 +315,8 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
 
   const { semesterRules } = useSemesterRules();
   const { holidays: dbHolidays } = useHolidays();
-  const { studentSet } = useUserStore();
+  const { studentSet, anchorMonday, anchorSet } = useUserStore();
+  const currentSet = computeCurrentSet(studentSet, anchorMonday, anchorSet, selectedDate);
 
   // Combine prop holidays with DB holidays
   const combinedHolidays: HolidayRow[] = [
@@ -328,8 +329,8 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
     ...dbHolidays,
   ];
 
-  // Filter class schedules for this day — respects start/end date bounds and blockers
-  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks, combinedHolidays));
+  // Filter class schedules for this day — respects start/end date bounds, blockers, and active Set
+  const daySchedules = schedules.filter((s) => isScheduleActiveOnDate(s, selectedDate, examWeeks, combinedHolidays, currentSet));
 
   // Check if an event falls on this date (supports multi-day ranges)
   const isEventActiveOnDate = (e: CalendarEventRow, targetDate: Date): boolean => {
@@ -357,20 +358,8 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
     (e.description != null && e.description.toLowerCase().includes('exam')) ||
     e.title.toLowerCase().includes('exam');
 
-  const dayExams = dayEvents.filter(isExamEvent);
-  const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));
-
-  // Filter tasks due on this date
-  const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, selectedDate));
-
-  // Holiday / Suspension for this date
-  const dayHoliday = combinedHolidays.find((h) => {
-    const hd = parseDateLocal(h.date);
-    return hd ? isSameDay(hd, selectedDate) : false;
-  });
-
-  // Exam weeks active on this date
-  const activeExamWeeks = examWeeks.filter((ew) => {
+  // Split active ExamWeek rows by category
+  const activePeriods = examWeeks.filter((ew) => {
     const ewStart = parseDateLocal(ew.startDate);
     const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
     if (!ewStart || !ewEnd) return false;
@@ -379,7 +368,26 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
     return target >= ewStart && target <= ewEnd;
   });
 
-  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activeExamWeeks.length > 0;
+  const activeExamPeriods    = activePeriods.filter((ew) => getPeriodCategory(ew) === 'EXAM');
+  const activeHolidayPeriods = activePeriods.filter((ew) => getPeriodCategory(ew) === 'HOLIDAY');
+  const activeSuspensions    = activePeriods.filter((ew) => getPeriodCategory(ew) === 'SUSPENSION');
+
+  // Whether the date is blocked for exams (only holidays & suspensions block them)
+  const isExamBlocked = activeHolidayPeriods.length > 0 || activeSuspensions.length > 0;
+
+  const dayExams = isExamBlocked ? [] : dayEvents.filter(isExamEvent);
+  const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));
+
+  // Filter tasks due on this date
+  const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, selectedDate));
+
+  // Philippine holiday / Suspension for this date (from combined holidays prop)
+  const dayHoliday = combinedHolidays.find((h) => {
+    const hd = parseDateLocal(h.date);
+    return hd ? isSameDay(hd, selectedDate) : false;
+  });
+
+  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activePeriods.length > 0;
 
   // Day header label
   const dateLabel = isToday
@@ -402,8 +410,8 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
       {/* Day label */}
       <Text style={styles.dayHeader}>{dateLabel}</Text>
 
-      {/* Exam Week banners */}
-      {activeExamWeeks.map((ew) => (
+      {/* Exam Period banners (amber) — blocks classes only */}
+      {activeExamPeriods.map((ew) => (
         <Pressable
           key={ew.id}
           style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}
@@ -411,33 +419,69 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
         >
           <GraduationCap size={14} color="#F59E0B" />
           <Text style={[styles.holidayText, { color: '#F59E0B' }]}>
-            Exam Week Block — {ew.title}
+            🎓 Exam Period — {getCleanPeriodTitle(ew.title)}
           </Text>
           <Text style={{ fontSize: 11, color: '#F59E0B', fontStyle: 'italic', marginLeft: 'auto' }}>Edit</Text>
         </Pressable>
       ))}
 
-      {/* Holiday / Suspension banner */}
+      {/* User Holiday banners (green) — blocks classes & exams */}
+      {activeHolidayPeriods.map((ew) => (
+        <Pressable
+          key={ew.id}
+          style={[styles.holidayBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}
+          onPress={() => onExamWeekPress?.(ew)}
+        >
+          <CalendarDays size={14} color="#10B981" />
+          <Text style={[styles.holidayText, { color: '#10B981' }]}>
+            🏖️ Holiday — {getCleanPeriodTitle(ew.title)}
+          </Text>
+          <Text style={{ fontSize: 11, color: '#10B981', fontStyle: 'italic', marginLeft: 'auto' }}>Edit</Text>
+        </Pressable>
+      ))}
+
+      {/* Suspension banners (red) — blocks classes & exams */}
+      {activeSuspensions.map((ew) => (
+        <Pressable
+          key={ew.id}
+          style={[styles.holidayBanner, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+          onPress={() => onExamWeekPress?.(ew)}
+        >
+          <CalendarDays size={14} color="#EF4444" />
+          <Text style={[styles.holidayText, { color: '#EF4444' }]}>
+            ⚠️ Class Suspension — {getCleanPeriodTitle(ew.title)}
+          </Text>
+          <Text style={{ fontSize: 11, color: '#EF4444', fontStyle: 'italic', marginLeft: 'auto' }}>Edit</Text>
+        </Pressable>
+      ))}
+
+      {/* Philippine Holiday / Suspension banner (from API/DB) */}
       {dayHoliday ? (
         <View style={[
           styles.holidayBanner,
           dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
-            ? { backgroundColor: 'rgba(236, 72, 153, 0.12)', borderColor: 'rgba(236, 72, 153, 0.3)' }
-            : styles.holidayBannerRegular,
+            ? { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }
+            : dayHoliday.type === 'REGULAR'
+              ? styles.holidayBannerRegular
+              : { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' },
         ]}>
           <CalendarDays
             size={14}
             color={
               dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
-                ? '#EC4899'
-                : '#EF4444'
+                ? '#EF4444'
+                : dayHoliday.type === 'REGULAR'
+                  ? '#EF4444'
+                  : '#10B981'
             }
           />
           <Text style={[
             styles.holidayText,
-            dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
-              ? { color: '#EC4899' }
-              : styles.holidayTextRegular,
+            { color: dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
+                ? '#EF4444'
+                : dayHoliday.type === 'REGULAR'
+                  ? '#EF4444'
+                  : '#10B981' },
           ]}>
             {dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
               ? 'Class Suspension'
@@ -467,7 +511,7 @@ export function DayView({ selectedDate, events, schedules, examWeeks, holidays, 
               key={s.id}
               schedule={s}
               selectedDate={selectedDate}
-              studentSet={studentSet}
+              studentSet={currentSet}
               semesterRules={semesterRules}
               holidays={combinedHolidays}
               examWeeks={examWeeks}

@@ -5,7 +5,7 @@ import { useExamWeeks } from '../hooks/useExamWeeks';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import { NotificationService } from '../services/notificationService';
 import { useNotificationStore } from '../store/notificationStore';
-import { useUserStore } from '../store/userStore';
+import { useUserStore, computeCurrentSet } from '../store/userStore';
 import { useNotificationDeepLink } from '../hooks/useNotificationDeepLink';
 import { InAppNotificationBanner } from '../components/common/InAppNotificationBanner';
 
@@ -17,14 +17,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { examWeeks = [] } = useExamWeeks();
   const { events = [] } = useCalendarEvents();
   const { prefs } = useNotificationStore();
-  const { studentSet } = useUserStore();
+  const { studentSet, anchorMonday, anchorSet } = useUserStore();
+  const currentSet = computeCurrentSet(studentSet, anchorMonday, anchorSet, new Date());
 
   const prevSchedulesSigRef = useRef<string>('');
   const prevTasksSigRef = useRef<string>('');
   const prevExamsSigRef = useRef<string>('');
   const prevEventsSigRef = useRef<string>('');
   const prevPrefsRef = useRef(prefs);
-  const prevStudentSetRef = useRef(studentSet);
+  const prevStudentSetRef = useRef(currentSet);
 
   // Bind notification deep-linking handler (foreground, background, cold start)
   useNotificationDeepLink();
@@ -44,7 +45,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Build lightweight signatures based on fields that actually affect notifications
     const schedulesSig = schedules
-      .map((s) => `${s.id}_${s.day_of_week}_${s.start_time}_${s.subject_name}_${s.room}_${s.modality}_${s.set_type}`)
+      .map((s) => `${s.id}_${s.days_of_week ?? s.day_of_week}_${s.start_time}_${s.subject_name}_${s.room}_${s.modality}_${s.set_type}`)
       .join('|');
 
     const tasksSig = tasks
@@ -64,7 +65,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const examsChanged = prevExamsSigRef.current !== examsSig;
     const eventsChanged = prevEventsSigRef.current !== generalEventsSig;
     const prefsChanged = prevPrefsRef.current !== prefs;
-    const setChanged = prevStudentSetRef.current !== studentSet;
+    const setChanged = prevStudentSetRef.current !== currentSet;
 
     // Reschedule classes if schedules list or settings (enabled, lead time, student set) changed
     if (
@@ -78,10 +79,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         schedules,
         prefs.classReminders,
         prefs.classLeadMinutes,
-        studentSet
+        currentSet
       );
       prevSchedulesSigRef.current = schedulesSig;
-      prevStudentSetRef.current = studentSet;
+      prevStudentSetRef.current = currentSet;
     }
 
     // Reschedule tasks if tasks list or task reminders settings changed
@@ -114,7 +115,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     prevPrefsRef.current = prefs;
-  }, [schedules, tasks, examWeeks, events, prefs, studentSet]);
+  }, [schedules, tasks, examWeeks, events, prefs, currentSet]);
 
   return (
     <NotificationContext.Provider value={undefined}>

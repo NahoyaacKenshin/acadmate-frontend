@@ -74,7 +74,7 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
             <View style={styles.metaRow}>
               <Text style={styles.metaBadge}>{source.fileType}</Text>
               {source.chunkCount != null && (
-                <Text style={styles.metaText}>{source.chunkCount} indexed chunks</Text>
+                <Text style={styles.metaText}>{source.chunkCount} sections indexed</Text>
               )}
             </View>
           </View>

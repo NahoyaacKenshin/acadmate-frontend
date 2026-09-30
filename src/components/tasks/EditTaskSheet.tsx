@@ -195,7 +195,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
       >
         <View style={styles.sheetContent}>

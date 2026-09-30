@@ -43,7 +43,8 @@ const PRESET_COLORS = [
   '#F97316', // orange
 ];
 
-function formatDateTime(date: Date): string {
+function formatDateTime(date: Date | null): string {
+  if (!date) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -110,12 +111,14 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
 
   const openDatePicker = (field: DateField) => {
     setShowSubjectPicker(false);
+    if (field === 'end' && !startDate) return;
+
     if (Platform.OS === 'android') {
-      const baseDate = field === 'start' ? startDate : (endDate ?? new Date());
+      const baseDate = field === 'start' ? (startDate ?? new Date()) : (endDate ?? startDate ?? new Date());
       DateTimePickerAndroid.open({
         value: baseDate,
         mode: 'date',
-        minimumDate: new Date(),
+        minimumDate: field === 'end' ? (startDate ?? new Date()) : new Date(),
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === 'dismissed' || !selectedDate) return;
           const merged = new Date(selectedDate);
@@ -126,14 +129,24 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
             is24Hour: false,
             onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
               if (timeEvent.type === 'dismissed' || !selectedTime) {
-                if (field === 'start') setStartDate(merged);
-                else setEndDate(merged);
+                if (field === 'start') {
+                  setStartDate(merged);
+                  if (endDate && endDate < merged) setEndDate(merged);
+                } else {
+                  const safeEnd = startDate && merged < startDate ? startDate : merged;
+                  setEndDate(safeEnd);
+                }
                 return;
               }
               const finalDate = new Date(merged);
               finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-              if (field === 'start') setStartDate(finalDate);
-              else setEndDate(finalDate);
+              if (field === 'start') {
+                setStartDate(finalDate);
+                if (endDate && endDate < finalDate) setEndDate(finalDate);
+              } else {
+                const safeEnd = startDate && finalDate < startDate ? startDate : finalDate;
+                setEndDate(safeEnd);
+              }
             },
           });
         },
@@ -146,8 +159,13 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
 
   const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (selected) {
-      if (activeDateField === 'start') setStartDate(selected);
-      else setEndDate(selected);
+      if (activeDateField === 'start') {
+        setStartDate(selected);
+        if (endDate && endDate < selected) setEndDate(selected);
+      } else {
+        const safeEnd = startDate && selected < startDate ? startDate : selected;
+        setEndDate(safeEnd);
+      }
     }
   };
 
@@ -165,6 +183,10 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
     }
     if (!userId) {
       setError('You must be logged in.');
+      return;
+    }
+    if (!startDate) {
+      setError('Please select a start date and time.');
       return;
     }
     if (!allTime && endDate && endDate < startDate) {
@@ -218,7 +240,7 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
       >
         <View style={styles.sheetContent}>
@@ -289,7 +311,11 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Start Date & Time *</Text>
                 <Pressable
-                  onPress={() => setStartDate(initialDate ?? new Date())}
+                  onPress={() => {
+                    const d = initialDate ?? new Date();
+                    setStartDate(d);
+                    if (endDate && endDate < d) setEndDate(d);
+                  }}
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
@@ -298,13 +324,15 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openDatePicker('start')}>
-                <Text style={styles.pickerText}>{formatDateTime(startDate)}</Text>
+                <Text style={startDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {startDate ? formatDateTime(startDate) : 'Select start date & time...'}
+                </Text>
                 <Calendar size={16} color="#94A3B8" />
               </Pressable>
               {Platform.OS === 'ios' && activeDateField === 'start' && datePickerStep !== null && (
                 <View style={styles.iosPickerWrapper}>
                   <DateTimePicker
-                    value={startDate}
+                    value={startDate ?? new Date()}
                     mode="datetime"
                     minimumDate={new Date()}
                     display="spinner"
@@ -336,18 +364,22 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
                     </Pressable>
                   )}
                 </View>
-                <Pressable style={styles.picker} onPress={() => openDatePicker('end')}>
+                <Pressable
+                  style={[styles.picker, !startDate && styles.pickerDisabled]}
+                  onPress={() => openDatePicker('end')}
+                  disabled={!startDate}
+                >
                   <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
-                    {endDate ? formatDateTime(endDate) : 'Select end time...'}
+                    {!startDate ? 'Select start date first' : endDate ? formatDateTime(endDate) : 'Select end time...'}
                   </Text>
-                  <Clock size={16} color="#94A3B8" />
+                  <Clock size={16} color={!startDate ? '#475569' : '#94A3B8'} />
                 </Pressable>
-                {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && (
+                {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && startDate && (
                   <View style={styles.iosPickerWrapper}>
                     <DateTimePicker
-                      value={endDate ?? startDate}
+                      value={endDate && endDate >= startDate ? endDate : startDate}
                       mode="datetime"
-                      minimumDate={new Date()}
+                      minimumDate={startDate}
                       display="spinner"
                       onChange={handleDateChange}
                       textColor="#ffffff"
@@ -554,6 +586,11 @@ const styles = StyleSheet.create({
   },
   pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
   pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
+  pickerDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#0F131D',
+    borderColor: '#1E2433',
+  },
   subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
   subjectDot: { width: 10, height: 10, borderRadius: 5 },
   pickerList: {
