@@ -24,12 +24,14 @@ export default function NotebookScreen() {
 
   const {
     notebooks,
+    pinnedIds,
     isLoadingNotebooks: isLoading,
     notebooksError: error,
     fetchNotebooks,
     createNotebook,
     updateNotebook,
     deleteNotebook,
+    togglePinNotebook,
   } = useNotebookStore();
   const { isOnline } = useSystemStore();
 
@@ -161,9 +163,11 @@ export default function NotebookScreen() {
           renderItem={({ item }) => (
             <NotebookCard
               notebook={item}
+              isPinned={pinnedIds.includes(item.id)}
               onPress={handleOpenNotebook}
               onDelete={handleDelete}
               onEdit={(nb) => setEditingNotebook(nb)}
+              onTogglePin={(nb) => togglePinNotebook(nb.id)}
             />
           )}
           contentContainerStyle={styles.listContent}

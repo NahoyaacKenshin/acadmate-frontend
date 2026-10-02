@@ -56,6 +56,15 @@ export const NotebookStorage = {
     return await readJson<Notebook[]>('notebooks.json');
   },
 
+  // ─── Pinned Notebooks ────────────────────────────────────────────────────────
+  savePinnedIds: async (ids: string[]): Promise<void> => {
+    await writeJson('pinned_notebooks.json', ids);
+  },
+
+  loadPinnedIds: async (): Promise<string[] | null> => {
+    return await readJson<string[]>('pinned_notebooks.json');
+  },
+
   // ─── Sources per Notebook ────────────────────────────────────────────────────
   saveSources: async (notebookId: string, sources: Source[]): Promise<void> => {
     await writeJson(`sources_${notebookId}.json`, sources);

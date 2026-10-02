@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Pressable, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
 import { Plus, CalendarDays, BookOpen, GraduationCap, ScanLine, X } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -9,6 +9,7 @@ import { ApiService } from '@/src/services/api';
 import { usePowerSync } from '@powersync/react';
 import { NotificationService } from '@/src/services/notificationService';
 import { parseToEpoch } from '@/src/utils/philippineTime';
+import { parseDateLocal } from '@/src/utils/scheduleUtils';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
 import { WeekStrip } from '@/src/components/calendar/WeekStrip';
@@ -48,11 +49,25 @@ function addDays(date: Date, days: number): Date {
 export default function CalendarScreen() {
   const today = startOfDay(new Date());
   const { user } = useAuthStore();
+  const params = useLocalSearchParams<{ date?: string; t?: string }>();
 
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [displayYear, setDisplayYear] = useState(today.getFullYear());
   const [displayMonth, setDisplayMonth] = useState(today.getMonth());
   const [isMonthExpanded, setIsMonthExpanded] = useState(true);
+
+  // Sync selectedDate with incoming route parameter (e.g. from Today's Timeline tap)
+  useEffect(() => {
+    if (params.date) {
+      const parsed = parseDateLocal(params.date) || new Date(params.date);
+      if (!isNaN(parsed.getTime())) {
+        const target = startOfDay(parsed);
+        setSelectedDate(target);
+        setDisplayYear(target.getFullYear());
+        setDisplayMonth(target.getMonth());
+      }
+    }
+  }, [params.date, params.t]);
 
   // Action menu (shown when + is tapped)
   const [actionMenuVisible, setActionMenuVisible] = useState(false);

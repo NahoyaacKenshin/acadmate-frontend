@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Modal, Pressable, StyleSheet, TextInput, Platform, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { Text } from '../ui/text';
-import { X, Calendar as CalendarIcon, RotateCcw } from 'lucide-react-native';
+import { X, Calendar as CalendarIcon, RotateCcw, GraduationCap, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
@@ -187,6 +187,18 @@ export function AddExamWeekModal({
     return 'Add Suspension';
   };
 
+  const getBadgeIcon = () => {
+    if (category === 'HOLIDAY') return <CalendarIcon size={16} color="#10B981" />;
+    if (category === 'SUSPENSION') return <AlertTriangle size={16} color="#EF4444" />;
+    return <GraduationCap size={16} color="#F59E0B" />;
+  };
+
+  const getBadgeStyle = () => {
+    if (category === 'HOLIDAY') return { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.35)' };
+    if (category === 'SUSPENSION') return { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.35)' };
+    return { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.35)' };
+  };
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -196,13 +208,23 @@ export function AddExamWeekModal({
       >
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
+            <View style={styles.headerTitleRow}>
+              <View style={[styles.headerBadge, getBadgeStyle()]}>
+                {getBadgeIcon()}
+              </View>
+              <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
               <X size={20} color="#94A3B8" />
             </Pressable>
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
 
           {/* Type Selector */}
           <View style={styles.formGroup}>
@@ -380,12 +402,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#ffffff',
   },
   closeBtn: { padding: 4 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  errorBannerText: {
+    color: '#EF4444',
+    fontSize: 13,
+    flex: 1,
+  },
   formGroup: { marginBottom: 16 },
   categoryRow: {
     flexDirection: 'row',

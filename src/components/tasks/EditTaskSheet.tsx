@@ -13,7 +13,7 @@ import {
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, RotateCcw } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, CheckSquare, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { SubjectRow } from '@/src/hooks/useSubjects';
 import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
@@ -198,14 +198,26 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
         behavior="padding"
         style={styles.keyboardAvoid}
       >
-        <View style={styles.sheetContent}>
+        <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Edit Task</Text>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={24} color="#94A3B8" />
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <CheckSquare size={16} color="#6C8EFF" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Task</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color="#94A3B8" />
             </Pressable>
           </View>
+
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
           {/* Scrollable form */}
           <ScrollView
@@ -213,7 +225,6 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.formContainer}
           >
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             {/* Title */}
             <View style={styles.formGroup}>
@@ -340,7 +351,7 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
             </View>
 
             <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
             </Button>
           </ScrollView>
         </View>
@@ -351,12 +362,79 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
   },
   keyboardAvoid: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#161B26',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderColor: '#2A3143',
+    maxHeight: '92%',
+    paddingBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3143',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108, 142, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  closeBtn: { padding: 6 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
+    flex: 1,
+  },
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   labelRow: {
     flexDirection: 'row',
@@ -378,44 +456,10 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '500',
   },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: { padding: 4 },
-  formContainer: {
-    paddingBottom: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    marginBottom: 12,
-  },
   formGroup: { marginBottom: 16 },
   label: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
     color: '#94A3B8',
     marginBottom: 8,
   },
@@ -423,43 +467,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 14,
   },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
+  multiline: { minHeight: 68, textAlignVertical: 'top' },
   picker: {
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  pickerText: { color: '#ffffff', fontSize: 16 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 16 },
+  pickerText: { color: '#ffffff', fontSize: 14 },
+  pickerPlaceholder: { color: '#64748B', fontSize: 14 },
   pickerList: {
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
+    borderRadius: 10,
+    marginTop: 6,
     overflow: 'hidden',
   },
   pickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
+    borderBottomColor: '#1E2433',
+    gap: 10,
   },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
+  pickerItemText: { color: '#ffffff', fontSize: 14, fontWeight: '500' },
   subjectDot: { width: 10, height: 10, borderRadius: 5 },
   // Color Picker
   colorRow: {
@@ -470,12 +515,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   colorSwatch: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
   colorSwatchSelected: {
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#ffffff',
     transform: [{ scale: 1.15 }],
   },
@@ -485,27 +530,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   iosPicker: {
-    height: 180,
+    height: 150,
   },
   iosDoneBtn: {
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: '#2A3143',
   },
   iosDoneBtnText: {
     color: '#6C8EFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   saveButton: {
-    marginTop: 8,
     backgroundColor: '#6C8EFF',
+    marginTop: 8,
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

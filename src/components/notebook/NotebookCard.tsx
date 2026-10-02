@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Alert } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { BookOpen, FileText, Trash2, ChevronRight, Pencil } from 'lucide-react-native';
+import { BookOpen, FileText, Trash2, ChevronRight, Pencil, Pin } from 'lucide-react-native';
 import { parseToPHT } from '@/src/utils/philippineTime';
 
 export interface Notebook {
@@ -15,12 +15,14 @@ export interface Notebook {
 
 interface NotebookCardProps {
   notebook: Notebook;
+  isPinned?: boolean;
   onPress: (notebook: Notebook) => void;
   onDelete: (notebook: Notebook) => void;
   onEdit?: (notebook: Notebook) => void;
+  onTogglePin?: (notebook: Notebook) => void;
 }
 
-export function NotebookCard({ notebook, onPress, onDelete, onEdit }: NotebookCardProps) {
+export function NotebookCard({ notebook, isPinned = false, onPress, onDelete, onEdit, onTogglePin }: NotebookCardProps) {
   const handleLongPress = () => {
     Alert.alert(
       'Delete Notebook',
@@ -54,12 +56,12 @@ export function NotebookCard({ notebook, onPress, onDelete, onEdit }: NotebookCa
       onLongPress={handleLongPress}
     >
       {/* Left accent stripe */}
-      <View style={styles.accentStripe} />
+      <View style={[styles.accentStripe, isPinned && styles.accentStripePinned]} />
 
       <View style={styles.body}>
         {/* Icon container */}
         <View style={styles.iconWrap}>
-          <BookOpen size={22} color="#6C8EFF" />
+          <BookOpen size={22} color={isPinned ? '#F59E0B' : '#6C8EFF'} />
         </View>
 
         {/* Main content */}
@@ -73,7 +75,7 @@ export function NotebookCard({ notebook, onPress, onDelete, onEdit }: NotebookCa
 
           <View style={styles.metaRow}>
             <View style={styles.metaBadge}>
-              <FileText size={11} color="#6C8EFF" />
+              <FileText size={11} color={isPinned ? '#F59E0B' : '#6C8EFF'} />
               <Text style={styles.metaText}>
                 {notebook.sourceCount} {notebook.sourceCount === 1 ? 'source' : 'sources'}
               </Text>
@@ -85,6 +87,26 @@ export function NotebookCard({ notebook, onPress, onDelete, onEdit }: NotebookCa
 
         {/* Actions */}
         <View style={styles.actionsWrap}>
+          {onTogglePin && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.pinBtn,
+                isPinned && styles.pinBtnActive,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                onTogglePin(notebook);
+              }}
+              hitSlop={8}
+            >
+              <Pin
+                size={14}
+                color={isPinned ? '#F59E0B' : '#64748B'}
+                fill={isPinned ? '#F59E0B' : 'none'}
+              />
+            </Pressable>
+          )}
           {onEdit && (
             <Pressable
               style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
@@ -220,6 +242,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  accentStripePinned: {
+    backgroundColor: '#F59E0B',
+  },
+  pinBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(100,116,139,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinBtnActive: {
+    backgroundColor: 'rgba(245,158,11,0.15)',
   },
   deleteBtn: {
     width: 32,

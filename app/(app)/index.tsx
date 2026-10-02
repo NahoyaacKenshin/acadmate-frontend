@@ -1,10 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View,
   ScrollView,
   StyleSheet,
   Pressable,
   TouchableOpacity,
+  Modal,
   Vibration,
   BackHandler,
   Alert,
@@ -14,11 +15,7 @@ import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
 import {
-  Sparkles,
-  ListTodo,
-  UploadCloud,
   BookOpen,
-  ScanLine,
   Clock,
   AlertTriangle,
   CheckCircle2,
@@ -26,20 +23,29 @@ import {
   Wifi,
   WifiOff,
   RotateCw,
+  Calendar,
+  X,
+  ChevronRight,
+  Users,
+  Radio,
+  FileText,
+  Pin,
+  ArrowRight,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useUserStore, computeCurrentSet } from '@/src/store/userStore';
-import { useStatus, usePowerSync } from '@powersync/react';
 import { useNetworkSyncStatus } from '@/src/hooks/useNetworkSyncStatus';
 import { NotificationService } from '@/src/services/notificationService';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
-import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { useClassSchedules } from '@/src/hooks/useClassSchedules';
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
+import { useNotebookStore } from '@/src/store/notebookStore';
+import { usePowerSync } from '@powersync/react';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
 import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
 import {
@@ -89,16 +95,100 @@ function getGreeting() {
   return { text: 'Good Night', emoji: '🌙' };
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+function getTodayDateParam(): string {
+  const d = getPhilippineToday();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function navigateToCalendarToday() {
+  router.push({
+    pathname: '/(app)/calendar' as any,
+    params: { date: getTodayDateParam(), t: Date.now().toString() },
+  });
+}
+
+// ── Task Detail Modal ─────────────────────────────────────────────────────────
+
+function TaskDetailModal({ task, onClose }: { task: TaskRow | null; onClose: () => void }) {
+  if (!task) return null;
+  const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
+  const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
+  const color = task.subject_color ?? task.color ?? '#6C8EFF';
+  const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
+  const fmtDueLabel = fmtDue(task.due_date);
+
+  let dueBg = 'rgba(108,142,255,0.12)';
+  let dueTextColor = '#94A3B8';
+  if (isOverdue) { dueBg = 'rgba(239,68,68,0.12)'; dueTextColor = '#FCA5A5'; }
+  else if (isTodayDue) { dueBg = 'rgba(252,211,77,0.12)'; dueTextColor = '#FCD34D'; }
+
+  return (
+    <Modal visible={!!task} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose} />
+      <View style={styles.taskDetailSheet}>
+        {/* Handle */}
+        <View style={styles.taskDetailHandle} />
+
+        {/* Header */}
+        <View style={styles.taskDetailHeader}>
+          <View style={[styles.taskDetailAccent, { backgroundColor: color }]} />
+          <View style={styles.taskDetailHeaderText}>
+            <Text style={styles.taskDetailTitle}>{task.title}</Text>
+            {task.subject_name ? (
+              <View style={[styles.taskDetailSubjectTag, { backgroundColor: color + '22' }]}>
+                <View style={[styles.taskDetailSubjectDot, { backgroundColor: color }]} />
+                <Text style={[styles.taskDetailSubjectName, { color }]} numberOfLines={1}>
+                  {task.subject_name}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <Pressable onPress={onClose} style={styles.taskDetailCloseBtn} hitSlop={10}>
+            <X size={20} color="#64748B" />
+          </Pressable>
+        </View>
+
+        {/* Due Date */}
+        {task.due_date ? (
+          <View style={[styles.taskDetailDueRow, { backgroundColor: dueBg }]}>
+            <Clock size={14} color={dueTextColor} />
+            <Text style={[styles.taskDetailDueText, { color: dueTextColor }]}>
+              {isOverdue ? 'Overdue' : isTodayDue ? `Due Today${dueTime ? ` · ${dueTime}` : ''}` : fmtDueLabel}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.taskDetailDueRow, { backgroundColor: 'rgba(100,116,139,0.08)' }]}>
+            <Clock size={14} color="#64748B" />
+            <Text style={[styles.taskDetailDueText, { color: '#64748B' }]}>No due date set</Text>
+          </View>
+        )}
+
+        {/* Description */}
+        <View style={styles.taskDetailBody}>
+          {task.description ? (
+            <Text style={styles.taskDetailDescription}>{task.description}</Text>
+          ) : (
+            <Text style={styles.taskDetailDescriptionEmpty}>No description provided.</Text>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Urgent Task Card ──────────────────────────────────────────────────────────
 
 function UrgentTaskCard({
   task,
   index,
   onComplete,
+  onTap,
 }: {
   task: TaskRow;
   index: number;
   onComplete: (task: TaskRow) => void;
+  onTap: (task: TaskRow) => void;
 }) {
   const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
   const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
@@ -122,10 +212,9 @@ function UrgentTaskCard({
         <CheckCircle2 size={20} color="#3A4455" />
       </TouchableOpacity>
 
-      <View style={styles.urgentContent}>
-        <Text style={styles.urgentTitle} numberOfLines={1}>
-          {task.title}
-        </Text>
+      {/* Tappable body → opens detail modal */}
+      <Pressable style={styles.urgentContent} onPress={() => onTap(task)} android_ripple={{ color: '#ffffff08' }}>
+        <Text style={styles.urgentTitle} numberOfLines={1}>{task.title}</Text>
         <View style={styles.urgentMeta}>
           {task.subject_name ? (
             <View style={[styles.urgentSubjectTag, { backgroundColor: color + '22' }]}>
@@ -139,9 +228,7 @@ function UrgentTaskCard({
           {isOverdue ? (
             <View style={[styles.urgentBadge, styles.urgentBadgeRed]}>
               <AlertTriangle size={10} color="#FCA5A5" />
-              <Text style={[styles.urgentBadgeText, styles.urgentBadgeTextRed]}>
-                Overdue
-              </Text>
+              <Text style={[styles.urgentBadgeText, styles.urgentBadgeTextRed]}>Overdue</Text>
             </View>
           ) : isTodayDue ? (
             <View style={styles.urgentBadge}>
@@ -159,55 +246,69 @@ function UrgentTaskCard({
             </View>
           )}
         </View>
-      </View>
+      </Pressable>
+
+      <ChevronRight size={14} color="#3A4455" style={{ marginRight: 10 }} />
     </Animated.View>
   );
 }
 
-function TimelineItem({
+// ── Class Timeline Item ───────────────────────────────────────────────────────
+
+function ClassTimelineItem({
   label,
   time,
   color,
-  sub,
+  room,
   modality,
+  setLabel,
   index,
-  onPress,
 }: {
   label: string;
   time: string;
   color: string;
-  sub?: string;
+  room?: string;
   modality?: string;
+  setLabel?: string;
   index: number;
-  onPress?: () => void;
 }) {
+  const isF2F = modality === 'F2F';
+  const isOnline = modality === 'ONLINE';
+
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 60).springify()}
+      entering={FadeInDown.delay(index * 55).springify()}
       style={styles.timelineItemWrapper}
     >
       <TouchableOpacity
         style={styles.timelineItem}
         activeOpacity={0.75}
-        onPress={onPress}
+        onPress={navigateToCalendarToday}
       >
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: color }]} />
           {modality ? (
             <View style={[styles.modalityTag, { backgroundColor: color + '22' }]}>
+              {isF2F
+                ? <Users size={9} color={color} />
+                : isOnline
+                  ? <Radio size={9} color={color} />
+                  : null}
               <Text style={[styles.modalityText, { color }]}>{modality}</Text>
             </View>
           ) : null}
         </View>
         <View style={styles.timelineText}>
-          <Text style={styles.timelineLabel} numberOfLines={1}>
-            {label}
-          </Text>
+          <Text style={styles.timelineLabel} numberOfLines={1}>{label}</Text>
           <Text style={styles.timelineTime}>{time}</Text>
-          {sub ? (
-            <Text style={styles.timelineSub} numberOfLines={1}>
-              {sub}
-            </Text>
+          {room ? (
+            <View style={styles.timelineMetaRow}>
+              <MapPin size={9} color="#64748B" />
+              <Text style={styles.timelineSub} numberOfLines={1}>{room}</Text>
+            </View>
+          ) : null}
+          {setLabel ? (
+            <Text style={styles.timelineSetLabel}>{setLabel}</Text>
           ) : null}
         </View>
       </TouchableOpacity>
@@ -215,27 +316,79 @@ function TimelineItem({
   );
 }
 
-type HubItem = {
-  icon: React.ReactNode;
-  label: string;
-  sub: string;
-  accent: string;
-  onPress: () => void;
-};
+// ── Event Timeline Item ───────────────────────────────────────────────────────
 
-function HubCard({ item, index }: { item: HubItem; index: number }) {
+function EventTimelineItem({
+  event,
+  index,
+}: {
+  event: CalendarEventRow;
+  index: number;
+}) {
+  const accentColor = event.color ?? event.subject_color ?? '#10B981';
+  let timeDisplay = 'All day';
+  if (event.all_day !== 1 && event.start_date) {
+    const startFmt = fmtTime(event.start_date);
+    const endFmt = event.end_date ? fmtTime(event.end_date) : '';
+    timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
+  }
+
   return (
-    <Animated.View entering={FadeInDown.delay(200 + index * 60).springify()} style={styles.hubCardWrapper}>
+    <Animated.View
+      entering={FadeInDown.delay(index * 55).springify()}
+      style={styles.timelineItemWrapper}
+    >
       <TouchableOpacity
-        style={styles.hubCard}
-        onPress={item.onPress}
+        style={[styles.timelineItem, styles.eventTimelineItem]}
         activeOpacity={0.75}
+        onPress={navigateToCalendarToday}
       >
-        <View style={styles.hubIcon}>
-          {item.icon}
+        <View style={styles.timelineTopRow}>
+          <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
+          <View style={[styles.eventTag, { backgroundColor: accentColor + '22' }]}>
+            <Calendar size={9} color={accentColor} />
+            <Text style={[styles.modalityText, { color: accentColor }]}>Event</Text>
+          </View>
         </View>
-        <Text style={styles.hubLabel}>{item.label}</Text>
-        <Text style={styles.hubSub}>{item.sub}</Text>
+        <View style={styles.timelineText}>
+          <Text style={styles.timelineLabel} numberOfLines={1}>{event.title}</Text>
+          <Text style={[styles.timelineTime, { color: accentColor }]}>{timeDisplay}</Text>
+          {event.location ? (
+            <View style={styles.timelineMetaRow}>
+              <MapPin size={9} color="#64748B" />
+              <Text style={styles.timelineSub} numberOfLines={1}>{event.location}</Text>
+            </View>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+// ── Pinned Notebook Card ──────────────────────────────────────────────────────
+
+function PinnedNotebookCard({ notebook, index }: { notebook: import('@/src/components/notebook/NotebookCard').Notebook; index: number }) {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(200 + index * 60).springify()}
+      style={styles.pinnedCardWrapper}
+    >
+      <TouchableOpacity
+        style={styles.pinnedCard}
+        activeOpacity={0.75}
+        onPress={() => router.push({ pathname: '/(app)/notebook/[id]' as any, params: { id: notebook.id, title: notebook.title } })}
+      >
+        <View style={styles.pinnedCardIcon}>
+          <BookOpen size={18} color="#F59E0B" />
+        </View>
+        <View style={styles.pinnedCardContent}>
+          <Text style={styles.pinnedCardTitle} numberOfLines={1}>{notebook.title}</Text>
+          <View style={styles.pinnedCardMeta}>
+            <FileText size={10} color="#64748B" />
+            <Text style={styles.pinnedCardSub}>{notebook.sourceCount} {notebook.sourceCount === 1 ? 'source' : 'sources'}</Text>
+          </View>
+        </View>
+        <ChevronRight size={14} color="#3A4455" />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -246,16 +399,15 @@ function HubCard({ item, index }: { item: HubItem; index: number }) {
 function StudentHomeScreen() {
   const { user } = useAuthStore();
   const { nickname, studentSet, anchorMonday, anchorSet } = useUserStore();
-  const powerSyncStatus = useStatus();
   const powerSync = usePowerSync();
 
-  // Dynamic reactive connection & sync status (accurate offline / syncing / online detection)
+  // Dynamic reactive connection & sync status
   const networkStatus = useNetworkSyncStatus();
 
+  const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+
   const handleCompleteTask = async (task: TaskRow) => {
-    try {
-      Vibration.vibrate(15);
-    } catch { }
+    try { Vibration.vibrate(15); } catch { }
     const now = new Date().toISOString();
     try {
       await powerSync.execute(
@@ -271,7 +423,7 @@ function StudentHomeScreen() {
   const displayName = nickname || user?.name?.split(' ')[0] || 'Student';
   const greeting = getGreeting();
 
-  // Android hardware back button — show exit confirmation when on Home
+  // Android hardware back button — exit confirmation
   useFocusEffect(
     useCallback(() => {
       const handler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -283,24 +435,27 @@ function StudentHomeScreen() {
             { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
           ]
         );
-        return true; // prevent default back behavior
+        return true;
       });
       return () => handler.remove();
     }, [])
   );
+
   const dateSubtitle = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   }).format(new Date());
 
-  // ── Data from PowerSync (zero REST calls) ──
+  // ── Data ──
   const { tasks } = useTasks();
   const { schedules } = useClassSchedules();
   const { events } = useCalendarEvents();
   const { examWeeks = [] } = useExamWeeks();
   const { holidays = [] } = useHolidays();
   const { semesterRules = [] } = useSemesterRules();
+
+  const { notebooks, pinnedIds } = useNotebookStore();
 
   // Urgent tasks: incomplete, due today or overdue — max 3
   const urgentTasks = useMemo<TaskRow[]>(() => {
@@ -309,10 +464,9 @@ function StudentHomeScreen() {
       .slice(0, 3);
   }, [tasks]);
 
-  // Pending tasks (incomplete, any date)
   const pendingCount = useMemo(() => tasks.filter((t) => t.completed === 0).length, [tasks]);
 
-  // Today's classes with full schedule resolution pipeline (modality, exam weeks, holidays, Set A/B)
+  // Today's classes with full resolution
   const todayResolvedClasses = useMemo(() => {
     const today = new Date();
     const currentSet = computeCurrentSet(studentSet, anchorMonday, anchorSet, today);
@@ -322,84 +476,27 @@ function StudentHomeScreen() {
         schedule: s,
         resolution: resolveScheduleForDate(s, today, currentSet, semesterRules, holidays, examWeeks),
       }))
-      .filter((item) => item.resolution.isActive);
+      .filter((item) => item.resolution.isActive)
+      .sort((a, b) => a.schedule.start_time.localeCompare(b.schedule.start_time));
   }, [schedules, studentSet, anchorMonday, anchorSet, semesterRules, holidays, examWeeks]);
 
   // Today's events
   const todayEvents = useMemo<CalendarEventRow[]>(() => {
-    return events.filter((e) => isToday(e.start_date));
+    return events
+      .filter((e) => isToday(e.start_date))
+      .sort((a, b) => {
+        const ta = a.start_date?.substring(11, 16) ?? '00:00';
+        const tb = b.start_date?.substring(11, 16) ?? '00:00';
+        return ta.localeCompare(tb);
+      });
   }, [events]);
 
-  // Merged timeline (classes + events), sorted by time in 12-hour format
-  const timeline = useMemo(() => {
-    const items: Array<{
-      id: string;
-      label: string;
-      time: string;
-      color: string;
-      sub?: string;
-      modality?: string;
-      sortKey: string;
-    }> = [
-        ...todayResolvedClasses.map(({ schedule: s, resolution }) => ({
-          id: s.id,
-          label: s.subject_name ?? 'Class',
-          time: `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`,
-          color: s.subject_color ?? '#6C8EFF',
-          sub: resolution.effectiveRoom ? `📍 ${resolution.effectiveRoom}` : undefined,
-          modality: resolution.badgeText,
-          sortKey: s.start_time,
-        })),
-        ...todayEvents.map((e) => {
-          let timeDisplay = 'All day';
-          if (e.all_day !== 1 && e.start_date) {
-            const startFmt = fmtTime(e.start_date);
-            const endFmt = e.end_date ? fmtTime(e.end_date) : '';
-            timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
-          }
-          return {
-            id: e.id,
-            label: e.title,
-            time: timeDisplay,
-            color: e.color ?? e.subject_color ?? '#10B981',
-            sortKey: e.start_date ? e.start_date.substring(11, 16) : '00:00',
-          };
-        }),
-      ];
-    return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [todayResolvedClasses, todayEvents]);
-
-  // Academic Tools & Study Workspace actions
-  const hubItems: HubItem[] = [
-    {
-      icon: <BookOpen size={20} color="#6C8EFF" />,
-      label: 'Course Notes',
-      sub: 'Browse & review materials',
-      accent: '#6C8EFF',
-      onPress: () => router.push('/(app)/notebook' as any),
-    },
-    {
-      icon: <ScanLine size={20} color="#6C8EFF" />,
-      label: 'Scan Timetable',
-      sub: 'Import class schedule',
-      accent: '#6C8EFF',
-      onPress: () => router.push('/(app)/schedule-upload' as any),
-    },
-    {
-      icon: <UploadCloud size={20} color="#6C8EFF" />,
-      label: 'Upload Sources',
-      sub: 'PDFs, docs & lecture slides',
-      accent: '#6C8EFF',
-      onPress: () => router.push('/(app)/notebook' as any),
-    },
-    {
-      icon: <Sparkles size={20} color="#6C8EFF" />,
-      label: 'AI Study Assistant',
-      sub: 'Study notes with AI',
-      accent: '#6C8EFF',
-      onPress: () => router.push('/(app)/notebook' as any),
-    },
-  ];
+  // Pinned notebooks
+  const pinnedNotebooks = useMemo(() => {
+    return pinnedIds
+      .map((id) => notebooks.find((nb) => nb.id === id))
+      .filter(Boolean) as typeof notebooks;
+  }, [pinnedIds, notebooks]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -448,23 +545,20 @@ function StudentHomeScreen() {
 
         {/* ── Stats Row ── */}
         <Animated.View entering={FadeInDown.delay(60).springify()} style={styles.statsRow}>
-          <View style={styles.statChip}>
-            <ListTodo size={14} color="#6C8EFF" />
+          <Pressable style={styles.statChip} onPress={() => router.push('/(app)/tasks' as any)}>
             <Text style={styles.statNum}>{pendingCount}</Text>
             <Text style={styles.statLabel}>Pending</Text>
-          </View>
+          </Pressable>
           <View style={styles.statDivider} />
-          <View style={styles.statChip}>
-            <Clock size={14} color="#10B981" />
+          <Pressable style={styles.statChip} onPress={navigateToCalendarToday}>
             <Text style={styles.statNum}>{todayResolvedClasses.length}</Text>
             <Text style={styles.statLabel}>Classes Today</Text>
-          </View>
+          </Pressable>
           <View style={styles.statDivider} />
-          <View style={styles.statChip}>
-            <BookOpen size={14} color="#F59E0B" />
+          <Pressable style={styles.statChip} onPress={navigateToCalendarToday}>
             <Text style={styles.statNum}>{todayEvents.length}</Text>
             <Text style={styles.statLabel}>Events Today</Text>
-          </View>
+          </Pressable>
         </Animated.View>
 
         {/* ── Urgent Tasks ── */}
@@ -491,27 +585,28 @@ function StudentHomeScreen() {
                 task={t}
                 index={i}
                 onComplete={handleCompleteTask}
+                onTap={setSelectedTask}
               />
             ))
           )}
         </Animated.View>
 
-        {/* ── Today's Timeline ── */}
-        <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.section}>
+        {/* ── Today's Classes ── */}
+        <Animated.View entering={FadeInDown.delay(140).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Clock size={15} color="#6C8EFF" />
-              <Text style={styles.sectionTitle}>Today's Timeline</Text>
+              <Text style={styles.sectionTitle}>Classes Today</Text>
             </View>
-            <TouchableOpacity onPress={() => router.push('/(app)/calendar' as any)}>
+            <TouchableOpacity onPress={navigateToCalendarToday}>
               <Text style={styles.sectionLink}>Calendar →</Text>
             </TouchableOpacity>
           </View>
 
-          {timeline.length === 0 ? (
+          {todayResolvedClasses.length === 0 ? (
             <View style={styles.emptyCard}>
               <MapPin size={22} color="#2A3143" />
-              <Text style={styles.emptyCardText}>Nothing scheduled for today. Enjoy the free time!</Text>
+              <Text style={styles.emptyCardText}>No classes scheduled for today.</Text>
             </View>
           ) : (
             <ScrollView
@@ -519,39 +614,91 @@ function StudentHomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.timelineScroll}
             >
-              {timeline.map((item, i) => (
-                <TimelineItem
-                  key={item.id}
-                  label={item.label}
-                  time={item.time}
-                  color={item.color}
-                  sub={item.sub}
-                  modality={item.modality}
+              {todayResolvedClasses.map(({ schedule: s, resolution }, i) => (
+                <ClassTimelineItem
+                  key={s.id}
+                  label={s.subject_name ?? 'Class'}
+                  time={`${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`}
+                  color={s.subject_color ?? '#6C8EFF'}
+                  room={resolution.effectiveRoom ?? undefined}
+                  modality={s.modality}
+                  setLabel={resolution.reason !== 'Every Week' ? resolution.reason : undefined}
                   index={i}
-                  onPress={() => router.push('/(app)/calendar' as any)}
                 />
               ))}
             </ScrollView>
           )}
         </Animated.View>
 
+        {/* ── Today's Events ── */}
+        <Animated.View entering={FadeInDown.delay(170).springify()} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Calendar size={15} color="#10B981" />
+              <Text style={styles.sectionTitle}>Events Today</Text>
+            </View>
+            <TouchableOpacity onPress={navigateToCalendarToday}>
+              <Text style={[styles.sectionLink, { color: '#10B981' }]}>Calendar →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {todayEvents.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Calendar size={22} color="#2A3143" />
+              <Text style={styles.emptyCardText}>No events scheduled for today. Enjoy the free time!</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timelineScroll}
+            >
+              {todayEvents.map((e, i) => (
+                <EventTimelineItem key={e.id} event={e} index={i} />
+              ))}
+            </ScrollView>
+          )}
+        </Animated.View>
+
         {/* ── Study Workspace ── */}
-        <Animated.View entering={FadeInDown.delay(180).springify()} style={styles.section}>
+        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <BookOpen size={15} color="#6C8EFF" />
               <Text style={styles.sectionTitle}>Study Workspace</Text>
             </View>
+            <TouchableOpacity onPress={() => router.push('/(app)/notebook' as any)}>
+              <Text style={styles.sectionLink}>Notebooks →</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.hubGrid}>
-            {hubItems.map((item, i) => (
-              <HubCard key={item.label} item={item} index={i} />
-            ))}
-          </View>
+
+          {pinnedNotebooks.length === 0 ? (
+            <TouchableOpacity
+              style={styles.pinnedEmptyCard}
+              activeOpacity={0.75}
+              onPress={() => router.push('/(app)/notebook' as any)}
+            >
+              <Pin size={20} color="#2A3143" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pinnedEmptyTitle}>No notebooks pinned yet</Text>
+                <Text style={styles.pinnedEmptySub}>
+                  Pin notebooks from the Notebooks page to access them quickly here.
+                </Text>
+              </View>
+              <ArrowRight size={16} color="#3A4455" />
+            </TouchableOpacity>
+          ) : (
+            pinnedNotebooks.map((nb, i) => (
+              <PinnedNotebookCard key={nb.id} notebook={nb} index={i} />
+            ))
+          )}
         </Animated.View>
 
         <View style={styles.bottomPad} />
       </ScrollView>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
     </SafeAreaView>
   );
 }
@@ -647,14 +794,13 @@ const styles = StyleSheet.create({
     borderColor: '#2A3143',
     marginBottom: 8,
     overflow: 'hidden',
-    paddingRight: 14,
     gap: 8,
   },
   urgentAccent: { width: 4, alignSelf: 'stretch' },
   urgentCheckbox: {
     paddingLeft: 6,
     paddingRight: 4,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -709,6 +855,9 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 6,
   },
+  eventTimelineItem: {
+    borderColor: 'rgba(16,185,129,0.2)',
+  },
   timelineTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -716,6 +865,17 @@ const styles = StyleSheet.create({
   },
   timelineDot: { width: 8, height: 8, borderRadius: 4 },
   modalityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  eventTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -728,30 +888,139 @@ const styles = StyleSheet.create({
   timelineText: { gap: 2 },
   timelineLabel: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
   timelineTime: { fontSize: 11, color: '#6C8EFF', fontWeight: '600' },
-  timelineSub: { fontSize: 10, color: '#64748B' },
+  timelineMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  timelineSub: { fontSize: 10, color: '#64748B', flex: 1 },
+  timelineSetLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6C8EFF',
+    backgroundColor: 'rgba(108,142,255,0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
 
-  // Workspace Hub
-  hubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  hubCardWrapper: { width: '48%' },
-  hubCard: {
+  // Task Detail Modal
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  taskDetailSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#161B26',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderColor: '#2A3143',
+    paddingBottom: 36,
+    minHeight: 220,
+  },
+  taskDetailHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#2A3143',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  taskDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 14,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3143',
+  },
+  taskDetailAccent: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+  },
+  taskDetailHeaderText: { flex: 1, gap: 4 },
+  taskDetailTitle: { fontSize: 17, fontWeight: '800', color: '#ffffff' },
+  taskDetailSubjectTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  taskDetailSubjectDot: { width: 6, height: 6, borderRadius: 3 },
+  taskDetailSubjectName: { fontSize: 12, fontWeight: '600' },
+  taskDetailCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(100,116,139,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskDetailDueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  taskDetailDueText: { fontSize: 13, fontWeight: '600' },
+  taskDetailBody: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  taskDetailDescription: { fontSize: 14, color: '#94A3B8', lineHeight: 22 },
+  taskDetailDescriptionEmpty: { fontSize: 14, color: '#3A4455', fontStyle: 'italic' },
+
+  // Pinned Notebooks
+  pinnedCardWrapper: { marginBottom: 8 },
+  pinnedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161A26',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.2)',
+    padding: 14,
+    gap: 12,
+  },
+  pinnedCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinnedCardContent: { flex: 1, gap: 3 },
+  pinnedCardTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  pinnedCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pinnedCardSub: { fontSize: 11, color: '#64748B' },
+
+  pinnedEmptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#161A26',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2A3143',
-    padding: 14,
-    gap: 6,
+    borderStyle: 'dashed',
+    padding: 16,
+    gap: 12,
   },
-  hubIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(108,142,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  hubLabel: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
-  hubSub: { fontSize: 11, color: '#64748B', lineHeight: 15 },
+  pinnedEmptyTitle: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 3 },
+  pinnedEmptySub: { fontSize: 12, color: '#374151', lineHeight: 17 },
 
   bottomPad: { height: 20 },
 });

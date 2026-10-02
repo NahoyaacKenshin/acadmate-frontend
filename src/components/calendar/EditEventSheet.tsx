@@ -15,7 +15,7 @@ import {
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
@@ -248,29 +248,40 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
         behavior="padding"
         style={styles.keyboardAvoid}
       >
-        <View style={styles.sheetContent}>
+        <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <Calendar size={16} color="#F59E0B" />
+              </View>
+              <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
+            </View>
             <View style={styles.headerActions}>
-              <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
+              <Pressable onPress={handleDelete} style={styles.deleteBtn} hitSlop={8} disabled={isDeleting}>
                 {isDeleting
                   ? <ActivityIndicator size="small" color="#EF4444" />
-                  : <Trash2 size={20} color="#EF4444" />
+                  : <Trash2 size={18} color="#EF4444" />
                 }
               </Pressable>
-              <Pressable onPress={handleClose} style={styles.closeBtn}>
-                <X size={24} color="#94A3B8" />
+              <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+                <X size={20} color="#94A3B8" />
               </Pressable>
             </View>
           </View>
+
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.formContainer}
           >
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             {/* Title */}
             <View style={styles.formGroup}>
@@ -484,9 +495,17 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
               )}
             </View>
 
-            <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>{isExam ? 'Save Exam' : 'Save Changes'}</Text>}
-            </Button>
+            <Pressable
+              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText}>{isExam ? 'Save Exam' : 'Save Changes'}</Text>
+              )}
+            </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -496,13 +515,95 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
   },
   keyboardAvoid: {
     flex: 1,
     justifyContent: 'flex-end',
   },
+  sheet: {
+    backgroundColor: '#161B26',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderColor: '#2A3143',
+    maxHeight: '92%',
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3143',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deleteBtn: { padding: 6 },
+  closeBtn: { padding: 6 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
+    flex: 1,
+  },
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  submitBtn: {
+    backgroundColor: '#F59E0B',
+    marginTop: 16,
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitBtnDisabled: {
+    opacity: 0.5,
+  },
+  submitBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  formGroup: { marginBottom: 16 },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -523,34 +624,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '500',
   },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  deleteBtn: { padding: 6 },
-  closeBtn: { padding: 4 },
-  formContainer: { paddingBottom: 8 },
-  errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
-  formGroup: { marginBottom: 16 },
   label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
   sublabel: { fontSize: 12, color: '#2A3143', marginTop: 2 },
   toggleRow: {

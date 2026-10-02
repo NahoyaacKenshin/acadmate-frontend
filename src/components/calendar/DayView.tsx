@@ -147,7 +147,15 @@ function ClassCard({
           </View>
           {resolution.reason ? (
             <View style={styles.metaItem}>
-              <Text style={styles.setTypeTag}>{resolution.reason}</Text>
+              <Text
+                style={[
+                  styles.setTypeTag,
+                  resolution.reason.includes('Set B') && styles.setTypeTagB,
+                  resolution.reason === 'Every Week' && styles.setTypeTagEveryWeek,
+                ]}
+              >
+                {resolution.reason}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -675,10 +683,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#6C8EFF',
-    backgroundColor: 'rgba(108,142,255,0.12)',
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(108, 142, 255, 0.15)',
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
+  },
+  setTypeTagB: {
+    color: '#A78BFA',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+  },
+  setTypeTagEveryWeek: {
+    color: '#94A3B8',
+    backgroundColor: 'rgba(148, 163, 184, 0.12)',
   },
   // Task Due Card
   taskCard: {

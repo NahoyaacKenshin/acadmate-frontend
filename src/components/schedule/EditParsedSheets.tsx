@@ -7,11 +7,12 @@ import {
   Pressable,
   Platform,
   ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, Clock, Calendar, RotateCcw, GraduationCap, CalendarDays, AlertTriangle } from 'lucide-react-native';
+import { X, Clock, Calendar, RotateCcw, GraduationCap, CalendarDays, AlertTriangle, BookOpen, CalendarCheck } from 'lucide-react-native';
 import {
   ParsedClassSchedule,
   ParsedCalendarEvent,
@@ -209,15 +210,21 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheetContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Parsed Class</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoid}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <BookOpen size={16} color="#6C8EFF" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Parsed Class</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color="#94A3B8" />
+            </Pressable>
+          </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
           {/* Subject Name */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Subject Name</Text>
@@ -416,10 +423,11 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
           </View>
 
           <Button style={styles.saveButton} onPress={handleSave}>
-            <Text>Save Changes</Text>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           </Button>
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -509,15 +517,21 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheetContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Parsed Event</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoid}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <CalendarCheck size={16} color="#6C8EFF" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Parsed Event</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color="#94A3B8" />
+            </Pressable>
+          </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
           <View style={styles.formGroup}>
             <Text style={styles.label}>Event Title</Text>
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Independence Day" placeholderTextColor="#64748B" />
@@ -601,10 +615,11 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
           </View>
 
           <Button style={styles.saveButton} onPress={handleSave}>
-            <Text>Save Changes</Text>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           </Button>
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -692,15 +707,21 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheetContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Calendar Blocker</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoid}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={[styles.headerBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)' }]}>
+                <AlertTriangle size={16} color="#F59E0B" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Calendar Blocker</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color="#94A3B8" />
+            </Pressable>
+          </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
           {/* Category Selector */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Blocker Type</Text>
@@ -820,10 +841,11 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
           )}
 
           <Button style={styles.saveButton} onPress={handleSave}>
-            <Text>Save Changes</Text>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           </Button>
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1014,15 +1036,21 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheetContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Exam Schedule</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView behavior="padding" style={styles.keyboardAvoid}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={[styles.headerBadge, { backgroundColor: 'rgba(139,92,246,0.18)', borderColor: 'rgba(139,92,246,0.35)' }]}>
+                <GraduationCap size={16} color="#8B5CF6" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Exam Schedule</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color="#94A3B8" />
+            </Pressable>
+          </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
           {/* Title */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Exam Title / Subject</Text>
@@ -1165,10 +1193,11 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
           )}
 
           <Button style={styles.saveButton} onPress={handleSave}>
-            <Text>Save Changes</Text>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           </Button>
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1178,7 +1207,56 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#161B26',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderColor: '#2A3143',
+    maxHeight: '92%',
+    paddingBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3143',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108, 142, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  closeBtn: { padding: 6 },
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   labelRow: {
     flexDirection: 'row',
@@ -1200,32 +1278,13 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '500',
   },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
-  closeBtn: { padding: 4 },
-  formContainer: { paddingBottom: 8 },
   formGroup: { marginBottom: 18 },
-  label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 8,
+  },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
     paddingHorizontal: 12,
@@ -1249,25 +1308,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 14,
   },
   picker: {
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
+  pickerText: { color: '#ffffff', fontSize: 14, flex: 1 },
+  pickerPlaceholder: { color: '#64748B', fontSize: 14, flex: 1 },
   pickerDisabled: {
     opacity: 0.45,
     backgroundColor: '#0F131D',
@@ -1279,17 +1338,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#10131C',
     borderWidth: 1,
     borderColor: '#2A3143',
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   iosPicker: { height: 150 },
   iosDoneBtn: {
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: '#2A3143',
   },
-  iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
-  saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
+  iosDoneBtnText: { color: '#6C8EFF', fontSize: 14, fontWeight: '600' },
+  saveButton: {
+    backgroundColor: '#6C8EFF',
+    marginTop: 8,
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });

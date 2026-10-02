@@ -7,10 +7,13 @@ import { useSystemStore } from '@/src/store/systemStore';
 
 interface NotebookState {
   notebooks: Notebook[];
+  pinnedIds: string[];
   sourcesByNotebook: Record<string, Source[]>;
   isLoadingNotebooks: boolean;
   notebooksError: string | null;
 
+  loadPinnedIds: () => Promise<void>;
+  togglePinNotebook: (id: string) => Promise<void>;
   fetchNotebooks: (silent?: boolean) => Promise<void>;
   createNotebook: (title: string, description?: string) => Promise<Notebook>;
   updateNotebook: (id: string, data: { title?: string; description?: string | null }) => Promise<Notebook>;
@@ -24,9 +27,25 @@ interface NotebookState {
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
   notebooks: [],
+  pinnedIds: [],
   sourcesByNotebook: {},
   isLoadingNotebooks: false,
   notebooksError: null,
+
+  loadPinnedIds: async () => {
+    const cached = await NotebookStorage.loadPinnedIds();
+    if (cached) {
+      set({ pinnedIds: cached });
+    }
+  },
+
+  togglePinNotebook: async (id: string) => {
+    const current = get().pinnedIds;
+    const isPinned = current.includes(id);
+    const updated = isPinned ? current.filter((x) => x !== id) : [...current, id];
+    set({ pinnedIds: updated });
+    await NotebookStorage.savePinnedIds(updated);
+  },
 
   fetchNotebooks: async (silent = false) => {
     // 1. Stale-while-revalidate: Hydrate from disk cache immediately if memory is empty
@@ -34,6 +53,13 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       const cached = await NotebookStorage.loadNotebooks();
       if (cached && cached.length > 0) {
         set({ notebooks: cached });
+      }
+    }
+    // Hydrate pinned IDs if not yet loaded
+    if (get().pinnedIds.length === 0) {
+      const cachedPinned = await NotebookStorage.loadPinnedIds();
+      if (cachedPinned && cachedPinned.length > 0) {
+        set({ pinnedIds: cachedPinned });
       }
     }
 
@@ -120,8 +146,10 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   deleteNotebook: async (id) => {
     await ApiService.notebooks.delete(id);
     const filtered = get().notebooks.filter((n) => n.id !== id);
-    set({ notebooks: filtered });
+    const updatedPinned = get().pinnedIds.filter((x) => x !== id);
+    set({ notebooks: filtered, pinnedIds: updatedPinned });
     NotebookStorage.saveNotebooks(filtered);
+    NotebookStorage.savePinnedIds(updatedPinned);
   },
 
   fetchSources: async (notebookId, silent = false) => {

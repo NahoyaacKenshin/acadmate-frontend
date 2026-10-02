@@ -234,14 +234,25 @@ export function resolveScheduleForDate(
     }
   }
 
-  // 7. Regular Default Modality
+  // 7. Dynamic Class Modality & Set Resolution (Replaces static 'Regular Class' badge)
+  let setBadgeText: string;
+  if (st === 'A') {
+    setBadgeText = 'Set A';
+  } else if (st === 'B') {
+    setBadgeText = 'Set B';
+  } else if (effectiveSet === 'A' || effectiveSet === 'B') {
+    setBadgeText = `Set ${effectiveSet}`;
+  } else {
+    setBadgeText = 'Every Week';
+  }
+
   return {
     isActive: true,
     isHoliday: false,
     isExamWeek: false,
     modality: schedule.modality,
     effectiveRoom: schedule.modality === 'ONLINE' ? 'Online Class' : schedule.room,
-    reason: 'Regular Class',
+    reason: setBadgeText,
     badgeText: schedule.modality,
     badgeColor: schedule.modality === 'F2F' ? '#10B981' : schedule.modality === 'ONLINE' ? '#3B82F6' : '#8B5CF6',
   };

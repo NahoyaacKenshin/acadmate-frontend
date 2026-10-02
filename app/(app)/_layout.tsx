@@ -46,11 +46,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="notebook"
         options={{
-          title: 'Notebook',
+          title: 'Notebooks',
           tabBarIcon: ({ size }) => (
             <Book size={size} color={isInNotebook ? '#6C8EFF' : '#94A3B8'} />
           ),
-          tabBarLabel: 'Notebook',
+          tabBarLabel: 'Notebooks',
           tabBarLabelStyle: isInNotebook
             ? { color: '#6C8EFF' }
             : { color: '#94A3B8' },
