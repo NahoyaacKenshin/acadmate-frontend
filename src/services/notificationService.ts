@@ -19,6 +19,44 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/**
+ * Formats lead minutes into a friendly string (e.g. 15m, 1h, 1d, 2d).
+ */
+export function formatLeadMinutes(mins: number): string {
+  if (mins === 0) return 'At start';
+  if (mins % 1440 === 0) return `${mins / 1440}d`;
+  if (mins % 60 === 0) return `${mins / 60}h`;
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${mins}m`;
+}
+
+/**
+ * Robustly checks if a calendar event is an exam or quiz.
+ */
+export function isExamEvent(e: CalendarEventRow): boolean {
+  if (e.color === '#8B5CF6') return true;
+  const title = (e.title || '').toLowerCase();
+  const desc = (e.description || '').toLowerCase();
+  const examKeywords = [
+    'exam',
+    'quiz',
+    'midterm',
+    'prelim',
+    'semi-final',
+    'semifinal',
+    'finals',
+    'final exam',
+    'long test',
+    'periodical',
+    'assessment',
+  ];
+  return examKeywords.some((k) => title.includes(k) || desc.includes(k));
+}
+
 export interface StudyReminderPayload {
   notebookId: string;
   notebookTitle: string;
@@ -189,9 +227,9 @@ export const NotificationService = {
   },
 
   /**
-   * Schedules task reminders: 1 day before + 1 hour before + due now.
+   * Schedules task reminders: leadMinutes before + 1 hour before (if lead > 1h) + due now.
    */
-  scheduleTaskReminders: async (task: TaskRow): Promise<string[]> => {
+  scheduleTaskReminders: async (task: TaskRow, leadMinutes: number = 1440): Promise<string[]> => {
     const identifiers: string[] = [];
     const { id, title, due_date, subject_name } = task;
     if (!due_date) return [];
@@ -200,16 +238,23 @@ export const NotificationService = {
     if (!dueTime) return [];
     const now = Date.now();
 
-    // 1 Day before reminder
-    const dayBeforeTime = dueTime - 24 * 60 * 60 * 1000;
-    if (dayBeforeTime > now) {
-      const idDay = `task_${id}_day`;
+    // Primary lead reminder
+    const primaryLeadTime = dueTime - leadMinutes * 60 * 1000;
+    if (primaryLeadTime > now) {
+      const idLead = `task_${id}_lead`;
+      const leadLabel = formatLeadMinutes(leadMinutes);
+      const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
+      const daysCount = leadMinutes / 1440;
+      const titleText = isDays
+        ? daysCount === 1 ? 'Task Due Tomorrow' : `Task Due in ${daysCount} Days`
+        : `Task Due in ${leadLabel}`;
+
       try {
         await Notifications.scheduleNotificationAsync({
-          identifier: idDay,
+          identifier: idLead,
           content: {
-            title: `Task Due Tomorrow`,
-            body: `"${title}" is due tomorrow${subject_name ? ` for ${subject_name}` : ''}`,
+            title: titleText,
+            body: `"${title}" is due in ${leadLabel}${subject_name ? ` for ${subject_name}` : ''}`,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -218,56 +263,60 @@ export const NotificationService = {
               title,
               dueDate: due_date,
               subjectName: subject_name || '',
-              reminderType: 'day_before',
+              reminderType: 'lead_time',
+              leadMinutes,
             },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
             channelId: 'tasks_alerts',
-            date: new Date(dayBeforeTime),
+            date: new Date(primaryLeadTime),
           },
         });
-        identifiers.push(idDay);
+        identifiers.push(idLead);
       } catch (e) {
-        console.error('Failed to schedule task day-before reminder', e);
+        console.error('Failed to schedule task primary reminder', e);
       }
     }
 
-    // 1 Hour before reminder
-    const hourBeforeTime = dueTime - 60 * 60 * 1000;
-    if (hourBeforeTime > now) {
-      const idHour = `task_${id}_hour`;
-      try {
-        await Notifications.scheduleNotificationAsync({
-          identifier: idHour,
-          content: {
-            title: `Task Due in 1 Hour`,
-            body: `"${title}" is due soon. Make sure to complete it!`,
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-            data: {
-              type: 'task',
-              taskId: id,
-              title,
-              dueDate: due_date,
-              subjectName: subject_name || '',
-              reminderType: 'hour_before',
+    // 1 Hour before reminder (only if primary lead was more than 1 hour)
+    if (leadMinutes > 60) {
+      const hourBeforeTime = dueTime - 60 * 60 * 1000;
+      if (hourBeforeTime > now) {
+        const idHour = `task_${id}_hour`;
+        try {
+          await Notifications.scheduleNotificationAsync({
+            identifier: idHour,
+            content: {
+              title: `Task Due in 1 Hour`,
+              body: `"${title}" is due soon. Make sure to complete it!`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: {
+                type: 'task',
+                taskId: id,
+                title,
+                dueDate: due_date,
+                subjectName: subject_name || '',
+                reminderType: 'hour_before',
+              },
             },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks_alerts',
-            date: new Date(hourBeforeTime),
-          },
-        });
-        identifiers.push(idHour);
-      } catch (e) {
-        console.error('Failed to schedule task hour-before reminder', e);
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'tasks_alerts',
+              date: new Date(hourBeforeTime),
+            },
+          });
+          identifiers.push(idHour);
+        } catch (e) {
+          console.error('Failed to schedule task hour-before reminder', e);
+        }
       }
     }
 
     // Due time / due soon reminder (if created within the last hour before due date)
-    if (hourBeforeTime <= now && dueTime > now + 60 * 1000) {
+    const hourCutoff = dueTime - 60 * 60 * 1000;
+    if (hourCutoff <= now && dueTime > now + 60 * 1000) {
       const idDue = `task_${id}_due`;
       try {
         await Notifications.scheduleNotificationAsync({
@@ -434,7 +483,7 @@ export const NotificationService = {
   /**
    * Bulk helper to synchronize task notifications without cancelling active ones unnecessarily.
    */
-  rescheduleAllTasks: async (tasks: TaskRow[], enabled: boolean) => {
+  rescheduleAllTasks: async (tasks: TaskRow[], enabled: boolean, leadMinutes: number = 1440) => {
     try {
       const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
       const existingTaskNotifs = allNotifications.filter((n) => n.identifier.startsWith('task_'));
@@ -451,7 +500,7 @@ export const NotificationService = {
       const desiredIds = new Set<string>();
 
       for (const task of incompleteTasks) {
-        const scheduledIds = await NotificationService.scheduleTaskReminders(task);
+        const scheduledIds = await NotificationService.scheduleTaskReminders(task, leadMinutes);
         scheduledIds.forEach((id) => desiredIds.add(id));
       }
 
@@ -513,28 +562,37 @@ export const NotificationService = {
   },
 
   /**
-   * Schedules reminders for a specific subject exam (1 day before + 1 hour before).
+   * Schedules reminders for a specific subject exam (leadMinutes before + 1 hour before if lead > 1h).
    */
-  scheduleSubjectExamReminders: async (event: CalendarEventRow): Promise<string[]> => {
+  scheduleSubjectExamReminders: async (
+    event: CalendarEventRow,
+    leadMinutes: number = 1440
+  ): Promise<string[]> => {
     const identifiers: string[] = [];
     if (!event.start_date) return [];
 
     const examTime = parseToEpoch(event.start_date);
     if (!examTime) return [];
     const now = Date.now();
-    const dayBefore = examTime - 24 * 60 * 60 * 1000;
-    const hourBefore = examTime - 60 * 60 * 1000;
 
-    // 1 Day before
-    if (dayBefore > now) {
-      const idDay = `exam_${event.id}_day`;
+    // Primary lead reminder
+    const primaryLeadTime = examTime - leadMinutes * 60 * 1000;
+    if (primaryLeadTime > now) {
+      const idLead = `exam_${event.id}_lead`;
+      const leadLabel = formatLeadMinutes(leadMinutes);
+      const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
+      const daysCount = leadMinutes / 1440;
+      const titleText = isDays
+        ? daysCount === 1 ? `Exam Tomorrow: ${event.title}` : `Exam in ${daysCount} Days: ${event.title}`
+        : `Exam in ${leadLabel}: ${event.title}`;
+
       try {
-        await NotificationService.cancelNotification(idDay);
+        await NotificationService.cancelNotification(idLead);
         await Notifications.scheduleNotificationAsync({
-          identifier: idDay,
+          identifier: idLead,
           content: {
-            title: `Exam Tomorrow: ${event.title}`,
-            body: `Starts tomorrow${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
+            title: titleText,
+            body: `Starts in ${leadLabel}${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -543,49 +601,53 @@ export const NotificationService = {
               title: event.title,
               startDate: event.start_date,
               location: event.location || '',
+              leadMinutes,
             },
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
             channelId: 'tasks_alerts',
-            date: new Date(dayBefore),
+            date: new Date(primaryLeadTime),
           },
         });
-        identifiers.push(idDay);
+        identifiers.push(idLead);
       } catch (e) {
-        console.error('Failed to schedule exam day-before reminder', e);
+        console.error('Failed to schedule exam primary reminder', e);
       }
     }
 
-    // 1 Hour before
-    if (hourBefore > now) {
-      const idHour = `exam_${event.id}_hour`;
-      try {
-        await NotificationService.cancelNotification(idHour);
-        await Notifications.scheduleNotificationAsync({
-          identifier: idHour,
-          content: {
-            title: `Exam in 1 Hour: ${event.title}`,
-            body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-            data: {
-              type: 'exam',
-              eventId: event.id,
-              title: event.title,
-              startDate: event.start_date,
-              location: event.location || '',
+    // 1 Hour before (if leadMinutes > 60)
+    if (leadMinutes > 60) {
+      const hourBeforeTime = examTime - 60 * 60 * 1000;
+      if (hourBeforeTime > now) {
+        const idHour = `exam_${event.id}_hour`;
+        try {
+          await NotificationService.cancelNotification(idHour);
+          await Notifications.scheduleNotificationAsync({
+            identifier: idHour,
+            content: {
+              title: `Exam in 1 Hour: ${event.title}`,
+              body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: {
+                type: 'exam',
+                eventId: event.id,
+                title: event.title,
+                startDate: event.start_date,
+                location: event.location || '',
+              },
             },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            channelId: 'tasks_alerts',
-            date: new Date(hourBefore),
-          },
-        });
-        identifiers.push(idHour);
-      } catch (e) {
-        console.error('Failed to schedule exam hour-before reminder', e);
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'tasks_alerts',
+              date: new Date(hourBeforeTime),
+            },
+          });
+          identifiers.push(idHour);
+        } catch (e) {
+          console.error('Failed to schedule exam hour-before reminder', e);
+        }
       }
     }
 
@@ -598,7 +660,8 @@ export const NotificationService = {
   rescheduleAllExams: async (
     examWeeks: ExamWeekRow[],
     events: CalendarEventRow[],
-    enabled: boolean
+    enabled: boolean,
+    leadMinutes: number = 1440
   ) => {
     try {
       const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
@@ -622,16 +685,10 @@ export const NotificationService = {
         ids.forEach((id) => desiredIds.add(id));
       }
 
-      // Schedule individual subject exams
-      const isExam = (e: CalendarEventRow) =>
-        e.color === '#8B5CF6' ||
-        (e.description != null && e.description.toLowerCase().includes('exam')) ||
-        e.title.toLowerCase().includes('exam') ||
-        e.title.toLowerCase().includes('quiz');
-
-      const examEvents = events.filter(isExam);
+      // Schedule individual subject exams using refined matcher
+      const examEvents = events.filter(isExamEvent);
       for (const ex of examEvents) {
-        const ids = await NotificationService.scheduleSubjectExamReminders(ex);
+        const ids = await NotificationService.scheduleSubjectExamReminders(ex, leadMinutes);
         ids.forEach((id) => desiredIds.add(id));
       }
 
@@ -658,12 +715,7 @@ export const NotificationService = {
     const identifiers: string[] = [];
 
     // Skip exam / quiz events — those are handled by examAlerts
-    const isExamLike =
-      event.color === '#8B5CF6' ||
-      (event.description != null && event.description.toLowerCase().includes('exam')) ||
-      event.title.toLowerCase().includes('exam') ||
-      event.title.toLowerCase().includes('quiz');
-    if (isExamLike) return [];
+    if (isExamEvent(event)) return [];
 
     const now = Date.now();
 

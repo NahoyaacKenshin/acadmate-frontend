@@ -93,20 +93,26 @@ export function getPeriodCategory(item: { title: string }): PeriodCategory {
   return 'EXAM';
 }
 
+export const CALENDAR_THEME = {
+  CLASS: '#6C8EFF',
+  EVENT: '#8B5CF6',
+  TASK: '#10B981',
+  EXAM: '#F59E0B',
+  HOLIDAY_SUSPENSION: '#EF4444',
+} as const;
+
 /**
- * Returns the theme color for a period category based on the Add Exam Week / Period selection tab:
+ * Returns the theme color for a period category:
  * Exam = #F59E0B (Amber)
- * Holiday = #10B981 (Emerald Green)
- * Suspension = #EF4444 (Red)
+ * Holiday & Suspension = #EF4444 (Crimson Red)
  */
 export function getPeriodColor(category: PeriodCategory): string {
   switch (category) {
     case 'EXAM':
-      return '#F59E0B';
+      return CALENDAR_THEME.EXAM;
     case 'HOLIDAY':
-      return '#10B981';
     case 'SUSPENSION':
-      return '#EF4444';
+      return CALENDAR_THEME.HOLIDAY_SUSPENSION;
   }
 }
 
@@ -115,7 +121,12 @@ export function getPeriodColor(category: PeriodCategory): string {
  */
 export function getCleanPeriodTitle(title: string): string {
   if (!title) return '';
-  return title.replace(/^[🎓🏖️⚠️]\s*/, '').trim();
+  return title
+    .replace(/^[🎓🏖️⚠️\u{1F393}?\uFFFD]\s*/u, '')
+    .replace(/[🎓\u{1F393}]/gu, '')
+    .replace(/^\?\s*/, '')
+    .replace(/\s*\?\s*/g, ' ')
+    .trim();
 }
 
 export interface SimpleHoliday {

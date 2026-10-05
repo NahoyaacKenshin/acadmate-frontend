@@ -8,7 +8,10 @@ export interface NotificationPrefs {
   studyReminders: boolean;
   eventReminders: boolean;
   classLeadMinutes: number;
+  taskLeadMinutes: number;
+  examLeadMinutes: number;
   eventLeadMinutes: number;
+  studyLeadMinutes: number;
 }
 
 interface NotificationState {
@@ -27,7 +30,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     studyReminders: true,
     eventReminders: true,
     classLeadMinutes: 15,
+    taskLeadMinutes: 1440,
+    examLeadMinutes: 1440,
     eventLeadMinutes: 15,
+    studyLeadMinutes: 15,
   },
   updatePrefs: async (newPrefs) => {
     const updatedPrefs = { ...get().prefs, ...newPrefs };
@@ -42,7 +48,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     try {
       const raw = await SecureStore.getItemAsync(PREFS_KEY);
       if (raw) {
-        set({ prefs: JSON.parse(raw) });
+        const parsed = JSON.parse(raw);
+        set((state) => ({
+          prefs: {
+            ...state.prefs,
+            ...parsed,
+            taskLeadMinutes: parsed.taskLeadMinutes ?? 1440,
+            examLeadMinutes: parsed.examLeadMinutes ?? 1440,
+            studyLeadMinutes: parsed.studyLeadMinutes ?? 15,
+          },
+        }));
       }
     } catch (e) {
       console.warn('Failed to load notification preferences', e);

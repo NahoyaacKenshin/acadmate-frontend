@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,9 +9,9 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Text,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
 import { Button } from '../ui/button';
 import { X, Clock, Calendar, Trash2, RotateCcw, BookOpen, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
@@ -20,6 +20,8 @@ import { useSubjects } from '@/src/hooks/useSubjects';
 import { useClassSchedules } from '@/src/hooks/useClassSchedules';
 import { AddExamWeekModal } from './AddExamWeekModal';
 import { formatDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface AddClassSheetProps {
   visible: boolean;
@@ -42,19 +44,6 @@ const DAYS = [
   { label: 'Fri', value: 5 },
   { label: 'Sat', value: 6 },
   { label: 'Sun', value: 0 },
-];
-
-const PRESET_COLORS = [
-  '#6C8EFF', // primary blue
-  '#10B981', // emerald
-  '#F59E0B', // amber
-  '#EF4444', // red
-  '#8B5CF6', // purple
-  '#06B6D4', // cyan
-  '#EC4899', // pink
-  '#14B8A6', // teal
-  '#6366F1', // indigo
-  '#F97316', // orange
 ];
 
 const MODALITIES: { label: string; value: Modality }[] = [
@@ -94,6 +83,8 @@ function formatDate(date: Date | null): string {
 }
 
 export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
@@ -176,7 +167,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
       const now = toPhilippineISO(new Date());
       await powerSync.execute(
         `INSERT INTO Subject (id, name, color, userId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
-        [subjectId, newSubjectName.trim(), newSubjectColor, userId, now, now]
+        [subjectId, newSubjectName.trim(), null, userId, now, now]
       );
       // Automatically select the newly created subject
       setSelectedSubjectId(subjectId);
@@ -380,12 +371,12 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <BookOpen size={16} color="#6C8EFF" />
+                <BookOpen size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>Add Class Schedule</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -411,10 +402,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             >
               <View style={styles.subjectPickerInner}>
                 {selectedSubject ? (
-                  <>
-                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
-                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
-                  </>
+                  <Text style={styles.pickerText}>{selectedSubject.name}</Text>
                 ) : (
                   <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
                 )}
@@ -430,14 +418,13 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                         style={styles.pickerItem}
                         onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
                       >
-                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
                         <Text style={styles.pickerItemText}>{s.name}</Text>
                       </Pressable>
                       <Pressable
                         style={styles.deleteSubjectBtn}
                         onPress={() => handleDeleteSubject(s.id)}
                       >
-                        <X size={16} color="#94A3B8" />
+                        <X size={16} color={colors.mutedForeground} />
                       </Pressable>
                     </View>
                   ))}
@@ -456,24 +443,12 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                     <TextInput
                       style={styles.newSubjectInput}
                       placeholder="Subject Name"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={colors.mutedForeground}
                       value={newSubjectName}
                       onChangeText={setNewSubjectName}
                       autoFocus
                     />
-                    <View style={styles.newSubjectColors}>
-                      {PRESET_COLORS.map((color) => (
-                        <Pressable
-                          key={color}
-                          style={[
-                            styles.newSubjectColorSwatch,
-                            { backgroundColor: color },
-                            newSubjectColor === color && styles.newSubjectColorSelected
-                          ]}
-                          onPress={() => setNewSubjectColor(color)}
-                        />
-                      ))}
-                    </View>
+
                     <View style={styles.newSubjectActions}>
                       <Pressable
                         style={styles.newSubjectCancel}
@@ -486,7 +461,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                         onPress={handleCreateSubject}
                       >
                         {isSavingSubject ? (
-                          <ActivityIndicator size="small" color="#6C8EFF" />
+                          <ActivityIndicator size="small" color="#ffffff" />
                         ) : (
                           <Text style={styles.newSubjectSaveText}>Save</Text>
                         )}
@@ -534,7 +509,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={10} color="#94A3B8" />
+                  <RotateCcw size={10} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Today</Text>
                 </Pressable>
               </View>
@@ -542,7 +517,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 <Text style={startDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {startDate ? formatDate(startDate) : 'Select start date...'}
                 </Text>
-                <Calendar size={14} color="#94A3B8" />
+                <Calendar size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
 
@@ -563,7 +538,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                   <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                     {!startDate ? 'Select start date first' : endDate ? formatDate(endDate) : 'Select end date...'}
                   </Text>
-                  <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                  <Calendar size={14} color={colors.mutedForeground} />
                 </Pressable>
               </View>
           </View>
@@ -580,14 +555,14 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
 
@@ -605,14 +580,14 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -642,8 +617,8 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                     ? handleTimeChange
                     : handleDateChange
                 }
-                textColor="#ffffff"
-                themeVariant="dark"
+                textColor={colors.foreground}
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={styles.iosPicker}
               />
               <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -699,7 +674,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
               <TextInput
                 style={styles.input}
                 placeholder="e.g. Room 416, Tech Hall"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.mutedForeground}
                 value={room}
                 onChangeText={setRoom}
                 onFocus={() => setShowSubjectPicker(false)}
@@ -729,7 +704,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. Room 301, Building A"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.mutedForeground}
                   value={roomSetA}
                   onChangeText={setRoomSetA}
                   onFocus={() => setShowSubjectPicker(false)}
@@ -755,7 +730,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. Room 205, Building B"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.mutedForeground}
                   value={roomSetB}
                   onChangeText={setRoomSetB}
                   onFocus={() => setShowSubjectPicker(false)}
@@ -782,342 +757,345 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: 'rgba(108, 142, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: {
-    padding: 6,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    flex: 1,
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  submitBtn: {
-    backgroundColor: '#6C8EFF',
-    marginTop: 16,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitBtnDisabled: {
-    opacity: 0.5,
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  formGroup: { marginBottom: 18 },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: '#1E2433',
-  },
-  resetBtnText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
-  setRoomLabel: { fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' },
-  setGroup: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    padding: 12,
-  },
-  setGroupHeader: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 10,
-    letterSpacing: 0.5,
-  },
-
-  // Pill selectors
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    backgroundColor: '#10131C',
-    minWidth: 48,
-    alignItems: 'center',
-  },
-  pillWide: {
-    flex: 1,
-  },
-  pillSelected: {
-    backgroundColor: 'rgba(108,142,255,0.15)',
-    borderColor: '#6C8EFF',
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  pillTextSelected: {
-    color: '#6C8EFF',
-  },
-
-  // Time row
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  timeField: { flex: 1 },
-  timeSeparator: {
-    paddingBottom: 12,
-  },
-  timeSeparatorText: {
-    color: '#94A3B8',
-    fontSize: 16,
-  },
-
-  // Input
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-
-  // Picker
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
-  pickerDisabled: {
-    opacity: 0.45,
-    backgroundColor: '#0F131D',
-    borderColor: '#1E2433',
-  },
-  subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  pickerItemWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  pickerItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  deleteSubjectBtn: {
-    padding: 12,
-  },
-
-  // iOS picker
-  iosPickerWrapper: {
-    marginTop: -10,
-    marginBottom: 12,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  iosPicker: { height: 150 },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
-
-  addButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
-
-  // Inline new subject form
-  subjectScroll: {
-    maxHeight: 200,
-  },
-  newSubjectBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-    alignItems: 'center',
-  },
-  newSubjectBtnText: {
-    color: '#6C8EFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  newSubjectForm: {
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-    backgroundColor: '#161A26',
-  },
-  newSubjectInput: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#ffffff',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  newSubjectColors: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  newSubjectColorSwatch: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  newSubjectColorSelected: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    transform: [{ scale: 1.15 }],
-  },
-  newSubjectActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  newSubjectCancel: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  newSubjectCancelText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  newSubjectSave: {
-    backgroundColor: '#6C8EFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    minWidth: 64,
-    alignItems: 'center',
-  },
-  newSubjectSaveText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      letterSpacing: -0.3,
+    },
+    closeBtn: {
+      padding: 6,
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
+    },
+    submitBtn: {
+      backgroundColor: '#6366F1',
+      marginTop: 20,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitBtnDisabled: {
+      opacity: 0.5,
+    },
+    submitBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+    formGroup: { marginBottom: 18 },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+    },
+    resetBtnText: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    setRoomLabel: {
+      fontSize: 12,
+      color: '#6366F1',
+      marginBottom: 6,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    setGroup: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+    },
+    setGroupHeader: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.foreground,
+      marginBottom: 10,
+      letterSpacing: 0.3,
+    },
+    pillRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      minWidth: 48,
+      alignItems: 'center',
+    },
+    pillWide: {
+      flex: 1,
+    },
+    pillSelected: {
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+      borderColor: '#6366F1',
+    },
+    pillText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    pillTextSelected: {
+      color: '#6366F1',
+    },
+    timeRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+    },
+    timeField: { flex: 1 },
+    timeSeparator: {
+      paddingBottom: 12,
+    },
+    timeSeparatorText: {
+      color: colors.mutedForeground,
+      fontSize: 16,
+    },
+    input: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 15,
+    },
+    picker: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: { color: colors.foreground, fontSize: 14, flex: 1 },
+    pickerPlaceholder: { color: colors.mutedForeground, fontSize: 14, flex: 1 },
+    pickerDisabled: {
+      opacity: 0.45,
+    },
+    subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
+    subjectDot: { width: 10, height: 10, borderRadius: 5 },
+    pickerList: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItemWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    pickerItem: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    pickerItemText: { color: colors.foreground, fontSize: 14, marginLeft: 8 },
+    deleteSubjectBtn: {
+      padding: 12,
+    },
+    iosPickerWrapper: {
+      marginTop: -10,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    iosPicker: { height: 150 },
+    iosDoneBtn: {
+      alignItems: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    iosDoneBtnText: { color: '#6366F1', fontSize: 15, fontWeight: '600' },
+    addButton: { marginTop: 8, backgroundColor: '#6366F1' },
+    subjectScroll: {
+      maxHeight: 200,
+    },
+    newSubjectBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      alignItems: 'center',
+    },
+    newSubjectBtnText: {
+      color: '#6366F1',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    newSubjectForm: {
+      padding: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    newSubjectInput: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: colors.foreground,
+      fontSize: 14,
+      marginBottom: 12,
+    },
+    newSubjectColors: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 8,
+      marginBottom: 24,
+    },
+    newSubjectColorSwatch: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+    },
+    newSubjectColorSelected: {
+      borderWidth: 2,
+      borderColor: colors.foreground,
+      transform: [{ scale: 1.15 }],
+    },
+    newSubjectActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 12,
+    },
+    newSubjectCancel: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    newSubjectCancelText: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    newSubjectSave: {
+      backgroundColor: '#6366F1',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      minWidth: 64,
+      alignItems: 'center',
+    },
+    newSubjectSaveText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+  });
+}
 

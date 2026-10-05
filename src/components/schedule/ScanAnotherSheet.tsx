@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ScanAnotherSheet
  *
  * A bottom-sheet modal that lets the user pick another file to scan from the
@@ -6,7 +6,7 @@
  * can intelligently merge the new document with the existing items.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -14,10 +14,12 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  Text,
 } from "react-native";
-import { Text } from "@/src/components/ui/text";
 import { FileText, Image as ImageIcon, Camera, X, ScanLine } from "lucide-react-native";
-import type { ParsedScheduleResult, SelectedFile } from "@/src/hooks/useScheduleScanner";
+import type { SelectedFile } from "@/src/hooks/useScheduleScanner";
+import { useTheme } from "@/src/theme/useTheme";
+import type { ThemeColors } from "@/src/theme/tokens";
 
 interface ScanAnotherSheetProps {
   visible: boolean;
@@ -44,6 +46,9 @@ export function ScanAnotherSheet({
   onClose,
   onScan,
 }: ScanAnotherSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -54,11 +59,11 @@ export function ScanAnotherSheet({
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <ScanLine size={18} color="#8B5CF6" />
+            <ScanLine size={18} color="#6366F1" />
             <Text style={styles.title}>Scan Another File</Text>
           </View>
           <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
-            <X size={18} color="#64748B" />
+            <X size={18} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
@@ -69,8 +74,8 @@ export function ScanAnotherSheet({
         {/* Picker Options */}
         <View style={styles.options}>
           <Pressable style={styles.option} onPress={onPickDocument}>
-            <View style={[styles.optionIcon, { backgroundColor: "rgba(108,142,255,0.12)" }]}>
-              <FileText size={20} color="#6C8EFF" />
+            <View style={[styles.optionIcon, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.1)" }]}>
+              <FileText size={20} color="#6366F1" />
             </View>
             <View style={styles.optionText}>
               <Text style={styles.optionLabel}>PDF or Word Document</Text>
@@ -79,7 +84,7 @@ export function ScanAnotherSheet({
           </Pressable>
 
           <Pressable style={styles.option} onPress={onPickGallery}>
-            <View style={[styles.optionIcon, { backgroundColor: "rgba(16,185,129,0.12)" }]}>
+            <View style={[styles.optionIcon, { backgroundColor: isDark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.1)" }]}>
               <ImageIcon size={20} color="#10B981" />
             </View>
             <View style={styles.optionText}>
@@ -89,7 +94,7 @@ export function ScanAnotherSheet({
           </Pressable>
 
           <Pressable style={styles.option} onPress={onPickCamera}>
-            <View style={[styles.optionIcon, { backgroundColor: "rgba(139,92,246,0.12)" }]}>
+            <View style={[styles.optionIcon, { backgroundColor: isDark ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.1)" }]}>
               <Camera size={20} color="#8B5CF6" />
             </View>
             <View style={styles.optionText}>
@@ -107,7 +112,7 @@ export function ScanAnotherSheet({
                 <Image source={{ uri: selectedFile.thumbnail }} style={styles.previewThumb} />
               ) : (
                 <View style={styles.previewFileIcon}>
-                  <FileText size={18} color="#6C8EFF" />
+                  <FileText size={18} color="#6366F1" />
                 </View>
               )}
               <View style={{ flex: 1 }}>
@@ -119,7 +124,7 @@ export function ScanAnotherSheet({
               </View>
             </View>
             <Pressable onPress={onClearFile} hitSlop={8} style={styles.previewRemove}>
-              <X size={14} color="#64748B" />
+              <X size={14} color={colors.mutedForeground} />
             </Pressable>
           </View>
         )}
@@ -150,40 +155,143 @@ export function ScanAnotherSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: {
-    backgroundColor: "#161A26",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: 36,
-    borderTopWidth: 1,
-    borderColor: "#2A3143",
-  },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#2A3143", alignSelf: "center", marginBottom: 16 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { fontSize: 16, fontWeight: "700", color: "#ffffff" },
-  closeBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#1A1F2E", alignItems: "center", justifyContent: "center" },
-  subtitle: { fontSize: 13, color: "#64748B", lineHeight: 18, marginBottom: 20 },
-  options: { gap: 10, marginBottom: 16 },
-  option: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#1A1F2E", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#2A3143" },
-  optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  optionText: { flex: 1 },
-  optionLabel: { fontSize: 14, fontWeight: "600", color: "#ffffff", marginBottom: 2 },
-  optionSub: { fontSize: 12, color: "#64748B" },
-  previewCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(139,92,246,0.08)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(139,92,246,0.25)", padding: 12, marginBottom: 12, gap: 12 },
-  previewLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
-  previewThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: "#1A1F2E" },
-  previewFileIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#1A1F2E", alignItems: "center", justifyContent: "center" },
-  previewName: { fontSize: 13, fontWeight: "600", color: "#ffffff", marginBottom: 2 },
-  previewType: { fontSize: 11, color: "#8B5CF6" },
-  previewRemove: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#1A1F2E", alignItems: "center", justifyContent: "center" },
-  errorBanner: { backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 10, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.3)" },
-  errorText: { fontSize: 13, color: "#EF4444" },
-  scanBtn: { backgroundColor: "#8B5CF6", borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  scanBtnDisabled: { backgroundColor: "#1A1F2E", borderWidth: 1, borderColor: "#2A3143" },
-  scanBtnText: { fontSize: 15, fontWeight: "700", color: "#ffffff" },
-  scanBtnTextDisabled: { color: "#64748B" },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      paddingBottom: 36,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+    },
+    handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+    title: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? colors.muted : "#E4E4E7",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    subtitle: {
+      fontSize: 13,
+      color: colors.mutedForeground,
+      lineHeight: 18,
+      marginBottom: 20,
+      includeFontPadding: false,
+    },
+    options: { gap: 10, marginBottom: 16 },
+    option: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    optionText: { flex: 1 },
+    optionLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.foreground,
+      marginBottom: 2,
+      includeFontPadding: false,
+    },
+    optionSub: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    previewCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: isDark ? "rgba(99,102,241,0.12)" : "rgba(99,102,241,0.08)",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(99,102,241,0.3)" : "rgba(99,102,241,0.2)",
+      padding: 12,
+      marginBottom: 12,
+      gap: 12,
+    },
+    previewLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+    previewThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: isDark ? colors.muted : "#E4E4E7" },
+    previewFileIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: isDark ? colors.muted : "#E4E4E7",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    previewName: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.foreground,
+      marginBottom: 2,
+      includeFontPadding: false,
+    },
+    previewType: {
+      fontSize: 11,
+      color: "#6366F1",
+      fontWeight: "600",
+      includeFontPadding: false,
+    },
+    previewRemove: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: isDark ? colors.muted : "#E4E4E7",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    errorBanner: {
+      backgroundColor: isDark ? "rgba(239,68,68,0.12)" : "#FEF2F2",
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(239,68,68,0.3)" : "#FCA5A5",
+    },
+    errorText: {
+      fontSize: 13,
+      color: "#EF4444",
+      includeFontPadding: false,
+    },
+    scanBtn: {
+      backgroundColor: "#6366F1",
+      borderRadius: 14,
+      height: 52,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 4,
+    },
+    scanBtnDisabled: {
+      backgroundColor: isDark ? colors.muted : "#E4E4E7",
+    },
+    scanBtnText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: "#ffffff",
+      includeFontPadding: false,
+    },
+    scanBtnTextDisabled: {
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+  });
+}
+

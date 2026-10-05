@@ -7,11 +7,10 @@ import {
   Platform,
   TextInput,
   Modal,
+  Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { Text } from "@/src/components/ui/text";
-import { Button } from "@/src/components/ui/button";
 import {
   ChevronLeft,
   BookOpen,
@@ -21,6 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   ScanLine,
+  Sparkles,
+  AlertCircle,
 } from "lucide-react-native";
 import {
   ClassScheduleRow,
@@ -48,8 +49,8 @@ import { toIsoDateString, toDateOnlyString } from "@/src/utils/scheduleUtils";
 import { toPhilippineISO, toPhilippineDateOnly } from "@/src/utils/philippineTime";
 import { usePowerSync } from "@powersync/react";
 import { useAuthStore } from "@/src/features/auth/auth.store";
-import ColorPicker, { HueSlider, Preview } from "reanimated-color-picker";
-import { runOnJS } from "react-native-reanimated";
+import { useTheme } from "@/src/theme/useTheme";
+import type { ThemeColors } from "@/src/theme/tokens";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -69,8 +70,8 @@ function resolveExamDate(
     while (cur <= end) {
       if (cur.getDay() === dayOfWeek) {
         const y = cur.getFullYear();
-        const m = String(cur.getMonth() + 1).padStart(2, '0');
-        const d = String(cur.getDate()).padStart(2, '0');
+        const m = String(cur.getMonth() + 1).padStart(2, "0");
+        const d = String(cur.getDate()).padStart(2, "0");
         return `${y}-${m}-${d}`;
       }
       cur.setDate(cur.getDate() + 1);
@@ -110,35 +111,56 @@ function Section({
   children,
   defaultExpanded = true,
 }: SectionProps) {
+  const { colors, isDark } = useTheme();
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <View style={secStyles.card}>
+    <View
+      style={[
+        secStyles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
       <Pressable
         style={secStyles.header}
         onPress={() => setExpanded((v) => !v)}
         hitSlop={4}
       >
         <View style={secStyles.headerLeft}>
-          <View style={[secStyles.iconWrap, { backgroundColor: `${accentColor}1A` }]}>
+          <View
+            style={[
+              secStyles.iconWrap,
+              { backgroundColor: isDark ? `${accentColor}20` : `${accentColor}14` },
+            ]}
+          >
             {icon}
           </View>
-          <Text style={secStyles.title}>{title}</Text>
-          <View style={[secStyles.badge, { backgroundColor: `${accentColor}26` }]}>
+          <Text style={[secStyles.title, { color: colors.foreground }]}>{title}</Text>
+          <View
+            style={[
+              secStyles.badge,
+              { backgroundColor: isDark ? `${accentColor}26` : `${accentColor}18` },
+            ]}
+          >
             <Text style={[secStyles.badgeText, { color: accentColor }]}>{count}</Text>
           </View>
         </View>
         {expanded ? (
-          <ChevronUp size={18} color="#64748B" />
+          <ChevronUp size={18} color={colors.mutedForeground} />
         ) : (
-          <ChevronDown size={18} color="#64748B" />
+          <ChevronDown size={18} color={colors.mutedForeground} />
         )}
       </Pressable>
 
       {expanded && (
-        <View style={secStyles.body}>
+        <View style={[secStyles.body, { borderTopColor: colors.border }]}>
           {count === 0 ? (
-            <Text style={secStyles.emptyText}>None detected in this document.</Text>
+            <Text style={[secStyles.emptyText, { color: colors.mutedForeground }]}>
+              None detected in this document.
+            </Text>
           ) : (
             children
           )}
@@ -150,10 +172,8 @@ function Section({
 
 const secStyles = StyleSheet.create({
   card: {
-    backgroundColor: "#161A26",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#2A3143",
     marginBottom: 16,
     overflow: "hidden",
   },
@@ -179,29 +199,31 @@ const secStyles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#ffffff",
+    letterSpacing: -0.3,
+    includeFontPadding: false,
   },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
+    includeFontPadding: false,
   },
   body: {
     paddingHorizontal: 16,
     paddingBottom: 8,
     borderTopWidth: 1,
-    borderTopColor: "#1E2433",
   },
   emptyText: {
     fontSize: 13,
-    color: "#64748B",
     fontStyle: "italic",
     paddingVertical: 12,
     textAlign: "center",
+    includeFontPadding: false,
   },
 });
 
@@ -211,19 +233,8 @@ interface NewSubjectModalProps {
   visible: boolean;
   prefillName: string;
   onClose: () => void;
-  onCreated: (id: string, name: string, color: string) => void;
+  onCreated: (id: string, name: string) => void;
 }
-
-const PRESET_COLORS = [
-  "#6C8EFF",
-  "#10B981",
-  "#F59E0B",
-  "#EC4899",
-  "#8B5CF6",
-  "#06B6D4",
-  "#F97316",
-  "#84CC16",
-];
 
 function NewSubjectModal({
   visible,
@@ -231,15 +242,15 @@ function NewSubjectModal({
   onClose,
   onCreated,
 }: NewSubjectModalProps) {
+  const { colors, isDark } = useTheme();
   const [name, setName] = useState(prefillName);
-  const [color, setColor] = useState(
-    PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]
-  );
   const [isLoading, setIsLoading] = useState(false);
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
 
-  React.useEffect(() => { setName(prefillName); }, [prefillName]);
+  React.useEffect(() => {
+    setName(prefillName);
+  }, [prefillName]);
 
   const handleCreate = async () => {
     if (!name.trim() || !userId) return;
@@ -249,9 +260,9 @@ function NewSubjectModal({
       const now = new Date().toISOString();
       await powerSync.execute(
         `INSERT INTO Subject (id, name, color, userId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, name.trim(), color, userId, now, now]
+        [id, name.trim(), null, userId, now, now]
       );
-      onCreated(id, name.trim(), color);
+      onCreated(id, name.trim());
       onClose();
     } catch (err) {
       console.error("[NewSubjectModal] Failed to create subject:", err);
@@ -262,41 +273,65 @@ function NewSubjectModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={nsStyles.backdrop}>
-        <View style={nsStyles.sheet}>
-          <Text style={nsStyles.title}>Create New Subject</Text>
-          <Text style={nsStyles.sub}>This subject was detected in your schedule but doesn't exist yet.</Text>
-          <Text style={nsStyles.label}>Subject Name</Text>
+      <View
+        style={[
+          nsStyles.backdrop,
+          { backgroundColor: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.45)" },
+        ]}
+      >
+        <View
+          style={[
+            nsStyles.sheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[nsStyles.title, { color: colors.foreground }]}>Create New Subject</Text>
+          <Text style={[nsStyles.sub, { color: colors.mutedForeground }]}>
+            This subject was detected in your schedule but doesn't exist yet.
+          </Text>
+          <Text style={[nsStyles.label, { color: colors.mutedForeground }]}>Subject Name</Text>
           <TextInput
-            style={nsStyles.input}
+            style={[
+              nsStyles.input,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                color: colors.foreground,
+              },
+            ]}
             value={name}
             onChangeText={setName}
             placeholder="e.g. Mathematics 101"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={colors.mutedForeground}
             autoFocus
           />
-          <Text style={nsStyles.label}>Colour</Text>
-          <ColorPicker
-            value={color}
-            onComplete={(colors) => {
-              "worklet";
-              runOnJS(setColor)(colors.hex);
-            }}
-            style={nsStyles.picker}
-          >
-            <Preview style={nsStyles.colorPreview} />
-            <HueSlider style={nsStyles.hueSlider} />
-          </ColorPicker>
           <View style={nsStyles.btnRow}>
-            <Pressable style={nsStyles.cancelBtn} onPress={onClose}>
-              <Text style={nsStyles.cancelText}>Cancel</Text>
+            <Pressable
+              style={[
+                nsStyles.cancelBtn,
+                {
+                  backgroundColor: isDark ? colors.background : "#F4F4F5",
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={onClose}
+            >
+              <Text style={[nsStyles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
             </Pressable>
             <Pressable
-              style={[nsStyles.createBtn, (!name.trim() || isLoading) && { opacity: 0.5 }]}
+              style={[
+                nsStyles.createBtn,
+                (!name.trim() || isLoading) && { opacity: 0.5 },
+              ]}
               onPress={handleCreate}
               disabled={!name.trim() || isLoading}
             >
-              <Text style={nsStyles.createText}>{isLoading ? "Creating…" : "Create Subject"}</Text>
+              <Text style={nsStyles.createText}>
+                {isLoading ? "Creating..." : "Create Subject"}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -306,25 +341,85 @@ function NewSubjectModal({
 }
 
 const nsStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(16,19,28,0.85)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#161A26", borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: "#2A3143", padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 28 },
-  title: { fontSize: 18, fontWeight: "700", color: "#ffffff", marginBottom: 6 },
-  sub: { fontSize: 13, color: "#94A3B8", marginBottom: 20 },
-  label: { fontSize: 12, fontWeight: "600", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 },
-  input: { backgroundColor: "#10131C", borderRadius: 12, borderWidth: 1, borderColor: "#2A3143", color: "#ffffff", fontSize: 15, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 20 },
-  picker: { marginBottom: 20 },
-  colorPreview: { height: 36, borderRadius: 10, marginBottom: 12 },
-  hueSlider: { borderRadius: 8 },
-  btnRow: { flexDirection: "row", gap: 12 },
-  cancelBtn: { flex: 1, backgroundColor: "#1A1F2E", borderRadius: 12, borderWidth: 1, borderColor: "#2A3143", height: 52, alignItems: "center", justifyContent: "center" },
-  cancelText: { fontSize: 14, fontWeight: "600", color: "#94A3B8" },
-  createBtn: { flex: 2, backgroundColor: "#6C8EFF", borderRadius: 12, height: 52, alignItems: "center", justifyContent: "center" },
-  createText: { fontSize: 14, fontWeight: "700", color: "#ffffff" },
+  backdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 28,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+    marginBottom: 6,
+    includeFontPadding: false,
+  },
+  sub: {
+    fontSize: 13,
+    marginBottom: 20,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  btnRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    includeFontPadding: false,
+  },
+  createBtn: {
+    flex: 2,
+    backgroundColor: "#6366F1",
+    borderRadius: 12,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ffffff",
+    includeFontPadding: false,
+  },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function ScheduleConfirmScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const params = useLocalSearchParams<{ payload?: string }>();
   const { subjects } = useSubjects();
   const powerSync = usePowerSync();
@@ -352,7 +447,12 @@ export default function ScheduleConfirmScreen() {
       const examWeekBlockers: ParsedExamWeekBlocker[] = raw.examWeekBlockers ?? [];
 
       let examEvents: ParsedExamEvent[] = raw.examEvents ?? [];
-      if (examEvents.length === 0 && raw.examWeeks && raw.examWeeks.length > 0 && examWeekBlockers.length === 0) {
+      if (
+        examEvents.length === 0 &&
+        raw.examWeeks &&
+        raw.examWeeks.length > 0 &&
+        examWeekBlockers.length === 0
+      ) {
         examEvents = raw.examWeeks.map((ew: any) => ({
           subjectName: null,
           title: ew.title,
@@ -384,14 +484,20 @@ export default function ScheduleConfirmScreen() {
 
   const [classes, setClasses] = useState<ParsedClassSchedule[]>(initialData.classSchedules);
   const [events, setEvents] = useState<ParsedCalendarEvent[]>(initialData.calendarEvents);
-  const [examBlockers, setExamBlockers] = useState<ParsedExamWeekBlocker[]>(initialData.examWeekBlockers);
+  const [examBlockers, setExamBlockers] = useState<ParsedExamWeekBlocker[]>(
+    initialData.examWeekBlockers
+  );
   const [examEvents, setExamEvents] = useState<ParsedExamEvent[]>(initialData.examEvents);
 
   const [universalStartDate, setUniversalStartDate] = useState<string>(
-    initialData.semesterInfo?.startDate ? (toDateOnlyString(initialData.semesterInfo.startDate) ?? "") : ""
+    initialData.semesterInfo?.startDate
+      ? toDateOnlyString(initialData.semesterInfo.startDate) ?? ""
+      : ""
   );
   const [universalEndDate, setUniversalEndDate] = useState<string>(
-    initialData.semesterInfo?.endDate ? (toDateOnlyString(initialData.semesterInfo.endDate) ?? "") : ""
+    initialData.semesterInfo?.endDate
+      ? toDateOnlyString(initialData.semesterInfo.endDate) ?? ""
+      : ""
   );
 
   React.useEffect(() => {
@@ -413,7 +519,9 @@ export default function ScheduleConfirmScreen() {
     );
   }, [dbExamWeeks]);
 
-  const [resolvedSubjects, setResolvedSubjects] = useState<Record<string, { id: string; color: string }>>({});
+  const [resolvedSubjects, setResolvedSubjects] = useState<
+    Record<string, { id: string }>
+  >({});
   const [editingClassIndex, setEditingClassIndex] = useState<number | null>(null);
   const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
   const [editingBlockerIndex, setEditingBlockerIndex] = useState<number | null>(null);
@@ -434,8 +542,8 @@ export default function ScheduleConfirmScreen() {
   const total = classes.length + events.length + examBlockers.length + examEvents.length;
   const isEmpty = total === 0;
 
-  const handleSubjectCreated = (id: string, name: string, color: string) => {
-    setResolvedSubjects((prev) => ({ ...prev, [name]: { id, color } }));
+  const handleSubjectCreated = (id: string, name: string) => {
+    setResolvedSubjects((prev) => ({ ...prev, [name]: { id } }));
   };
 
   const handleScanAnother = async () => {
@@ -481,18 +589,35 @@ export default function ScheduleConfirmScreen() {
         if (!c.resolvedSubjectId) continue;
         const id = generateId();
         const effectiveStartDate = toIsoDateString(universalStartDate.trim() || c.startDate, now);
-        const effectiveEndDate = universalEndDate.trim() || c.endDate
-          ? toIsoDateString(universalEndDate.trim() || c.endDate)
-          : null;
+        const effectiveEndDate =
+          universalEndDate.trim() || c.endDate
+            ? toIsoDateString(universalEndDate.trim() || c.endDate)
+            : null;
 
-        const normalizedSetType = (c.setType === 'BOTH' || !c.setType) ? null : c.setType;
-        const normalizedModality = c.modality === 'HYBRID' ? 'F2F' : (c.modality ?? 'F2F');
-        const effectiveDays = c.daysOfWeek && c.daysOfWeek.length > 0 ? c.daysOfWeek : [c.dayOfWeek];
+        const normalizedSetType = c.setType === "BOTH" || !c.setType ? null : c.setType;
+        const normalizedModality = c.modality === "HYBRID" ? "F2F" : c.modality ?? "F2F";
+        const effectiveDays =
+          c.daysOfWeek && c.daysOfWeek.length > 0 ? c.daysOfWeek : [c.dayOfWeek];
         queries.push(
           powerSync.execute(
             `INSERT INTO ClassSchedule (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, effectiveDays[0] ?? c.dayOfWeek, JSON.stringify(effectiveDays), c.startTime, c.endTime, effectiveStartDate, effectiveEndDate, c.room ?? null, normalizedModality, normalizedSetType, userId, c.resolvedSubjectId, now, now]
+            [
+              id,
+              effectiveDays[0] ?? c.dayOfWeek,
+              JSON.stringify(effectiveDays),
+              c.startTime,
+              c.endTime,
+              effectiveStartDate,
+              effectiveEndDate,
+              c.room ?? null,
+              normalizedModality,
+              normalizedSetType,
+              userId,
+              c.resolvedSubjectId,
+              now,
+              now,
+            ]
           )
         );
       }
@@ -505,7 +630,20 @@ export default function ScheduleConfirmScreen() {
           powerSync.execute(
             `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, e.title, null, validStartDate, validEndDate, e.allDay ? 1 : 0, e.location ?? null, "#6C8EFF", userId, null, now, now]
+            [
+              id,
+              e.title,
+              null,
+              validStartDate,
+              validEndDate,
+              e.allDay ? 1 : 0,
+              e.location ?? null,
+              "#6366F1",
+              userId,
+              null,
+              now,
+              now,
+            ]
           )
         );
       }
@@ -528,14 +666,29 @@ export default function ScheduleConfirmScreen() {
         const validStartDate = toIsoDateString(ex.startDate, now);
         const validEndDate = toIsoDateString(ex.endDate, validStartDate);
         const subjectMatch = ex.subjectName
-          ? resolvedSubjects[ex.subjectName]?.id ?? subjects.find((s) => s.name.toLowerCase() === ex.subjectName!.toLowerCase())?.id ?? null
+          ? resolvedSubjects[ex.subjectName]?.id ??
+            subjects.find((s) => s.name.toLowerCase() === ex.subjectName!.toLowerCase())?.id ??
+            null
           : null;
 
         queries.push(
           powerSync.execute(
             `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, ex.title, '🎓 Subject Exam', validStartDate, validEndDate, 0, ex.room ?? null, '#8B5CF6', userId, subjectMatch, now, now]
+            [
+              id,
+              ex.title,
+              "Subject Exam",
+              validStartDate,
+              validEndDate,
+              0,
+              ex.room ?? null,
+              "#F59E0B",
+              userId,
+              subjectMatch,
+              now,
+              now,
+            ]
           )
         );
       }
@@ -553,36 +706,48 @@ export default function ScheduleConfirmScreen() {
     <>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.replace('/(app)/calendar')} hitSlop={8}>
-            <ChevronLeft size={22} color="#94A3B8" />
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => router.replace("/(app)/calendar")}
+            hitSlop={8}
+          >
+            <ChevronLeft size={20} color={colors.foreground} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Review Your Schedule</Text>
             <Text style={styles.headerSub}>
-              {isEmpty ? "Nothing was detected." : `${total} item${total !== 1 ? "s" : ""} detected.`}
+              {isEmpty
+                ? "Nothing was detected."
+                : `${total} item${total !== 1 ? "s" : ""} detected.`}
             </Text>
           </View>
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.universalCard}>
             <View style={styles.universalHeader}>
               <View style={styles.universalTitleRow}>
-                <CalendarDays size={16} color="#6C8EFF" />
+                <CalendarDays size={16} color="#6366F1" />
                 <Text style={styles.universalTitle}>Universal Semester Dates</Text>
               </View>
             </View>
             {initialData.semesterInfo?.label ? (
               <View style={styles.detectedBadgeRow}>
                 <View style={styles.detectedBadge}>
+                  <Sparkles size={12} color="#6366F1" style={{ marginRight: 4 }} />
                   <Text style={styles.detectedBadgeText}>
-                    ✨ {initialData.semesterInfo.label}
+                    {initialData.semesterInfo.label}
                   </Text>
                 </View>
               </View>
             ) : null}
             <Text style={styles.universalSub}>
-              These semester dates are applied automatically to all recurring classes. You can edit them here if needed.
+              These semester dates are applied automatically to all recurring classes. You can edit
+              them here if needed.
             </Text>
             <View style={styles.universalInputsRow}>
               <View style={styles.universalInputGroup}>
@@ -592,7 +757,7 @@ export default function ScheduleConfirmScreen() {
                   value={universalStartDate}
                   onChangeText={setUniversalStartDate}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={colors.mutedForeground}
                 />
               </View>
               <View style={styles.universalInputGroup}>
@@ -602,13 +767,18 @@ export default function ScheduleConfirmScreen() {
                   value={universalEndDate}
                   onChangeText={setUniversalEndDate}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={colors.mutedForeground}
                 />
               </View>
             </View>
           </View>
 
-          <Section icon={<BookOpen size={18} color="#10B981" />} title="Classes" count={classes.length} accentColor="#10B981">
+          <Section
+            icon={<BookOpen size={18} color="#10B981" />}
+            title="Classes"
+            count={classes.length}
+            accentColor="#10B981"
+          >
             {classes.map((item, i) => (
               <ClassScheduleRow
                 key={`class-${i}`}
@@ -621,7 +791,12 @@ export default function ScheduleConfirmScreen() {
             ))}
           </Section>
 
-          <Section icon={<CalendarDays size={18} color="#6C8EFF" />} title="Events & Holidays" count={events.length} accentColor="#6C8EFF">
+          <Section
+            icon={<CalendarDays size={18} color="#6366F1" />}
+            title="Events & Holidays"
+            count={events.length}
+            accentColor="#6366F1"
+          >
             {events.map((item, i) => (
               <CalendarEventRow
                 key={`event-${i}`}
@@ -668,29 +843,44 @@ export default function ScheduleConfirmScreen() {
 
           {classes.some((c) => isNewSubject(c.subjectName)) && (
             <View style={styles.noticeBanner}>
+              <View style={styles.noticeHeader}>
+                <AlertCircle size={15} color="#F59E0B" />
+                <Text style={styles.noticeHighlight}>Subject Assignment Needed</Text>
+              </View>
               <Text style={styles.noticeText}>
-                ⚠️  Some classes have subjects not yet in your list. Tap the <Text style={styles.noticeHighlight}>+ New Subject</Text> badge to create them.
+                Some classes have subjects not yet in your list. Tap the{" "}
+                <Text style={{ fontWeight: "700", color: "#F59E0B" }}>+ New Subject</Text> badge to
+                create and match them.
               </Text>
             </View>
           )}
         </ScrollView>
 
         <View style={styles.footer}>
-          <Button
+          <Pressable
             style={[styles.confirmBtn, (isEmpty || isSaving) && styles.confirmBtnDisabled]}
             onPress={handleConfirm}
             disabled={isEmpty || isSaving}
           >
-            <CheckCircle2 size={16} color={isEmpty || isSaving ? "#64748B" : "#ffffff"} style={{ marginRight: 6 }} />
-            <Text style={[styles.confirmText, (isEmpty || isSaving) && styles.confirmTextDisabled]}>
+            <CheckCircle2
+              size={18}
+              color={isEmpty || isSaving ? colors.mutedForeground : "#ffffff"}
+              style={{ marginRight: 8 }}
+            />
+            <Text
+              style={[styles.confirmText, (isEmpty || isSaving) && styles.confirmTextDisabled]}
+            >
               {isSaving ? "Saving..." : "Add to My Calendar"}
             </Text>
-          </Button>
+          </Pressable>
           <Pressable style={styles.scanAnotherBtn} onPress={() => setShowScanSheet(true)}>
-            <ScanLine size={15} color="#8B5CF6" />
+            <ScanLine size={16} color="#6366F1" />
             <Text style={styles.scanAnotherText}>Scan Another File</Text>
           </Pressable>
-          <Pressable style={styles.cancelBtn} onPress={() => router.replace('/(app)/calendar')}>
+          <Pressable
+            style={styles.cancelBtn}
+            onPress={() => router.replace("/(app)/calendar")}
+          >
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
         </View>
@@ -760,8 +950,8 @@ export default function ScheduleConfirmScreen() {
           visible={true}
           prefillName={newSubjectFor}
           onClose={() => setNewSubjectFor(null)}
-          onCreated={(id, name, color) => {
-            handleSubjectCreated(id, name, color);
+          onCreated={(id, name) => {
+            handleSubjectCreated(id, name);
             setNewSubjectFor(null);
           }}
         />
@@ -789,16 +979,33 @@ export default function ScheduleConfirmScreen() {
 
       {/* Success Modal */}
       <Modal visible={showSuccess} animationType="fade" transparent>
-        <View style={styles.successBackdrop}>
+        <View
+          style={[
+            styles.successBackdrop,
+            { backgroundColor: isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.5)" },
+          ]}
+        >
           <View style={styles.successCard}>
-            <CheckCircle2 size={48} color="#10B981" />
-            <Text style={styles.successTitle}>Schedule Added!</Text>
+            <View style={styles.successIconWrap}>
+              <CheckCircle2 size={40} color="#10B981" />
+            </View>
+            <Text style={styles.successTitle}>Schedule Added</Text>
             <Text style={styles.successSub}>
-              {classes.length} class{classes.length !== 1 ? "es" : ""}, {events.length} event{events.length !== 1 ? "s" : ""}, and {examBlockers.length + examEvents.length} exam item{examBlockers.length + examEvents.length !== 1 ? "s" : ""} have been added to your calendar.
+              {classes.length} class{classes.length !== 1 ? "es" : ""}, {events.length} event
+              {events.length !== 1 ? "s" : ""}, and{" "}
+              {examBlockers.length + examEvents.length} exam item
+              {examBlockers.length + examEvents.length !== 1 ? "s" : ""} have been added to your
+              calendar.
             </Text>
-            <Button style={styles.successBtn} onPress={() => { setShowSuccess(false); router.replace("/(app)/calendar"); }}>
+            <Pressable
+              style={styles.successBtn}
+              onPress={() => {
+                setShowSuccess(false);
+                router.replace("/(app)/calendar");
+              }}
+            >
               <Text style={styles.successBtnText}>Done</Text>
-            </Button>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -808,101 +1015,276 @@ export default function ScheduleConfirmScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#10131C" },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#1A1F2E" },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#161A26", borderWidth: 1, borderColor: "#2A3143", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#ffffff" },
-  headerSub: { fontSize: 12, color: "#94A3B8", marginTop: 2 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 24 },
-  noticeBanner: { backgroundColor: "rgba(245, 158, 11, 0.08)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(245, 158, 11, 0.25)", padding: 14, marginTop: 4, marginBottom: 8 },
-  noticeText: { fontSize: 13, color: "#94A3B8", lineHeight: 19 },
-  noticeHighlight: { color: "#F59E0B", fontWeight: "700" },
-  footer: { flexDirection: "column", gap: 10, paddingHorizontal: 16, paddingBottom: Platform.OS === "android" ? 20 : 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#1A1F2E", backgroundColor: "#10131C" },
-  cancelBtn: { backgroundColor: "#161A26", borderRadius: 14, borderWidth: 1, borderColor: "#2A3143", height: 50, alignItems: "center", justifyContent: "center" },
-  cancelText: { fontSize: 13, fontWeight: "600", color: "#94A3B8" },
-  scanAnotherBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "rgba(139,92,246,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(139,92,246,0.3)", height: 50 },
-  scanAnotherText: { fontSize: 13, fontWeight: "600", color: "#8B5CF6" },
-  confirmBtn: { backgroundColor: "#6C8EFF", borderRadius: 14, height: 56, flexDirection: "row", alignItems: "center", justifyContent: "center" },
-  confirmBtnDisabled: { backgroundColor: "#1A1F2E", borderWidth: 1, borderColor: "#2A3143" },
-  confirmText: { fontSize: 13, fontWeight: "700", color: "#ffffff" },
-  confirmTextDisabled: { color: "#64748B" },
-  successBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
-  successCard: { backgroundColor: "#1A1F2E", padding: 24, borderRadius: 16, width: "100%", alignItems: "center", borderWidth: 1, borderColor: "#2A3143" },
-  successTitle: { fontSize: 20, fontWeight: "700", color: "#ffffff", marginTop: 16, marginBottom: 8 },
-  successSub: { fontSize: 14, color: "#94A3B8", textAlign: "center", marginBottom: 24, lineHeight: 20 },
-  successBtn: { width: "100%", backgroundColor: "#6C8EFF" },
-  successBtnText: { color: "#ffffff", fontWeight: "600" },
-  universalCard: {
-    backgroundColor: "#161A26",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#2A3143",
-    padding: 16,
-    marginBottom: 16,
-  },
-  universalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  universalTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  detectedBadgeRow: {
-    flexDirection: "row",
-    marginBottom: 8,
-  },
-  universalTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  universalSub: {
-    fontSize: 12,
-    color: "#94A3B8",
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  universalInputsRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  universalInputGroup: {
-    flex: 1,
-  },
-  universalInputLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#64748B",
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-  universalInput: {
-    backgroundColor: "#10131C",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2A3143",
-    color: "#ffffff",
-    fontSize: 13,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  detectedBadge: {
-    backgroundColor: "rgba(108, 142, 255, 0.12)",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "rgba(108, 142, 255, 0.25)",
-    alignSelf: "flex-start",
-  },
-  detectedBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#6C8EFF",
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    backBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      letterSpacing: -0.4,
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    headerSub: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: 16,
+      paddingBottom: 24,
+    },
+    noticeBanner: {
+      backgroundColor: isDark ? "rgba(245, 158, 11, 0.08)" : "rgba(245, 158, 11, 0.12)",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(245, 158, 11, 0.25)" : "rgba(245, 158, 11, 0.3)",
+      padding: 14,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    noticeHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 4,
+    },
+    noticeHighlight: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#F59E0B",
+      includeFontPadding: false,
+    },
+    noticeText: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      lineHeight: 18,
+      includeFontPadding: false,
+    },
+    footer: {
+      flexDirection: "column",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingBottom: Platform.OS === "android" ? 20 : 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    cancelBtn: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      height: 48,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    scanAnotherBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: isDark ? "rgba(99, 102, 241, 0.12)" : "rgba(99, 102, 241, 0.08)",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(99, 102, 241, 0.3)" : "rgba(99, 102, 241, 0.2)",
+      height: 48,
+    },
+    scanAnotherText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#6366F1",
+      includeFontPadding: false,
+    },
+    confirmBtn: {
+      backgroundColor: "#6366F1",
+      borderRadius: 14,
+      height: 52,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    confirmBtnDisabled: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    confirmText: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: "#ffffff",
+      includeFontPadding: false,
+    },
+    confirmTextDisabled: {
+      color: colors.mutedForeground,
+    },
+    successBackdrop: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+    },
+    successCard: {
+      backgroundColor: colors.card,
+      padding: 24,
+      borderRadius: 20,
+      width: "100%",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    successIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 12,
+    },
+    successTitle: {
+      fontSize: 19,
+      fontWeight: "700",
+      letterSpacing: -0.4,
+      color: colors.foreground,
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    successSub: {
+      fontSize: 13,
+      color: colors.mutedForeground,
+      textAlign: "center",
+      marginBottom: 24,
+      lineHeight: 19,
+      includeFontPadding: false,
+    },
+    successBtn: {
+      width: "100%",
+      backgroundColor: "#6366F1",
+      height: 48,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    successBtnText: {
+      color: "#ffffff",
+      fontWeight: "700",
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    universalCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      marginBottom: 16,
+    },
+    universalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    universalTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    detectedBadgeRow: {
+      flexDirection: "row",
+      marginBottom: 8,
+    },
+    universalTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      letterSpacing: -0.2,
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    universalSub: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      lineHeight: 18,
+      marginBottom: 12,
+      includeFontPadding: false,
+    },
+    universalInputsRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    universalInputGroup: {
+      flex: 1,
+    },
+    universalInputLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: colors.mutedForeground,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    universalInput: {
+      backgroundColor: colors.background,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.foreground,
+      fontSize: 13,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    detectedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: isDark ? "rgba(99, 102, 241, 0.12)" : "rgba(99, 102, 241, 0.08)",
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(99, 102, 241, 0.25)" : "rgba(99, 102, 241, 0.2)",
+      alignSelf: "flex-start",
+    },
+    detectedBadgeText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: "#6366F1",
+      includeFontPadding: false,
+    },
+  });
+}

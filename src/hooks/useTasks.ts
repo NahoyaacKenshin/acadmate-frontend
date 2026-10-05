@@ -1,5 +1,11 @@
 import { useQuery } from '@powersync/react';
 
+export interface SubtaskItem {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface TaskRow {
   id: string;
   title: string;
@@ -7,6 +13,7 @@ export interface TaskRow {
   due_date: string | null;
   completed: number; // 0 or 1 (SQLite integer)
   color: string | null;
+  subtasks: string | null; // JSON array of SubtaskItem
   subject_id: string | null;
   user_id: string | null;
   created_at: string | null;
@@ -30,6 +37,7 @@ export function useTasks() {
       Task.dueDate AS due_date,
       Task.completed,
       Task.color,
+      Task.subtasks AS subtasks,
       Task.subjectId AS subject_id,
       Task.userId AS user_id,
       Task.createdAt AS created_at,

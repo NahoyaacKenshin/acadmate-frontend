@@ -13,7 +13,7 @@ import {
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, CheckSquare, AlertCircle } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, CheckSquare, AlertCircle, Sparkles, ChevronRight } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { SubjectRow } from '@/src/hooks/useSubjects';
@@ -24,6 +24,7 @@ interface AddTaskSheetProps {
   visible: boolean;
   subjects: SubjectRow[];
   onClose: () => void;
+  onOpenScanner?: () => void;
 }
 
 type DatePickerStep = 'date' | 'time' | null;
@@ -50,7 +51,7 @@ function formatDateTime(date: Date): string {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
-export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) {
+export function AddTaskSheet({ visible, subjects, onClose, onOpenScanner }: AddTaskSheetProps) {
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -146,10 +147,12 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
       const now = toPhilippineISO(new Date());
       const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
 
+      const taskColor = selectedSubject?.color ?? '#6C8EFF';
+
       await powerSync.execute(
-        `INSERT INTO Task (id, title, description, dueDate, completed, color, subjectId, userId, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
-        [id, title.trim(), description.trim() || null, dueDateISO, selectedColor, selectedSubjectId, userId, now, now]
+        `INSERT INTO Task (id, title, description, dueDate, completed, color, subtasks, subjectId, userId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, 0, ?, '[]', ?, ?, ?, ?)`,
+        [id, title.trim(), description.trim() || null, dueDateISO, taskColor, selectedSubjectId, userId, now, now]
       );
 
       if (dueDateISO) {
@@ -159,7 +162,8 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
           description: description.trim() || null,
           due_date: dueDateISO,
           completed: 0,
-          color: selectedColor,
+          color: taskColor,
+          subtasks: '[]',
           subject_id: selectedSubjectId,
           user_id: userId,
           created_at: now,
@@ -194,7 +198,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <CheckSquare size={16} color="#10B981" />
+                <CheckSquare size={16} color="#6C8EFF" />
               </View>
               <Text style={styles.headerTitle}>Add New Task</Text>
             </View>
@@ -215,6 +219,26 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.formContainer}
           >
+
+            {/* Quick AI Task Scanner banner */}
+            {onOpenScanner && (
+              <Pressable
+                style={styles.scanBanner}
+                onPress={() => {
+                  handleClose();
+                  onOpenScanner();
+                }}
+              >
+                <View style={styles.scanBannerIcon}>
+                  <Sparkles size={16} color="#6C8EFF" />
+                </View>
+                <View style={styles.scanBannerTextWrap}>
+                  <Text style={styles.scanBannerTitle}>Scan from document or photo</Text>
+                  <Text style={styles.scanBannerSub}>Auto-detect tasks from syllabus or rubric</Text>
+                </View>
+                <ChevronRight size={16} color="#6C8EFF" />
+              </Pressable>
+            )}
 
             {/* Title */}
             <View style={styles.formGroup}>
@@ -286,23 +310,6 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
               )}
             </View>
 
-            {/* Color Picker */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Color</Text>
-              <View style={styles.colorRow}>
-                {PRESET_COLORS.map((color) => (
-                  <Pressable
-                    key={color}
-                    style={[
-                      styles.colorSwatch,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.colorSwatchSelected,
-                    ]}
-                    onPress={() => setSelectedColor(color)}
-                  />
-                ))}
-              </View>
-            </View>
 
             {/* Subject */}
             <View style={styles.formGroup}>
@@ -331,7 +338,6 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
                         style={styles.pickerItem}
                         onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
                       >
-                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
                         <Text style={styles.pickerItemText}>{s.name}</Text>
                       </Pressable>
                     ))}
@@ -399,9 +405,9 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    backgroundColor: 'rgba(108, 142, 255, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderColor: 'rgba(108, 142, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -435,7 +441,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   submitBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#6C8EFF',
     marginTop: 16,
     height: 48,
     borderRadius: 10,
@@ -563,6 +569,38 @@ const styles = StyleSheet.create({
   addButton: {
     marginTop: 8,
     backgroundColor: '#6C8EFF',
+  },
+  scanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(108, 142, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.25)',
+    borderRadius: 14,
+    padding: 12,
+    gap: 12,
+    marginBottom: 16,
+  },
+  scanBannerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108, 142, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanBannerTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  scanBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  scanBannerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
   },
 });
 

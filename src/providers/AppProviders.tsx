@@ -1,13 +1,13 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { PropsWithChildren } from 'react';
-import { useColorScheme } from '@/src/components/useColorScheme';
+import { useTheme } from '@/src/theme/useTheme';
 import { AuthGate } from './AuthGate';
 import { PowerSyncProvider } from './PowerSyncProvider';
 import { NotificationProvider } from './NotificationProvider';
 import { AppErrorBoundary } from '@/src/components/common/AppErrorBoundary';
 
 export function AppProviders({ children }: PropsWithChildren) {
-  const colorScheme = useColorScheme();
+  const { colorScheme } = useTheme();
 
   return (
     <AppErrorBoundary>

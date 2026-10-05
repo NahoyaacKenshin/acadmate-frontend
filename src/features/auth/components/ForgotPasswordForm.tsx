@@ -1,9 +1,11 @@
 import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, TextInput, View, Pressable, StyleSheet } from 'react-native';
 import { authApi } from '@/src/features/auth/auth.api';
-import { Button } from '@/src/components/ui/button';
 import { Text } from '@/src/components/ui/text';
+import { AuthScaffold } from './AuthScaffold';
+import { useTheme } from '@/src/theme/useTheme';
+import { ArrowLeft } from 'lucide-react-native';
 
 function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -11,11 +13,13 @@ function validateEmail(email: string) {
 
 export function ForgotPasswordForm() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [emailFocused, setEmailFocused] = useState(false);
 
   const validate = (): boolean => {
     if (!email.trim()) {
@@ -23,7 +27,7 @@ export function ForgotPasswordForm() {
       return false;
     }
     if (!validateEmail(email.trim())) {
-      setEmailError('That doesn\'t look like a valid email address. Please check and try again.');
+      setEmailError('Enter a valid email address.');
       return false;
     }
     setEmailError(null);
@@ -39,9 +43,16 @@ export function ForgotPasswordForm() {
 
     try {
       const response = await authApi.forgotPassword(email.trim());
-      setMessage(response.message ?? 'If this email is registered, a password reset link has been sent.');
+      setMessage(
+        response.message ??
+          'If this email is registered, a password reset link has been sent to your inbox.'
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send password reset email. Please try again.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to send password reset email. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -52,66 +63,180 @@ export function ForgotPasswordForm() {
   };
 
   return (
-    <View className="flex-1 justify-center bg-background px-8">
-      <View className="mb-8 items-center">
-        <Image
-          source={require('../../../../assets/images/new-splash-favicon-icon.png')}
-          style={{ width: 90, height: 90, marginBottom: 12 }}
-          resizeMode="contain"
-        />
-        <Text className="text-3xl font-bold text-foreground font-sans">Forgot Password</Text>
-        <Text className="mt-2 text-center text-sm text-muted-foreground font-sans">
-          Enter your registered email address and we'll send you a password reset link.
-        </Text>
-      </View>
-
-      <View className="gap-5">
-        <View>
+    <AuthScaffold
+      title="Reset password"
+      subtitle="Enter your registered email address and we will send you instructions to reset your password"
+      footer={
+        <Pressable onPress={handleGoToLogin} hitSlop={10} style={styles.backBtnRow}>
+          <ArrowLeft size={16} color={colors.foreground} />
+          <Text style={[styles.backBtnText, { color: colors.foreground }]}>Back to sign in</Text>
+        </Pressable>
+      }
+    >
+      <View style={styles.formGap}>
+        {/* Email Field */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Email</Text>
           <TextInput
             autoCapitalize="none"
+            autoCorrect={false}
             keyboardType="email-address"
-            placeholder="Email Address"
-            placeholderTextColor="#94A3B8"
+            placeholder="name@university.edu"
+            placeholderTextColor={colors.mutedForeground}
             value={email}
             onChangeText={(val) => {
               setEmail(val);
               if (emailError) setEmailError(null);
             }}
-            className="rounded-2xl border border-border bg-input/50 px-5 py-4 text-foreground font-sans text-base"
+            onFocus={() => setEmailFocused(true)}
+            onBlur={() => setEmailFocused(false)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.input,
+                borderColor: emailError
+                  ? colors.destructive
+                  : emailFocused
+                    ? colors.ring
+                    : colors.inputBorder,
+                color: colors.foreground,
+              },
+            ]}
           />
           {emailError ? (
-            <Text className="mt-1 ml-1 text-xs text-red-500 font-sans">{emailError}</Text>
+            <Text style={[styles.errorText, { color: colors.destructive }]}>{emailError}</Text>
           ) : null}
         </View>
-      </View>
 
-      {message ? (
-        <View className="mt-4 rounded-xl bg-accent/50 p-4 border border-border">
-          <Text className="text-center text-sm text-foreground font-sans">{message}</Text>
-        </View>
-      ) : null}
+        {/* Success Message Banner */}
+        {message ? (
+          <View
+            style={[
+              styles.messageBox,
+              {
+                backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                borderColor: isDark ? 'rgba(37, 99, 235, 0.28)' : '#BFDBFE',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.messageText,
+                { color: isDark ? '#93C5FD' : '#1E40AF' },
+              ]}
+            >
+              {message}
+            </Text>
+          </View>
+        ) : null}
 
-      {error ? <Text className="mt-4 text-center text-sm text-red-500 font-sans">{error}</Text> : null}
+        {/* Error Banner */}
+        {error ? (
+          <View
+            style={[
+              styles.errorBox,
+              {
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+              },
+            ]}
+          >
+            <Text style={[styles.apiErrorText, { color: colors.destructive }]}>{error}</Text>
+          </View>
+        ) : null}
 
-      <View className="mt-8">
-        <Button
-          disabled={isLoading}
+        {/* Submit Button */}
+        <Pressable
           onPress={handleSubmit}
-          className="rounded-2xl h-14"
+          disabled={isLoading}
+          style={({ pressed }) => [
+            styles.submitBtn,
+            {
+              backgroundColor: colors.primary,
+              opacity: isLoading ? 0.6 : pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.985 : 1 }],
+            },
+          ]}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator color={colors.primaryForeground} size="small" />
           ) : (
-            <Text className="font-bold text-lg font-sans">Send Reset Link</Text>
+            <Text style={[styles.submitText, { color: colors.primaryForeground }]}>
+              Send reset link
+            </Text>
           )}
-        </Button>
+        </Pressable>
       </View>
-
-      <Pressable onPress={handleGoToLogin} className="mt-8">
-        <Text className="text-center text-primary font-bold font-sans text-base">
-          Back to Log In
-        </Text>
-      </Pressable>
-    </View>
+    </AuthScaffold>
   );
 }
+
+const styles = StyleSheet.create({
+  formGap: {
+    gap: 18,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  input: {
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontFamily: 'Inter',
+  },
+  errorText: {
+    fontSize: 12.5,
+    marginTop: 2,
+    marginLeft: 2,
+    fontFamily: 'Inter',
+  },
+  messageBox: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  messageText: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    fontFamily: 'Inter',
+  },
+  errorBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  apiErrorText: {
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '500',
+    fontFamily: 'Inter',
+  },
+  submitBtn: {
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  submitText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  backBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});

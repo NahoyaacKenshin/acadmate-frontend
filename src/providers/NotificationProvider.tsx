@@ -3,7 +3,7 @@ import { useClassSchedules } from '../hooks/useClassSchedules';
 import { useTasks } from '../hooks/useTasks';
 import { useExamWeeks } from '../hooks/useExamWeeks';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService, isExamEvent } from '../services/notificationService';
 import { useNotificationStore } from '../store/notificationStore';
 import { useUserStore, computeCurrentSet } from '../store/userStore';
 import { useNotificationDeepLink } from '../hooks/useNotificationDeepLink';
@@ -52,11 +52,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       .map((t) => `${t.id}_${t.due_date}_${t.completed}_${t.title}_${t.subject_name}`)
       .join('|');
 
-    const examsSig = `${examWeeks.map((ew) => `${ew.id}_${ew.startDate}_${ew.endDate}_${ew.title}`).join('|')}#${events.filter((e) => e.color === '#8B5CF6' || e.title.toLowerCase().includes('exam') || (e.description && e.description.toLowerCase().includes('exam'))).map((e) => `${e.id}_${e.start_date}_${e.title}`).join('|')}`;
+    const examsSig = `${examWeeks.map((ew) => `${ew.id}_${ew.startDate}_${ew.endDate}_${ew.title}`).join('|')}#${events.filter(isExamEvent).map((e) => `${e.id}_${e.start_date}_${e.title}`).join('|')}`;
 
     // General events signature (non-exam events only)
     const generalEventsSig = events
-      .filter((e) => e.color !== '#8B5CF6' && !e.title.toLowerCase().includes('exam') && !e.title.toLowerCase().includes('quiz') && !(e.description && e.description.toLowerCase().includes('exam')))
+      .filter((e) => !isExamEvent(e))
       .map((e) => `${e.id}_${e.start_date}_${e.title}_${e.all_day}_${e.location}`)
       .join('|');
 
@@ -88,18 +88,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // Reschedule tasks if tasks list or task reminders settings changed
     if (
       tasksChanged ||
-      (prefsChanged && prevPrefsRef.current.taskReminders !== prefs.taskReminders)
+      (prefsChanged &&
+        (prevPrefsRef.current.taskReminders !== prefs.taskReminders ||
+          prevPrefsRef.current.taskLeadMinutes !== prefs.taskLeadMinutes))
     ) {
-      NotificationService.rescheduleAllTasks(tasks, prefs.taskReminders);
+      NotificationService.rescheduleAllTasks(tasks, prefs.taskReminders, prefs.taskLeadMinutes);
       prevTasksSigRef.current = tasksSig;
     }
 
     // Reschedule exams if exam weeks, exam events, or examAlerts prefs changed
     if (
       examsChanged ||
-      (prefsChanged && prevPrefsRef.current.examAlerts !== prefs.examAlerts)
+      (prefsChanged &&
+        (prevPrefsRef.current.examAlerts !== prefs.examAlerts ||
+          prevPrefsRef.current.examLeadMinutes !== prefs.examLeadMinutes))
     ) {
-      NotificationService.rescheduleAllExams(examWeeks, events, prefs.examAlerts);
+      NotificationService.rescheduleAllExams(examWeeks, events, prefs.examAlerts, prefs.examLeadMinutes);
       prevExamsSigRef.current = examsSig;
     }
 

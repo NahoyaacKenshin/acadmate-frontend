@@ -20,6 +20,15 @@ export function configureGoogleSignIn() {
 export async function promptGoogleSignIn(): Promise<string> {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+    // Explicitly clear any existing Google session cache so that Google Play Services / iOS
+    // always presents the native Account Chooser dialog, allowing the user to select an account.
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // Non-critical: ignore if no user was signed in
+    }
+
     const response = await GoogleSignin.signIn();
 
     // The idToken is inside response.data in the newer API versions
@@ -32,9 +41,9 @@ export async function promptGoogleSignIn(): Promise<string> {
     return idToken;
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'code' in error) {
-      const code = (error as { code: string }).code;
+      const code = String((error as { code: string | number }).code);
 
-      if (code === statusCodes.SIGN_IN_CANCELLED) {
+      if (code === statusCodes.SIGN_IN_CANCELLED || code === '12501') {
         throw new Error('CANCELLED');
       }
       if (code === statusCodes.IN_PROGRESS) {
@@ -43,13 +52,34 @@ export async function promptGoogleSignIn(): Promise<string> {
       if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new Error('Google Play Services is not available on this device.');
       }
+      // Status code 7 is NETWORK_ERROR in Google Play Services
+      if (
+        code === '7' ||
+        code === 'NETWORK_ERROR' ||
+        (statusCodes as any).NETWORK_ERROR === code
+      ) {
+        throw new Error('No internet connection. Please check your Wi-Fi or cellular data and try again.');
+      }
+    }
+
+    const rawMessage = (error as any)?.message ? String((error as any).message) : '';
+    const lowerMsg = rawMessage.toLowerCase();
+    if (
+      lowerMsg.includes('network') ||
+      lowerMsg.includes('offline') ||
+      lowerMsg.includes('internet') ||
+      lowerMsg.includes('connection') ||
+      lowerMsg.includes('failed to connect') ||
+      lowerMsg.includes('timeout')
+    ) {
+      throw new Error('No internet connection. Please check your Wi-Fi or cellular data and try again.');
     }
 
     if (error instanceof Error) {
       throw error;
     }
 
-    throw new Error('Google Sign-In failed. Please try again.');
+    throw new Error(rawMessage || 'Google Sign-In failed. Please check your internet connection.');
   }
 }
 

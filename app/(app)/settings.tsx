@@ -7,6 +7,9 @@ import {
   TextInput,
   Vibration,
   TouchableOpacity,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,17 +23,66 @@ import {
   User,
   Bell,
   Info,
-  Smile,
   Layers,
   Smartphone,
   Check,
   X,
-  Sparkles,
+  Pencil,
 } from 'lucide-react-native';
 
 import { useNotificationStore, NotificationPrefs } from '@/src/store/notificationStore';
+import { formatLeadMinutes } from '@/src/services/notificationService';
 
 type ToggleablePref = 'classReminders' | 'taskReminders' | 'examAlerts' | 'studyReminders' | 'eventReminders';
+
+interface CustomLeadConfig {
+  visible: boolean;
+  title: string;
+  prefKey: 'classLeadMinutes' | 'taskLeadMinutes' | 'examLeadMinutes' | 'eventLeadMinutes' | 'studyLeadMinutes';
+  currentMinutes: number;
+  allowedUnits: ('minutes' | 'hours' | 'days')[];
+}
+
+function LeadPillsRow({
+  presets,
+  currentMinutes,
+  onSelectPreset,
+  onOpenCustom,
+}: {
+  presets: number[];
+  currentMinutes: number;
+  onSelectPreset: (mins: number) => void;
+  onOpenCustom: () => void;
+}) {
+  const isCustom = !presets.includes(currentMinutes);
+
+  return (
+    <View style={styles.leadMinutesRow}>
+      {presets.map((mins) => {
+        const isSel = currentMinutes === mins;
+        return (
+          <Pressable
+            key={mins}
+            style={[styles.leadMinutesPill, isSel && styles.leadMinutesPillActive]}
+            onPress={() => onSelectPreset(mins)}
+          >
+            <Text style={[styles.leadMinutesText, isSel && styles.leadMinutesTextActive]}>
+              {formatLeadMinutes(mins)}
+            </Text>
+          </Pressable>
+        );
+      })}
+      <Pressable
+        style={[styles.leadMinutesPill, isCustom && styles.leadMinutesPillActive]}
+        onPress={onOpenCustom}
+      >
+        <Text style={[styles.leadMinutesText, isCustom && styles.leadMinutesTextActive]}>
+          {isCustom ? formatLeadMinutes(currentMinutes) : 'Custom'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -50,6 +102,54 @@ export default function SettingsScreen() {
   const [nicknameInput, setNicknameInput] = useState(nickname ?? '');
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Custom Lead Modal state
+  const [customLeadConfig, setCustomLeadConfig] = useState<CustomLeadConfig | null>(null);
+  const [customValInput, setCustomValInput] = useState('');
+  const [customUnit, setCustomUnit] = useState<'minutes' | 'hours' | 'days'>('minutes');
+
+  const openCustomModal = (
+    title: string,
+    prefKey: 'classLeadMinutes' | 'taskLeadMinutes' | 'examLeadMinutes' | 'eventLeadMinutes' | 'studyLeadMinutes',
+    currentMinutes: number,
+    allowedUnits: ('minutes' | 'hours' | 'days')[] = ['minutes', 'hours']
+  ) => {
+    triggerHaptic();
+    let initialUnit: 'minutes' | 'hours' | 'days' = 'minutes';
+    let initialVal = currentMinutes.toString();
+
+    if (allowedUnits.includes('days') && currentMinutes >= 1440 && currentMinutes % 1440 === 0) {
+      initialUnit = 'days';
+      initialVal = (currentMinutes / 1440).toString();
+    } else if (allowedUnits.includes('hours') && currentMinutes >= 60 && currentMinutes % 60 === 0) {
+      initialUnit = 'hours';
+      initialVal = (currentMinutes / 60).toString();
+    }
+
+    setCustomValInput(initialVal);
+    setCustomUnit(initialUnit);
+    setCustomLeadConfig({
+      visible: true,
+      title,
+      prefKey,
+      currentMinutes,
+      allowedUnits,
+    });
+  };
+
+  const handleSaveCustomLead = () => {
+    triggerHaptic();
+    if (!customLeadConfig) return;
+    const num = parseInt(customValInput.trim(), 10);
+    if (isNaN(num) || num < 0) return;
+
+    let totalMinutes = num;
+    if (customUnit === 'days') totalMinutes = num * 1440;
+    else if (customUnit === 'hours') totalMinutes = num * 60;
+
+    updatePrefs({ [customLeadConfig.prefKey]: totalMinutes });
+    setCustomLeadConfig(null);
+  };
 
   // Compute 2-letter user initials for avatar
   const displayName = nickname || user?.name || (user?.email ? user.email.split('@')[0] : '');
@@ -111,76 +211,66 @@ export default function SettingsScreen() {
             )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName} numberOfLines={1}>
-              {nickname || user?.name || (user?.email ? user.email.split('@')[0] : 'AcadMate Student')}
-            </Text>
+            {isEditingNickname ? (
+              <TextInput
+                style={styles.profileNicknameInput}
+                value={nicknameInput}
+                onChangeText={setNicknameInput}
+                autoFocus
+                maxLength={24}
+                autoCorrect={false}
+                onSubmitEditing={handleSaveNickname}
+                returnKeyType="done"
+                placeholder="Enter nickname…"
+                placeholderTextColor="#4A5568"
+              />
+            ) : (
+              <Text style={styles.profileName} numberOfLines={1}>
+                {nickname || user?.name || (user?.email ? user.email.split('@')[0] : 'AcadMate Student')}
+              </Text>
+            )}
             <Text style={styles.profileEmail} numberOfLines={1}>
               {user?.email ?? 'No email'}
             </Text>
           </View>
-          <View style={styles.profileBadge}>
-            <Sparkles size={10} color="#6C8EFF" />
-            <Text style={styles.profileBadgeText}>Student</Text>
-          </View>
+
+          {isEditingNickname ? (
+            <View style={styles.editBtnRow}>
+              <TouchableOpacity
+                style={styles.cancelActionBtn}
+                onPress={handleCancelNickname}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <X size={14} color="#94A3B8" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveActionBtn}
+                onPress={handleSaveNickname}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Check size={14} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.editNicknameBtn}
+              onPress={() => {
+                triggerHaptic();
+                setNicknameInput(nickname ?? '');
+                setIsEditingNickname(true);
+              }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Pencil size={11} color="#6C8EFF" />
+              <Text style={styles.editNicknameBtnText}>Edit</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Academic Configuration */}
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>Academic Configuration</Text>
-
-          {/* Nickname Tile */}
-          <View style={styles.tile}>
-            <Smile size={20} color="#6C8EFF" />
-            <View style={styles.tileContent}>
-              <Text style={styles.tileTitle}>Nickname</Text>
-              {isEditingNickname ? (
-                <TextInput
-                  style={styles.nicknameInput}
-                  value={nicknameInput}
-                  onChangeText={setNicknameInput}
-                  autoFocus
-                  maxLength={24}
-                  autoCorrect={false}
-                  onSubmitEditing={handleSaveNickname}
-                  returnKeyType="done"
-                  placeholder="Enter nickname…"
-                  placeholderTextColor="#4A5568"
-                />
-              ) : (
-                <Text style={styles.tileValue}>{nickname || 'Not set'}</Text>
-              )}
-            </View>
-
-            {isEditingNickname ? (
-              <View style={styles.editBtnRow}>
-                <TouchableOpacity
-                  style={styles.cancelActionBtn}
-                  onPress={handleCancelNickname}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <X size={14} color="#94A3B8" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.saveActionBtn}
-                  onPress={handleSaveNickname}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Check size={14} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <Pressable
-                style={styles.editPill}
-                onPress={() => {
-                  triggerHaptic();
-                  setNicknameInput(nickname ?? '');
-                  setIsEditingNickname(true);
-                }}
-              >
-                <Text style={styles.editPillText}>Edit</Text>
-              </Pressable>
-            )}
-          </View>
 
           {/* Schedule Modality / Set Tile */}
           <View style={styles.tile}>
@@ -240,7 +330,7 @@ export default function SettingsScreen() {
             <View style={styles.tileContent}>
               <Text style={styles.tileTitleFlex}>Class Reminders</Text>
               <Text style={styles.tileValueSub}>
-                {prefs.classReminders ? `Active (${prefs.classLeadMinutes}m before)` : 'Disabled'}
+                {prefs.classReminders ? `Active (${formatLeadMinutes(prefs.classLeadMinutes)} before)` : 'Disabled'}
               </Text>
             </View>
             <View style={[styles.switchTrack, prefs.classReminders && styles.switchTrackActive]}>
@@ -248,24 +338,19 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
-          {/* Class Lead Time Option */}
+          {/* Class Lead Time Option: Presets + Custom */}
           {prefs.classReminders && (
-            <View style={styles.leadMinutesRow}>
-              {[5, 10, 15, 30].map((mins) => {
-                const isSel = prefs.classLeadMinutes === mins;
-                return (
-                  <Pressable
-                    key={mins}
-                    style={[styles.leadMinutesPill, isSel && styles.leadMinutesPillActive]}
-                    onPress={() => handleLeadMinutes(mins)}
-                  >
-                    <Text style={[styles.leadMinutesText, isSel && styles.leadMinutesTextActive]}>
-                      {mins}m
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <LeadPillsRow
+              presets={[5, 10, 15, 30]}
+              currentMinutes={prefs.classLeadMinutes}
+              onSelectPreset={(mins) => {
+                triggerHaptic();
+                handleLeadMinutes(mins);
+              }}
+              onOpenCustom={() =>
+                openCustomModal('Class Reminder Time', 'classLeadMinutes', prefs.classLeadMinutes, ['minutes', 'hours'])
+              }
+            />
           )}
 
           {/* Task Reminders Toggle */}
@@ -277,13 +362,28 @@ export default function SettingsScreen() {
             <View style={styles.tileContent}>
               <Text style={styles.tileTitleFlex}>Task Due Alerts</Text>
               <Text style={styles.tileValueSub}>
-                {prefs.taskReminders ? '1 day & 1 hour before' : 'Disabled'}
+                {prefs.taskReminders ? `Active (${formatLeadMinutes(prefs.taskLeadMinutes)} before)` : 'Disabled'}
               </Text>
             </View>
             <View style={[styles.switchTrack, prefs.taskReminders && styles.switchTrackActive]}>
               <View style={[styles.switchThumb, prefs.taskReminders && styles.switchThumbActive]} />
             </View>
           </Pressable>
+
+          {/* Task Lead Time Option: Presets + Custom */}
+          {prefs.taskReminders && (
+            <LeadPillsRow
+              presets={[30, 60, 180, 1440]}
+              currentMinutes={prefs.taskLeadMinutes}
+              onSelectPreset={(mins) => {
+                triggerHaptic();
+                updatePrefs({ taskLeadMinutes: mins });
+              }}
+              onOpenCustom={() =>
+                openCustomModal('Task Due Alert Time', 'taskLeadMinutes', prefs.taskLeadMinutes, ['minutes', 'hours', 'days'])
+              }
+            />
+          )}
 
           {/* Exam Alerts Toggle */}
           <Pressable
@@ -292,15 +392,30 @@ export default function SettingsScreen() {
           >
             <Bell size={20} color={prefs.examAlerts ? '#F59E0B' : '#94A3B8'} />
             <View style={styles.tileContent}>
-              <Text style={styles.tileTitleFlex}>Exam Week Alerts</Text>
+              <Text style={styles.tileTitleFlex}>Exam Schedule Alerts</Text>
               <Text style={styles.tileValueSub}>
-                {prefs.examAlerts ? 'Active' : 'Disabled'}
+                {prefs.examAlerts ? `Active (${formatLeadMinutes(prefs.examLeadMinutes)} before)` : 'Disabled'}
               </Text>
             </View>
             <View style={[styles.switchTrack, prefs.examAlerts && styles.switchTrackActive]}>
               <View style={[styles.switchThumb, prefs.examAlerts && styles.switchThumbActive]} />
             </View>
           </Pressable>
+
+          {/* Exam Lead Time Option: Presets + Custom */}
+          {prefs.examAlerts && (
+            <LeadPillsRow
+              presets={[60, 180, 1440, 2880]}
+              currentMinutes={prefs.examLeadMinutes}
+              onSelectPreset={(mins) => {
+                triggerHaptic();
+                updatePrefs({ examLeadMinutes: mins });
+              }}
+              onOpenCustom={() =>
+                openCustomModal('Exam Alert Time', 'examLeadMinutes', prefs.examLeadMinutes, ['hours', 'days'])
+              }
+            />
+          )}
 
           {/* Study Reminders Toggle */}
           <Pressable
@@ -311,13 +426,28 @@ export default function SettingsScreen() {
             <View style={styles.tileContent}>
               <Text style={styles.tileTitleFlex}>Notebook Study Reminders</Text>
               <Text style={styles.tileValueSub}>
-                {prefs.studyReminders ? 'Enabled' : 'Disabled'}
+                {prefs.studyReminders ? `Active (${formatLeadMinutes(prefs.studyLeadMinutes)} before)` : 'Disabled'}
               </Text>
             </View>
             <View style={[styles.switchTrack, prefs.studyReminders && styles.switchTrackActive]}>
               <View style={[styles.switchThumb, prefs.studyReminders && styles.switchThumbActive]} />
             </View>
           </Pressable>
+
+          {/* Study Lead Time Option: Presets + Custom */}
+          {prefs.studyReminders && (
+            <LeadPillsRow
+              presets={[0, 15, 30, 60]}
+              currentMinutes={prefs.studyLeadMinutes}
+              onSelectPreset={(mins) => {
+                triggerHaptic();
+                updatePrefs({ studyLeadMinutes: mins });
+              }}
+              onOpenCustom={() =>
+                openCustomModal('Study Session Reminder', 'studyLeadMinutes', prefs.studyLeadMinutes, ['minutes', 'hours'])
+              }
+            />
+          )}
 
           {/* General Event Reminders Toggle */}
           <Pressable
@@ -328,7 +458,7 @@ export default function SettingsScreen() {
             <View style={styles.tileContent}>
               <Text style={styles.tileTitleFlex}>General Event Reminders</Text>
               <Text style={styles.tileValueSub}>
-                {prefs.eventReminders ? `Active (${prefs.eventLeadMinutes}m before)` : 'Disabled'}
+                {prefs.eventReminders ? `Active (${formatLeadMinutes(prefs.eventLeadMinutes)} before)` : 'Disabled'}
               </Text>
             </View>
             <View style={[styles.switchTrack, prefs.eventReminders && styles.switchTrackActive]}>
@@ -336,24 +466,19 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
-          {/* Event Lead Time Selector */}
+          {/* Event Lead Time Option: Presets + Custom */}
           {prefs.eventReminders && (
-            <View style={styles.leadMinutesRow}>
-              {([10, 15, 30, 60] as const).map((mins) => {
-                const isSel = prefs.eventLeadMinutes === mins;
-                return (
-                  <Pressable
-                    key={mins}
-                    style={[styles.leadMinutesPill, isSel && styles.leadMinutesPillActive]}
-                    onPress={() => updatePrefs({ eventLeadMinutes: mins })}
-                  >
-                    <Text style={[styles.leadMinutesText, isSel && styles.leadMinutesTextActive]}>
-                      {mins === 60 ? '1h' : `${mins}m`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <LeadPillsRow
+              presets={[10, 15, 30, 60]}
+              currentMinutes={prefs.eventLeadMinutes}
+              onSelectPreset={(mins) => {
+                triggerHaptic();
+                updatePrefs({ eventLeadMinutes: mins });
+              }}
+              onOpenCustom={() =>
+                openCustomModal('Event Reminder Time', 'eventLeadMinutes', prefs.eventLeadMinutes, ['minutes', 'hours', 'days'])
+              }
+            />
           )}
 
           {/* Device Specific Guidance Card */}
@@ -410,6 +535,88 @@ export default function SettingsScreen() {
         }}
         onCancel={() => setShowLogoutModal(false)}
       />
+
+      {/* Custom Lead Modal */}
+      {customLeadConfig && (
+        <Modal
+          visible={customLeadConfig.visible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCustomLeadConfig(null)}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setCustomLeadConfig(null)} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.customModalContainer}
+          >
+            <View style={styles.customModalCard}>
+              <View style={styles.customModalHeader}>
+                <Text style={styles.customModalTitle}>{customLeadConfig.title}</Text>
+                <Pressable
+                  onPress={() => setCustomLeadConfig(null)}
+                  style={styles.customModalCloseBtn}
+                  hitSlop={8}
+                >
+                  <X size={18} color="#94A3B8" />
+                </Pressable>
+              </View>
+
+              <Text style={styles.customModalSub}>Set reminder lead time before starting:</Text>
+
+              {/* Number Input & Unit */}
+              <View style={styles.customInputRow}>
+                <TextInput
+                  style={styles.customNumberInput}
+                  value={customValInput}
+                  onChangeText={setCustomValInput}
+                  keyboardType="numeric"
+                  autoFocus
+                  maxLength={5}
+                  placeholder="0"
+                  placeholderTextColor="#475569"
+                />
+                <View style={styles.customUnitGroup}>
+                  {customLeadConfig.allowedUnits.map((u) => {
+                    const isUnitSel = customUnit === u;
+                    const label = u === 'minutes' ? 'Min' : u === 'hours' ? 'Hours' : 'Days';
+                    return (
+                      <Pressable
+                        key={u}
+                        style={[styles.customUnitBtn, isUnitSel && styles.customUnitBtnActive]}
+                        onPress={() => {
+                          triggerHaptic();
+                          setCustomUnit(u);
+                        }}
+                      >
+                        <Text style={[styles.customUnitText, isUnitSel && styles.customUnitTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.customModalActions}>
+                <Button
+                  variant="outline"
+                  onPress={() => setCustomLeadConfig(null)}
+                  style={styles.customActionBtn}
+                >
+                  <Text style={styles.customCancelText}>Cancel</Text>
+                </Button>
+                <Button
+                  onPress={handleSaveCustomLead}
+                  style={[styles.customActionBtn, styles.customSaveBtn]}
+                >
+                  <Text style={styles.customSaveText}>Set Reminder</Text>
+                </Button>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -478,18 +685,18 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 2,
   },
-  profileBadge: {
+  editNicknameBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: 'rgba(108, 142, 255, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(108, 142, 255, 0.25)',
   },
-  profileBadgeText: {
+  editNicknameBtnText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#6C8EFF',
@@ -535,12 +742,17 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginTop: 2,
   },
-  nicknameInput: {
-    fontSize: 14,
+  profileNicknameInput: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#6C8EFF',
-    marginTop: 2,
-    padding: 0,
+    color: '#ffffff',
+    backgroundColor: '#0F131D',
+    borderWidth: 1,
+    borderColor: '#6C8EFF',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 2,
   },
   editBtnRow: {
     flexDirection: 'row',
@@ -565,19 +777,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editPill: {
-    backgroundColor: 'rgba(108,142,255,0.12)',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.3)',
-  },
-  editPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6C8EFF',
-  },
+
   tileValueSub: {
     fontSize: 13,
     color: '#94A3B8',
@@ -712,5 +912,113 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: '#8A99AD',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  customModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  customModalCard: {
+    width: '100%',
+    backgroundColor: '#161B26',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    padding: 20,
+    gap: 14,
+  },
+  customModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  customModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  customModalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#1E2433',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customModalSub: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  customInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  customNumberInput: {
+    flex: 1,
+    height: 44,
+    backgroundColor: '#0F131D',
+    borderWidth: 1,
+    borderColor: '#6C8EFF',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  customUnitGroup: {
+    flexDirection: 'row',
+    backgroundColor: '#0F131D',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    padding: 3,
+    gap: 2,
+  },
+  customUnitBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 7,
+  },
+  customUnitBtnActive: {
+    backgroundColor: '#6C8EFF',
+  },
+  customUnitText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  customUnitTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  customModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  customActionBtn: {
+    flex: 1,
+    height: 42,
+  },
+  customSaveBtn: {
+    backgroundColor: '#6C8EFF',
+  },
+  customCancelText: {
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  customSaveText: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
 });

@@ -9,11 +9,11 @@ import {
   Vibration,
   BackHandler,
   Alert,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
-import { Text } from '@/src/components/ui/text';
 import {
   BookOpen,
   Clock,
@@ -31,6 +31,8 @@ import {
   FileText,
   Pin,
   ArrowRight,
+  GraduationCap,
+  Pencil,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -39,15 +41,22 @@ import { useUserStore, computeCurrentSet } from '@/src/store/userStore';
 import { useNetworkSyncStatus } from '@/src/hooks/useNetworkSyncStatus';
 import { NotificationService } from '@/src/services/notificationService';
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
-import { useClassSchedules } from '@/src/hooks/useClassSchedules';
+import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useHolidays } from '@/src/hooks/useHolidays';
 import { useSemesterRules } from '@/src/hooks/useSemesterRules';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import { usePowerSync } from '@powersync/react';
+import { ClassDetailModal } from '@/src/components/calendar/ClassDetailModal';
+import { EditClassSheet } from '@/src/components/calendar/EditClassSheet';
+import { EventDetailModal } from '@/src/components/calendar/EventDetailModal';
+import { EditEventSheet } from '@/src/components/calendar/EditEventSheet';
+import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
+import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
+import { isExamEvent } from '@/src/services/notificationService';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { isScheduleActiveOnDate } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
 import {
   getPhilippineToday,
   formatTime12,
@@ -57,6 +66,7 @@ import {
   isTodayOrPastPHT,
   parseToEpoch,
 } from '@/src/utils/philippineTime';
+import { useTheme } from '@/src/theme/useTheme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -87,18 +97,16 @@ function fmtDue(iso: string | null): string {
   return `${Math.ceil(hrs / 24)}d left`;
 }
 
-function getGreeting() {
+function getGreeting(): string {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return { text: 'Good Morning', emoji: '☀️' };
-  if (h >= 12 && h < 17) return { text: 'Good Afternoon', emoji: '🌤️' };
-  if (h >= 17 && h < 21) return { text: 'Good Evening', emoji: '🌇' };
-  return { text: 'Good Night', emoji: '🌙' };
+  if (h >= 5 && h < 12) return 'Good Morning';
+  if (h >= 12 && h < 17) return 'Good Afternoon';
+  if (h >= 17 && h < 21) return 'Good Evening';
+  return 'Good Night';
 }
 
 function getTodayDateParam(): string {
-  const d = getPhilippineToday();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return getPhilippineToday();
 }
 
 function navigateToCalendarToday() {
@@ -108,75 +116,6 @@ function navigateToCalendarToday() {
   });
 }
 
-// ── Task Detail Modal ─────────────────────────────────────────────────────────
-
-function TaskDetailModal({ task, onClose }: { task: TaskRow | null; onClose: () => void }) {
-  if (!task) return null;
-  const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
-  const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
-  const color = task.subject_color ?? task.color ?? '#6C8EFF';
-  const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
-  const fmtDueLabel = fmtDue(task.due_date);
-
-  let dueBg = 'rgba(108,142,255,0.12)';
-  let dueTextColor = '#94A3B8';
-  if (isOverdue) { dueBg = 'rgba(239,68,68,0.12)'; dueTextColor = '#FCA5A5'; }
-  else if (isTodayDue) { dueBg = 'rgba(252,211,77,0.12)'; dueTextColor = '#FCD34D'; }
-
-  return (
-    <Modal visible={!!task} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose} />
-      <View style={styles.taskDetailSheet}>
-        {/* Handle */}
-        <View style={styles.taskDetailHandle} />
-
-        {/* Header */}
-        <View style={styles.taskDetailHeader}>
-          <View style={[styles.taskDetailAccent, { backgroundColor: color }]} />
-          <View style={styles.taskDetailHeaderText}>
-            <Text style={styles.taskDetailTitle}>{task.title}</Text>
-            {task.subject_name ? (
-              <View style={[styles.taskDetailSubjectTag, { backgroundColor: color + '22' }]}>
-                <View style={[styles.taskDetailSubjectDot, { backgroundColor: color }]} />
-                <Text style={[styles.taskDetailSubjectName, { color }]} numberOfLines={1}>
-                  {task.subject_name}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <Pressable onPress={onClose} style={styles.taskDetailCloseBtn} hitSlop={10}>
-            <X size={20} color="#64748B" />
-          </Pressable>
-        </View>
-
-        {/* Due Date */}
-        {task.due_date ? (
-          <View style={[styles.taskDetailDueRow, { backgroundColor: dueBg }]}>
-            <Clock size={14} color={dueTextColor} />
-            <Text style={[styles.taskDetailDueText, { color: dueTextColor }]}>
-              {isOverdue ? 'Overdue' : isTodayDue ? `Due Today${dueTime ? ` · ${dueTime}` : ''}` : fmtDueLabel}
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.taskDetailDueRow, { backgroundColor: 'rgba(100,116,139,0.08)' }]}>
-            <Clock size={14} color="#64748B" />
-            <Text style={[styles.taskDetailDueText, { color: '#64748B' }]}>No due date set</Text>
-          </View>
-        )}
-
-        {/* Description */}
-        <View style={styles.taskDetailBody}>
-          {task.description ? (
-            <Text style={styles.taskDetailDescription}>{task.description}</Text>
-          ) : (
-            <Text style={styles.taskDetailDescriptionEmpty}>No description provided.</Text>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ── Urgent Task Card ──────────────────────────────────────────────────────────
 
 function UrgentTaskCard({
@@ -184,23 +123,32 @@ function UrgentTaskCard({
   index,
   onComplete,
   onTap,
+  onEdit,
 }: {
   task: TaskRow;
   index: number;
   onComplete: (task: TaskRow) => void;
   onTap: (task: TaskRow) => void;
+  onEdit?: (task: TaskRow) => void;
 }) {
+  const { colors, isDark } = useTheme();
   const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
   const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
-  const color = task.subject_color ?? '#6C8EFF';
+  const accentColor = isOverdue ? '#EF4444' : '#10B981';
   const dueTime = task.due_date ? formatTime12(task.due_date) : null;
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 80).springify()}
-      style={styles.urgentCard}
+      entering={FadeInDown.delay(index * 70).springify()}
+      style={[
+        styles.urgentCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
     >
-      <View style={[styles.urgentAccent, { backgroundColor: color }]} />
+      <View style={[styles.urgentAccent, { backgroundColor: accentColor }]} />
 
       {/* 1-Tap Circular Checkbox */}
       <TouchableOpacity
@@ -209,38 +157,58 @@ function UrgentTaskCard({
         activeOpacity={0.7}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <CheckCircle2 size={20} color="#3A4455" />
+        <CheckCircle2 size={19} color={colors.mutedForeground} />
       </TouchableOpacity>
 
       {/* Tappable body → opens detail modal */}
-      <Pressable style={styles.urgentContent} onPress={() => onTap(task)} android_ripple={{ color: '#ffffff08' }}>
-        <Text style={styles.urgentTitle} numberOfLines={1}>{task.title}</Text>
+      <Pressable
+        style={styles.urgentContent}
+        onPress={() => onTap(task)}
+        android_ripple={{ color: colors.muted }}
+      >
+        <Text style={[styles.urgentTitle, { color: colors.foreground }]} numberOfLines={1}>
+          {task.title}
+        </Text>
         <View style={styles.urgentMeta}>
           {task.subject_name ? (
-            <View style={[styles.urgentSubjectTag, { backgroundColor: color + '22' }]}>
-              <View style={[styles.urgentSubjectDot, { backgroundColor: color }]} />
-              <Text style={[styles.urgentSubject, { color }]} numberOfLines={1}>
+            <View style={[styles.urgentSubjectTag, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }]}>
+              <Text style={[styles.urgentSubject, { color: colors.mutedForeground }]} numberOfLines={1}>
                 {task.subject_name}
               </Text>
             </View>
           ) : null}
 
           {isOverdue ? (
-            <View style={[styles.urgentBadge, styles.urgentBadgeRed]}>
-              <AlertTriangle size={10} color="#FCA5A5" />
-              <Text style={[styles.urgentBadgeText, styles.urgentBadgeTextRed]}>Overdue</Text>
+            <View
+              style={[
+                styles.urgentBadge,
+                { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)' },
+              ]}
+            >
+              <AlertTriangle size={10} color="#EF4444" />
+              <Text style={[styles.urgentBadgeText, { color: '#EF4444' }]}>Overdue</Text>
             </View>
           ) : isTodayDue ? (
-            <View style={styles.urgentBadge}>
-              <Clock size={10} color="#FCD34D" />
-              <Text style={styles.urgentBadgeText}>
+            <View
+              style={[
+                styles.urgentBadge,
+                { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)' },
+              ]}
+            >
+              <Clock size={10} color="#F59E0B" />
+              <Text style={[styles.urgentBadgeText, { color: '#F59E0B' }]}>
                 Due Today{dueTime ? ` · ${dueTime}` : ''}
               </Text>
             </View>
           ) : (
-            <View style={styles.urgentBadge}>
-              <Clock size={10} color="#94A3B8" />
-              <Text style={[styles.urgentBadgeText, { color: '#94A3B8' }]}>
+            <View
+              style={[
+                styles.urgentBadge,
+                { backgroundColor: colors.muted },
+              ]}
+            >
+              <Clock size={10} color={colors.mutedForeground} />
+              <Text style={[styles.urgentBadgeText, { color: colors.mutedForeground }]}>
                 {fmtDue(task.due_date)}
               </Text>
             </View>
@@ -248,7 +216,25 @@ function UrgentTaskCard({
         </View>
       </Pressable>
 
-      <ChevronRight size={14} color="#3A4455" style={{ marginRight: 10 }} />
+      <View style={styles.urgentActions}>
+        {onEdit ? (
+          <TouchableOpacity
+            style={[
+              styles.urgentEditBtn,
+              { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' },
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
+            hitSlop={8}
+            accessibilityLabel="Edit task"
+          >
+            <Pencil size={11} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ) : null}
+        <ChevronRight size={14} color={colors.mutedForeground} />
+      </View>
     </Animated.View>
   );
 }
@@ -263,6 +249,8 @@ function ClassTimelineItem({
   modality,
   setLabel,
   index,
+  onPress,
+  onEditPress,
 }: {
   label: string;
   time: string;
@@ -271,44 +259,86 @@ function ClassTimelineItem({
   modality?: string;
   setLabel?: string;
   index: number;
+  onPress?: () => void;
+  onEditPress?: () => void;
 }) {
+  const { colors, isDark } = useTheme();
   const isF2F = modality === 'F2F';
   const isOnline = modality === 'ONLINE';
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 55).springify()}
+      entering={FadeInDown.delay(index * 50).springify()}
       style={styles.timelineItemWrapper}
     >
       <TouchableOpacity
-        style={styles.timelineItem}
+        style={[
+          styles.timelineItem,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
         activeOpacity={0.75}
-        onPress={navigateToCalendarToday}
+        onPress={onPress}
       >
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: color }]} />
-          {modality ? (
-            <View style={[styles.modalityTag, { backgroundColor: color + '22' }]}>
-              {isF2F
-                ? <Users size={9} color={color} />
-                : isOnline
-                  ? <Radio size={9} color={color} />
-                  : null}
-              <Text style={[styles.modalityText, { color }]}>{modality}</Text>
-            </View>
-          ) : null}
+          <View style={styles.timelineActionsRow}>
+            {modality ? (
+              <View style={[styles.modalityTag, { backgroundColor: color + '18' }]}>
+                {isF2F ? (
+                  <Users size={9} color={color} />
+                ) : isOnline ? (
+                  <Radio size={9} color={color} />
+                ) : null}
+                <Text style={[styles.modalityText, { color }]}>{modality}</Text>
+              </View>
+            ) : null}
+            {onEditPress ? (
+              <TouchableOpacity
+                style={[
+                  styles.timelineEditBtn,
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPress();
+                }}
+                hitSlop={8}
+                accessibilityLabel="Edit class schedule"
+              >
+                <Pencil size={11} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
         <View style={styles.timelineText}>
-          <Text style={styles.timelineLabel} numberOfLines={1}>{label}</Text>
-          <Text style={styles.timelineTime}>{time}</Text>
+          <Text style={[styles.timelineLabel, { color: colors.foreground }]} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text style={[styles.timelineTime, { color: '#6366F1' }]}>{time}</Text>
           {room ? (
             <View style={styles.timelineMetaRow}>
-              <MapPin size={9} color="#64748B" />
-              <Text style={styles.timelineSub} numberOfLines={1}>{room}</Text>
+              <MapPin size={10} color={colors.mutedForeground} />
+              <Text style={[styles.timelineSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {room}
+              </Text>
             </View>
           ) : null}
           {setLabel ? (
-            <Text style={styles.timelineSetLabel}>{setLabel}</Text>
+            <Text
+              style={[
+                styles.timelineSetLabel,
+                {
+                  color: '#6366F1',
+                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                  borderColor: 'rgba(99, 102, 241, 0.2)',
+                },
+              ]}
+            >
+              {setLabel}
+            </Text>
           ) : null}
         </View>
       </TouchableOpacity>
@@ -321,11 +351,24 @@ function ClassTimelineItem({
 function EventTimelineItem({
   event,
   index,
+  onPress,
+  onEditPress,
 }: {
   event: CalendarEventRow;
   index: number;
+  onPress?: () => void;
+  onEditPress?: () => void;
 }) {
-  const accentColor = event.color ?? event.subject_color ?? '#10B981';
+  const { colors, isDark } = useTheme();
+  const isExam =
+    event.color === '#F59E0B' ||
+    Boolean(event.description?.startsWith('🎓')) ||
+    Boolean(event.title?.startsWith('🎓')) ||
+    Boolean(event.description?.toLowerCase().includes('exam')) ||
+    Boolean(event.title?.toLowerCase().includes('exam')) ||
+    isExamEvent(event);
+  const accentColor = isExam ? '#F59E0B' : '#6366F1';
+
   let timeDisplay = 'All day';
   if (event.all_day !== 1 && event.start_date) {
     const startFmt = fmtTime(event.start_date);
@@ -335,28 +378,62 @@ function EventTimelineItem({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 55).springify()}
+      entering={FadeInDown.delay(index * 50).springify()}
       style={styles.timelineItemWrapper}
     >
       <TouchableOpacity
-        style={[styles.timelineItem, styles.eventTimelineItem]}
+        style={[
+          styles.timelineItem,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
         activeOpacity={0.75}
-        onPress={navigateToCalendarToday}
+        onPress={onPress}
       >
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
-          <View style={[styles.eventTag, { backgroundColor: accentColor + '22' }]}>
-            <Calendar size={9} color={accentColor} />
-            <Text style={[styles.modalityText, { color: accentColor }]}>Event</Text>
+          <View style={styles.timelineActionsRow}>
+            <View style={[styles.eventTag, { backgroundColor: accentColor + '18' }]}>
+              {isExam ? (
+                <GraduationCap size={9} color={accentColor} />
+              ) : (
+                <Calendar size={9} color={accentColor} />
+              )}
+              <Text style={[styles.modalityText, { color: accentColor }]}>
+                {isExam ? 'Exam' : 'Event'}
+              </Text>
+            </View>
+            {onEditPress ? (
+              <TouchableOpacity
+                style={[
+                  styles.timelineEditBtn,
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPress();
+                }}
+                hitSlop={8}
+                accessibilityLabel="Edit event"
+              >
+                <Pencil size={11} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
         <View style={styles.timelineText}>
-          <Text style={styles.timelineLabel} numberOfLines={1}>{event.title}</Text>
+          <Text style={[styles.timelineLabel, { color: colors.foreground }]} numberOfLines={1}>
+            {event.title}
+          </Text>
           <Text style={[styles.timelineTime, { color: accentColor }]}>{timeDisplay}</Text>
           {event.location ? (
             <View style={styles.timelineMetaRow}>
-              <MapPin size={9} color="#64748B" />
-              <Text style={styles.timelineSub} numberOfLines={1}>{event.location}</Text>
+              <MapPin size={10} color={colors.mutedForeground} />
+              <Text style={[styles.timelineSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {event.location}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -367,28 +444,59 @@ function EventTimelineItem({
 
 // ── Pinned Notebook Card ──────────────────────────────────────────────────────
 
-function PinnedNotebookCard({ notebook, index }: { notebook: import('@/src/components/notebook/NotebookCard').Notebook; index: number }) {
+function PinnedNotebookCard({
+  notebook,
+  index,
+}: {
+  notebook: import('@/src/components/notebook/NotebookCard').Notebook;
+  index: number;
+}) {
+  const { colors } = useTheme();
+
   return (
     <Animated.View
-      entering={FadeInDown.delay(200 + index * 60).springify()}
+      entering={FadeInDown.delay(180 + index * 50).springify()}
       style={styles.pinnedCardWrapper}
     >
       <TouchableOpacity
-        style={styles.pinnedCard}
+        style={[
+          styles.pinnedCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
         activeOpacity={0.75}
-        onPress={() => router.push({ pathname: '/(app)/notebook/[id]' as any, params: { id: notebook.id, title: notebook.title } })}
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/notebook/[id]' as any,
+            params: { id: notebook.id, title: notebook.title },
+          })
+        }
       >
-        <View style={styles.pinnedCardIcon}>
-          <BookOpen size={18} color="#F59E0B" />
+        <View
+          style={[
+            styles.pinnedCardIcon,
+            {
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              borderColor: 'rgba(99, 102, 241, 0.2)',
+            },
+          ]}
+        >
+          <BookOpen size={16} color="#6366F1" />
         </View>
         <View style={styles.pinnedCardContent}>
-          <Text style={styles.pinnedCardTitle} numberOfLines={1}>{notebook.title}</Text>
+          <Text style={[styles.pinnedCardTitle, { color: colors.foreground }]} numberOfLines={1}>
+            {notebook.title}
+          </Text>
           <View style={styles.pinnedCardMeta}>
-            <FileText size={10} color="#64748B" />
-            <Text style={styles.pinnedCardSub}>{notebook.sourceCount} {notebook.sourceCount === 1 ? 'source' : 'sources'}</Text>
+            <FileText size={10} color={colors.mutedForeground} />
+            <Text style={[styles.pinnedCardSub, { color: colors.mutedForeground }]}>
+              {notebook.sourceCount} {notebook.sourceCount === 1 ? 'source' : 'sources'}
+            </Text>
           </View>
         </View>
-        <ChevronRight size={14} color="#3A4455" />
+        <ChevronRight size={14} color={colors.mutedForeground} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -397,6 +505,7 @@ function PinnedNotebookCard({ notebook, index }: { notebook: import('@/src/compo
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 function StudentHomeScreen() {
+  const { colors, isDark } = useTheme();
   const { user } = useAuthStore();
   const { nickname, studentSet, anchorMonday, anchorSet } = useUserStore();
   const powerSync = usePowerSync();
@@ -405,9 +514,16 @@ function StudentHomeScreen() {
   const networkStatus = useNetworkSyncStatus();
 
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+  const [viewingClass, setViewingClass] = useState<ClassScheduleRow | null>(null);
+  const [editingClass, setEditingClass] = useState<ClassScheduleRow | null>(null);
+  const [viewingEvent, setViewingEvent] = useState<CalendarEventRow | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
 
   const handleCompleteTask = async (task: TaskRow) => {
-    try { Vibration.vibrate(15); } catch { }
+    try {
+      Vibration.vibrate(15);
+    } catch {}
     const now = new Date().toISOString();
     try {
       await powerSync.execute(
@@ -431,7 +547,7 @@ function StudentHomeScreen() {
           'Exit AcadMate',
           'Are you sure you want to exit?',
           [
-            { text: 'Cancel', style: 'cancel', onPress: () => { } },
+            { text: 'Cancel', style: 'cancel', onPress: () => {} },
             { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
           ]
         );
@@ -480,16 +596,24 @@ function StudentHomeScreen() {
       .sort((a, b) => a.schedule.start_time.localeCompare(b.schedule.start_time));
   }, [schedules, studentSet, anchorMonday, anchorSet, semesterRules, holidays, examWeeks]);
 
-  // Today's events
-  const todayEvents = useMemo<CalendarEventRow[]>(() => {
-    return events
+  // Today's exams and events
+  const { todayExams, todayGeneralEvents } = useMemo(() => {
+    const list = events
       .filter((e) => isToday(e.start_date))
       .sort((a, b) => {
         const ta = a.start_date?.substring(11, 16) ?? '00:00';
         const tb = b.start_date?.substring(11, 16) ?? '00:00';
         return ta.localeCompare(tb);
       });
+    return {
+      todayExams: list.filter(isExamEvent),
+      todayGeneralEvents: list.filter((e) => !isExamEvent(e)),
+    };
   }, [events]);
+
+  const todayEvents = useMemo<CalendarEventRow[]>(() => {
+    return [...todayExams, ...todayGeneralEvents];
+  }, [todayExams, todayGeneralEvents]);
 
   // Pinned notebooks
   const pinnedNotebooks = useMemo(() => {
@@ -498,8 +622,71 @@ function StudentHomeScreen() {
       .filter(Boolean) as typeof notebooks;
   }, [pinnedIds, notebooks]);
 
+  // Active today's period or holiday banner
+  const todayPeriodInfo = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Check holidays & suspensions (Crimson Red #EF4444)
+    const dayHol = holidays.find((h) => {
+      const hd = parseDateLocal(h.date) ?? new Date(h.date);
+      return (
+        hd.getFullYear() === today.getFullYear() &&
+        hd.getMonth() === today.getMonth() &&
+        hd.getDate() === today.getDate()
+      );
+    });
+    if (dayHol) {
+      const isSuspension =
+        dayHol.type === 'SUSPENSION' || dayHol.name?.toLowerCase().includes('suspension');
+      return {
+        type: isSuspension ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
+        categoryLabel: isSuspension ? 'Class Suspension' : 'Holiday',
+        title: getCleanPeriodTitle(dayHol.name ?? ''),
+        color: '#EF4444',
+        bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+        border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
+        badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+      };
+    }
+
+    // 2. Check user-defined exam weeks & periods
+    for (const ew of examWeeks) {
+      const ewStart = parseDateLocal(ew.startDate);
+      const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
+      if (!ewStart || !ewEnd) continue;
+      if (today >= ewStart && today <= ewEnd) {
+        const cat = getPeriodCategory(ew);
+        if (cat === 'EXAM') {
+          return {
+            type: 'EXAM' as const,
+            categoryLabel: 'Exam Period',
+            title: getCleanPeriodTitle(ew.title),
+            color: '#F59E0B',
+            bg: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+            border: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
+            badgeBg: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.12)',
+          };
+        } else {
+          const isSusp = cat === 'SUSPENSION';
+          return {
+            type: isSusp ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
+            categoryLabel: isSusp ? 'Class Suspension' : 'Holiday',
+            title: getCleanPeriodTitle(ew.title),
+            color: '#EF4444',
+            bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+            border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
+            badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+          };
+        }
+      }
+    }
+
+    return null;
+  }, [holidays, examWeeks, isDark]);
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -509,74 +696,147 @@ function StudentHomeScreen() {
         <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
           <View style={styles.heroLeft}>
             <View style={styles.greetingRow}>
-              <Text style={styles.greetingText}>{greeting.text} {greeting.emoji}</Text>
-              <Text style={styles.dateDot}>·</Text>
-              <Text style={styles.dateSubtitle}>{dateSubtitle}</Text>
+              <Text style={[styles.greetingText, { color: colors.mutedForeground }]}>
+                {greeting}
+              </Text>
+              <Text style={[styles.dateDot, { color: colors.mutedForeground }]}>·</Text>
+              <Text style={[styles.dateSubtitle, { color: colors.mutedForeground }]}>
+                {dateSubtitle}
+              </Text>
             </View>
-            <Text style={styles.nameText}>{displayName}</Text>
+            <Text style={[styles.nameText, { color: colors.foreground }]}>{displayName}</Text>
           </View>
-          <View style={[
-            styles.onlinePill,
-            networkStatus === 'online'
-              ? styles.onlinePillGreen
-              : networkStatus === 'syncing'
-                ? styles.onlinePillBlue
-                : styles.onlinePillAmber
-          ]}>
+
+          {/* Network Sync Pill — flexShrink: 0 and includeFontPadding: false prevents clipping */}
+          <View
+            style={[
+              styles.onlinePill,
+              networkStatus === 'online'
+                ? {
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)',
+                  }
+                : networkStatus === 'syncing'
+                ? {
+                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+                    borderColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.2)',
+                  }
+                : {
+                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                    borderColor: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
+                  },
+            ]}
+          >
             {networkStatus === 'online' ? (
-              <Wifi size={12} color="#34D399" />
+              <Wifi size={12} color="#10B981" />
             ) : networkStatus === 'syncing' ? (
-              <RotateCw size={12} color="#6C8EFF" />
+              <RotateCw size={12} color="#6366F1" />
             ) : (
               <WifiOff size={12} color="#F59E0B" />
             )}
-            <Text style={[
-              styles.onlineText,
-              networkStatus === 'online'
-                ? styles.onlineTextGreen
-                : networkStatus === 'syncing'
-                  ? styles.onlineTextBlue
-                  : styles.onlineTextAmber
-            ]}>
+            <Text
+              style={[
+                styles.onlineText,
+                {
+                  color:
+                    networkStatus === 'online'
+                      ? '#10B981'
+                      : networkStatus === 'syncing'
+                      ? '#6366F1'
+                      : '#F59E0B',
+                },
+              ]}
+            >
               {networkStatus === 'online' ? 'Online' : networkStatus === 'syncing' ? 'Syncing...' : 'Offline'}
             </Text>
           </View>
         </Animated.View>
 
-        {/* ── Stats Row ── */}
-        <Animated.View entering={FadeInDown.delay(60).springify()} style={styles.statsRow}>
+        {/* ── Stats Metric Cards ── */}
+        <Animated.View
+          entering={FadeInDown.delay(50).springify()}
+          style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <Pressable style={styles.statChip} onPress={() => router.push('/(app)/tasks' as any)}>
-            <Text style={styles.statNum}>{pendingCount}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
+            <Text style={[styles.statNum, { color: colors.foreground }]}>{pendingCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Pending</Text>
           </Pressable>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <Pressable style={styles.statChip} onPress={navigateToCalendarToday}>
-            <Text style={styles.statNum}>{todayResolvedClasses.length}</Text>
-            <Text style={styles.statLabel}>Classes Today</Text>
+            <Text style={[styles.statNum, { color: colors.foreground }]}>{todayResolvedClasses.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Classes Today</Text>
           </Pressable>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <Pressable style={styles.statChip} onPress={navigateToCalendarToday}>
-            <Text style={styles.statNum}>{todayEvents.length}</Text>
-            <Text style={styles.statLabel}>Events Today</Text>
+            <Text style={[styles.statNum, { color: colors.foreground }]}>{todayEvents.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Events Today</Text>
           </Pressable>
         </Animated.View>
 
-        {/* ── Urgent Tasks ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <AlertTriangle size={15} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>Urgent Tasks</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/(app)/tasks' as any)}>
-              <Text style={styles.sectionLink}>See all →</Text>
+        {/* ── Active Period / Holiday Banner ── */}
+        {todayPeriodInfo && (
+          <Animated.View entering={FadeInDown.delay(70).springify()} style={styles.periodBannerWrap}>
+            <TouchableOpacity
+              style={[
+                styles.periodBanner,
+                { backgroundColor: todayPeriodInfo.bg, borderColor: todayPeriodInfo.border },
+              ]}
+              onPress={navigateToCalendarToday}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.periodIconWrap, { backgroundColor: todayPeriodInfo.badgeBg }]}>
+                {todayPeriodInfo.type === 'EXAM' ? (
+                  <GraduationCap size={18} color="#F59E0B" />
+                ) : todayPeriodInfo.type === 'SUSPENSION' ? (
+                  <AlertTriangle size={18} color="#EF4444" />
+                ) : (
+                  <Calendar size={18} color="#EF4444" />
+                )}
+              </View>
+
+              <View style={styles.periodTextContainer}>
+                <View style={styles.periodTagRow}>
+                  <Text style={[styles.periodTagText, { color: todayPeriodInfo.color }]}>
+                    {todayPeriodInfo.categoryLabel.toUpperCase()}
+                  </Text>
+                  <Text style={[styles.periodDot, { color: colors.mutedForeground }]}>·</Text>
+                  <Text style={[styles.periodSubAction, { color: colors.mutedForeground }]}>
+                    Classes Blocked
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.periodBannerMainText, { color: colors.foreground }]}
+                  numberOfLines={1}
+                >
+                  {todayPeriodInfo.title}
+                </Text>
+              </View>
+
+              <View style={styles.periodLinkWrap}>
+                <Text style={[styles.periodLinkText, { color: todayPeriodInfo.color }]}>Calendar</Text>
+                <ChevronRight size={14} color={todayPeriodInfo.color} />
+              </View>
             </TouchableOpacity>
+          </Animated.View>
+        )}
+
+        {/* ── Urgent Tasks ── */}
+        <Animated.View entering={FadeInDown.delay(90).springify()} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Urgent Tasks</Text>
           </View>
 
           {urgentTasks.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <CheckCircle2 size={22} color="#10B981" />
-              <Text style={styles.emptyCardText}>All caught up! No urgent tasks.</Text>
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <CheckCircle2 size={20} color="#10B981" />
+              <Text style={[styles.emptyCardText, { color: colors.mutedForeground }]}>
+                All caught up. No urgent tasks right now.
+              </Text>
             </View>
           ) : (
             urgentTasks.map((t, i) => (
@@ -586,27 +846,29 @@ function StudentHomeScreen() {
                 index={i}
                 onComplete={handleCompleteTask}
                 onTap={setSelectedTask}
+                onEdit={(task) => setEditingTask(task)}
               />
             ))
           )}
         </Animated.View>
 
-        {/* ── Today's Classes ── */}
-        <Animated.View entering={FadeInDown.delay(140).springify()} style={styles.section}>
+        {/* ── Classes Today ── */}
+        <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Clock size={15} color="#6C8EFF" />
-              <Text style={styles.sectionTitle}>Classes Today</Text>
-            </View>
-            <TouchableOpacity onPress={navigateToCalendarToday}>
-              <Text style={styles.sectionLink}>Calendar →</Text>
-            </TouchableOpacity>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Classes Today</Text>
           </View>
 
           {todayResolvedClasses.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <MapPin size={22} color="#2A3143" />
-              <Text style={styles.emptyCardText}>No classes scheduled for today.</Text>
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <MapPin size={20} color={colors.mutedForeground} />
+              <Text style={[styles.emptyCardText, { color: colors.mutedForeground }]}>
+                No classes scheduled for today.
+              </Text>
             </View>
           ) : (
             <ScrollView
@@ -619,33 +881,60 @@ function StudentHomeScreen() {
                   key={s.id}
                   label={s.subject_name ?? 'Class'}
                   time={`${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`}
-                  color={s.subject_color ?? '#6C8EFF'}
+                  color={s.subject_color ?? '#6366F1'}
                   room={resolution.effectiveRoom ?? undefined}
                   modality={s.modality}
                   setLabel={resolution.reason !== 'Every Week' ? resolution.reason : undefined}
                   index={i}
+                  onPress={() => setViewingClass(s)}
+                  onEditPress={() => setEditingClass(s)}
                 />
               ))}
             </ScrollView>
           )}
         </Animated.View>
 
-        {/* ── Today's Events ── */}
-        <Animated.View entering={FadeInDown.delay(170).springify()} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Calendar size={15} color="#10B981" />
-              <Text style={styles.sectionTitle}>Events Today</Text>
+        {/* ── Exams Today ── */}
+        {todayExams.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(135).springify()} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Exams Today</Text>
             </View>
-            <TouchableOpacity onPress={navigateToCalendarToday}>
-              <Text style={[styles.sectionLink, { color: '#10B981' }]}>Calendar →</Text>
-            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timelineScroll}
+            >
+              {todayExams.map((e, i) => (
+                <EventTimelineItem
+                  key={e.id}
+                  event={e}
+                  index={i}
+                  onPress={() => setViewingEvent(e)}
+                  onEditPress={() => setEditingEvent(e)}
+                />
+              ))}
+            </ScrollView>
+          </Animated.View>
+        )}
+
+        {/* ── Events Today ── */}
+        <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Events Today</Text>
           </View>
 
-          {todayEvents.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Calendar size={22} color="#2A3143" />
-              <Text style={styles.emptyCardText}>No events scheduled for today. Enjoy the free time!</Text>
+          {todayGeneralEvents.length === 0 ? (
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Calendar size={20} color={colors.mutedForeground} />
+              <Text style={[styles.emptyCardText, { color: colors.mutedForeground }]}>
+                No events scheduled for today.
+              </Text>
             </View>
           ) : (
             <ScrollView
@@ -653,39 +942,44 @@ function StudentHomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.timelineScroll}
             >
-              {todayEvents.map((e, i) => (
-                <EventTimelineItem key={e.id} event={e} index={i} />
+              {todayGeneralEvents.map((e, i) => (
+                <EventTimelineItem
+                  key={e.id}
+                  event={e}
+                  index={i}
+                  onPress={() => setViewingEvent(e)}
+                  onEditPress={() => setEditingEvent(e)}
+                />
               ))}
             </ScrollView>
           )}
         </Animated.View>
 
         {/* ── Study Workspace ── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
+        <Animated.View entering={FadeInDown.delay(180).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <BookOpen size={15} color="#6C8EFF" />
-              <Text style={styles.sectionTitle}>Study Workspace</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/(app)/notebook' as any)}>
-              <Text style={styles.sectionLink}>Notebooks →</Text>
-            </TouchableOpacity>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Study Workspace</Text>
           </View>
 
           {pinnedNotebooks.length === 0 ? (
             <TouchableOpacity
-              style={styles.pinnedEmptyCard}
+              style={[
+                styles.pinnedEmptyCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               activeOpacity={0.75}
               onPress={() => router.push('/(app)/notebook' as any)}
             >
-              <Pin size={20} color="#2A3143" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.pinnedEmptyTitle}>No notebooks pinned yet</Text>
-                <Text style={styles.pinnedEmptySub}>
+              <Pin size={18} color={colors.mutedForeground} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.pinnedEmptyTitle, { color: colors.foreground }]}>
+                  No notebooks pinned yet
+                </Text>
+                <Text style={[styles.pinnedEmptySub, { color: colors.mutedForeground }]}>
                   Pin notebooks from the Notebooks page to access them quickly here.
                 </Text>
               </View>
-              <ArrowRight size={16} color="#3A4455" />
+              <ArrowRight size={15} color={colors.mutedForeground} />
             </TouchableOpacity>
           ) : (
             pinnedNotebooks.map((nb, i) => (
@@ -697,8 +991,59 @@ function StudentHomeScreen() {
         <View style={styles.bottomPad} />
       </ScrollView>
 
-      {/* Task Detail Modal */}
-      <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
+      {/* Task Detail Modal (Read-Only) */}
+      <TaskDetailModal
+        visible={selectedTask !== null}
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onEdit={(t) => {
+          setSelectedTask(null);
+          setEditingTask(t);
+        }}
+      />
+
+      {/* Edit Task Sheet */}
+      <EditTaskSheet
+        visible={editingTask !== null}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+      />
+
+      {/* Class Detail Modal (Read-Only) */}
+      <ClassDetailModal
+        visible={viewingClass !== null}
+        schedule={viewingClass}
+        onClose={() => setViewingClass(null)}
+        onEdit={(s) => {
+          setViewingClass(null);
+          setEditingClass(s);
+        }}
+      />
+
+      {/* Edit Class Sheet */}
+      <EditClassSheet
+        visible={editingClass !== null}
+        schedule={editingClass}
+        onClose={() => setEditingClass(null)}
+      />
+
+      {/* Event Detail Modal (Read-Only) */}
+      <EventDetailModal
+        visible={viewingEvent !== null}
+        event={viewingEvent}
+        onClose={() => setViewingEvent(null)}
+        onEdit={(e) => {
+          setViewingEvent(null);
+          setEditingEvent(e);
+        }}
+      />
+
+      {/* Edit Event Sheet */}
+      <EditEventSheet
+        visible={editingEvent !== null}
+        event={editingEvent}
+        onClose={() => setEditingEvent(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -710,317 +1055,460 @@ export default function HomeScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#10131C' },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+  safe: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
 
   // Hero
   hero: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 20,
     paddingTop: 8,
   },
-  heroLeft: { flex: 1, overflow: 'visible' },
-  greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  greetingText: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  dateDot: { fontSize: 13, color: '#475569' },
-  dateSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  heroLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  dateDot: {
+    fontSize: 12,
+  },
+  dateSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
   nameText: {
-    fontSize: 26,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 34,
     fontWeight: '800',
-    color: '#ffffff',
-    marginTop: 2,
-    paddingTop: 2,
-    paddingBottom: 8,
+    fontFamily: 'Inter-Bold',
+    letterSpacing: -0.7,
   },
 
   onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
     marginTop: 4,
+    flexShrink: 0,
   },
-  onlinePillGreen: { backgroundColor: 'rgba(52,211,153,0.12)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
-  onlinePillBlue: { backgroundColor: 'rgba(108,142,255,0.12)', borderWidth: 1, borderColor: 'rgba(108,142,255,0.25)' },
-  onlinePillAmber: { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' },
-  onlineText: { fontSize: 11, fontWeight: '700' },
-  onlineTextGreen: { color: '#34D399' },
-  onlineTextBlue: { color: '#6C8EFF' },
-  onlineTextAmber: { color: '#F59E0B' },
+  onlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
+    flexShrink: 0,
+    includeFontPadding: false,
+    paddingRight: 2,
+  },
 
   // Stats row
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: '#161A26',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A3143',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    marginBottom: 22,
     alignItems: 'center',
     justifyContent: 'space-evenly',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  statChip: { alignItems: 'center', gap: 4, flex: 1 },
-  statNum: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
-  statLabel: { fontSize: 11, color: '#64748B', fontWeight: '500' },
-  statDivider: { width: 1, height: 32, backgroundColor: '#2A3143' },
+  statChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    flex: 1,
+    minHeight: 46,
+    paddingHorizontal: 2,
+  },
+  statNum: {
+    fontSize: 20,
+    fontWeight: '800',
+    fontFamily: 'Inter-Bold',
+    letterSpacing: -0.5,
+    includeFontPadding: false,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 15,
+    includeFontPadding: false,
+    paddingHorizontal: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+  },
 
   // Section
-  section: { marginBottom: 26 },
+  section: {
+    marginBottom: 24,
+  },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#E2E8F0', textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionLink: { fontSize: 12, color: '#6C8EFF', fontWeight: '600' },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
 
   // Urgent task card
   urgentCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A3143',
     marginBottom: 8,
     overflow: 'hidden',
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  urgentAccent: { width: 4, alignSelf: 'stretch' },
+  urgentAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+  },
   urgentCheckbox: {
-    paddingLeft: 6,
+    paddingLeft: 8,
     paddingRight: 4,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  urgentContent: { flex: 1, paddingVertical: 12, gap: 4 },
-  urgentTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
-  urgentMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  urgentContent: {
+    flex: 1,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  urgentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  urgentMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   urgentSubjectTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 5,
-    maxWidth: 120,
+    borderRadius: 6,
+    maxWidth: 130,
   },
-  urgentSubjectDot: { width: 5, height: 5, borderRadius: 2.5 },
-  urgentSubject: { fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  urgentSubjectDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  urgentSubject: {
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   urgentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(252,211,77,0.12)',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  urgentBadgeRed: { backgroundColor: 'rgba(239,68,68,0.12)' },
-  urgentBadgeText: { fontSize: 10, fontWeight: '700', color: '#FCD34D' },
-  urgentBadgeTextRed: { color: '#FCA5A5' },
+  urgentBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+  },
+  urgentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 12,
+    flexShrink: 0,
+  },
+  urgentEditBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Empty state
   emptyCard: {
-    backgroundColor: '#161A26',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A3143',
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  emptyCardText: { fontSize: 13, color: '#64748B', flex: 1 },
+  emptyCardText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+  },
 
   // Timeline
-  timelineScroll: { paddingBottom: 4, gap: 10 },
-  timelineItemWrapper: { width: 168 },
-  timelineItem: {
-    backgroundColor: '#161A26',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 12,
-    gap: 6,
+  timelineScroll: {
+    paddingBottom: 4,
+    gap: 10,
   },
-  eventTimelineItem: {
-    borderColor: 'rgba(16,185,129,0.2)',
+  timelineItemWrapper: {
+    width: 182,
+  },
+  timelineItem: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 13,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   timelineTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  timelineDot: { width: 8, height: 8, borderRadius: 4 },
+  timelineActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  timelineEditBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   modalityTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexShrink: 0,
   },
   eventTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexShrink: 0,
   },
   modalityText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
+    flexShrink: 0,
+    includeFontPadding: false,
+    paddingRight: 2,
   },
-  timelineText: { gap: 2 },
-  timelineLabel: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
-  timelineTime: { fontSize: 11, color: '#6C8EFF', fontWeight: '600' },
-  timelineMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
-  timelineSub: { fontSize: 10, color: '#64748B', flex: 1 },
+  timelineText: {
+    gap: 3,
+  },
+  timelineLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  timelineTime: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  timelineMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 1,
+  },
+  timelineSub: {
+    fontSize: 10.5,
+    flex: 1,
+  },
   timelineSetLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#6C8EFF',
-    backgroundColor: 'rgba(108,142,255,0.12)',
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
     alignSelf: 'flex-start',
     marginTop: 2,
   },
 
-  // Task Detail Modal
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  taskDetailSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    paddingBottom: 36,
-    minHeight: 220,
-  },
-  taskDetailHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#2A3143',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  taskDetailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  taskDetailAccent: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-  },
-  taskDetailHeaderText: { flex: 1, gap: 4 },
-  taskDetailTitle: { fontSize: 17, fontWeight: '800', color: '#ffffff' },
-  taskDetailSubjectTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  taskDetailSubjectDot: { width: 6, height: 6, borderRadius: 3 },
-  taskDetailSubjectName: { fontSize: 12, fontWeight: '600' },
-  taskDetailCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(100,116,139,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskDetailDueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 20,
-    marginTop: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  taskDetailDueText: { fontSize: 13, fontWeight: '600' },
-  taskDetailBody: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  taskDetailDescription: { fontSize: 14, color: '#94A3B8', lineHeight: 22 },
-  taskDetailDescriptionEmpty: { fontSize: 14, color: '#3A4455', fontStyle: 'italic' },
-
   // Pinned Notebooks
-  pinnedCardWrapper: { marginBottom: 8 },
+  pinnedCardWrapper: {
+    marginBottom: 8,
+  },
   pinnedCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.2)',
-    padding: 14,
+    padding: 13,
     gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   pinnedCardIcon: {
     width: 36,
     height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pinnedCardContent: { flex: 1, gap: 3 },
-  pinnedCardTitle: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
-  pinnedCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  pinnedCardSub: { fontSize: 11, color: '#64748B' },
+  pinnedCardContent: {
+    flex: 1,
+    gap: 3,
+  },
+  pinnedCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  pinnedCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pinnedCardSub: {
+    fontSize: 11,
+  },
 
   pinnedEmptyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A3143',
     borderStyle: 'dashed',
     padding: 16,
     gap: 12,
   },
-  pinnedEmptyTitle: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 3 },
-  pinnedEmptySub: { fontSize: 12, color: '#374151', lineHeight: 17 },
+  pinnedEmptyTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pinnedEmptySub: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
 
-  bottomPad: { height: 20 },
+  bottomPad: {
+    height: 96,
+  },
+
+  // Active period banner
+  periodBannerWrap: {
+    marginBottom: 20,
+  },
+  periodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 12,
+  },
+  periodIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodTextContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+  periodTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  periodTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  periodDot: {
+    fontSize: 10,
+  },
+  periodSubAction: {
+    fontSize: 10.5,
+    fontWeight: '500',
+  },
+  periodBannerMainText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  periodLinkWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingLeft: 4,
+    flexShrink: 0,
+  },
+  periodLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 0,
+    includeFontPadding: false,
+  },
 });

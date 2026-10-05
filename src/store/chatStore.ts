@@ -3,6 +3,7 @@ import { ApiService } from '@/src/services/api';
 import { ChatMessage } from '@/src/components/notebook/chat/ChatMessageBubble';
 import { NotebookStorage } from '@/src/services/notebookStorage';
 import { useSystemStore } from './systemStore';
+import { classifyError } from '@/src/lib/aiRequest';
 
 let _idCounter = 0;
 function genId(): string {
@@ -73,7 +74,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: async (notebookId: string, text: string) => {
     const { isOnline } = useSystemStore.getState();
-    if (!isOnline) return;
+    if (!isOnline) {
+      const userMsg: ChatMessage = {
+        id: genId(),
+        role: 'user',
+        content: text,
+        timestamp: new Date(),
+      };
+      const offlineMsg: ChatMessage = {
+        id: genId(),
+        role: 'assistant',
+        content: "You're offline. Reconnect to the internet to chat with your notes.",
+        citations: [],
+        timestamp: new Date(),
+        isError: true,
+      };
+      set((state) => ({
+        messages: [...state.messages, userMsg, offlineMsg],
+        isLoading: false,
+        error: "You're offline. Reconnect to the internet to chat with your notes.",
+        lastUserText: text,
+      }));
+      return;
+    }
 
     const currentSessionId = get().sessionId;
 
@@ -122,11 +145,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Refresh session history so the new/updated conversation appears immediately in the drawer
       get().fetchSessions(notebookId);
     } catch (err: any) {
+      const classified = classifyError(err);
       // Mark as an error bubble so the UI can render it differently
       const errMsg: ChatMessage = {
         id: genId(),
         role: 'assistant',
-        content: err?.message ?? 'Unknown error. Please check your connection and try again.',
+        content: classified.message,
         citations: [],
         timestamp: new Date(),
         isError: true,
@@ -135,7 +159,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: [...state.messages, errMsg],
         isLoading: false,
-        error: err?.message ?? 'Unknown error',
+        error: classified.message,
       }));
     }
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,11 +8,10 @@ import {
   Platform,
   ScrollView,
   KeyboardAvoidingView,
+  Text,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
-import { X, Clock, Calendar, RotateCcw, GraduationCap, CalendarDays, AlertTriangle, BookOpen, CalendarCheck } from 'lucide-react-native';
+import { X, Clock, Calendar, RotateCcw, GraduationCap, AlertTriangle, BookOpen, CalendarCheck } from 'lucide-react-native';
 import {
   ParsedClassSchedule,
   ParsedCalendarEvent,
@@ -22,6 +21,8 @@ import {
 } from './ParsedItemRow';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { formatDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,8 @@ interface EditParsedClassSheetProps {
 }
 
 export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditParsedClassSheetProps) {
-  const { subjects } = useSubjects();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [subjectName, setSubjectName] = useState('');
   const [selectedDays, setSelectedDays] = useState<number[]>([1]);
@@ -215,12 +217,12 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <BookOpen size={16} color="#6C8EFF" />
+                <BookOpen size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>Edit Parsed Class</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -233,7 +235,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
               value={subjectName}
               onChangeText={setSubjectName}
               placeholder="e.g. Mathematics 101"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={colors.mutedForeground}
             />
           </View>
 
@@ -278,13 +280,13 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={10} color="#94A3B8" />
+                  <RotateCcw size={10} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Today</Text>
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
+                <Calendar size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -297,7 +299,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
@@ -310,7 +312,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                 <Text style={styles.pickerText}>
                   {formatDate(endDate)}
                 </Text>
-                <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                <Calendar size={14} color={!startDate ? colors.mutedForeground : colors.foreground} />
               </Pressable>
             </View>
           </View>
@@ -326,14 +328,14 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -346,14 +348,14 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -373,8 +375,8 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
                 minimumDate={activePickerField === 'endDate' ? startDate : undefined}
                 display="spinner"
                 onChange={activePickerField.includes('Time') ? handleTimeChange : handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
+                textColor={colors.foreground}
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={styles.iosPicker}
               />
               <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
@@ -416,15 +418,15 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
             <TextInput
               style={styles.input}
               placeholder={setType ? `e.g. Room for Set ${setType}` : 'e.g. Room 416, Tech Hall'}
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.mutedForeground}
               value={room}
               onChangeText={setRoom}
             />
           </View>
 
-          <Button style={styles.saveButton} onPress={handleSave}>
+          <Pressable style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveBtnText}>Save Changes</Text>
-          </Button>
+          </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -442,6 +444,9 @@ interface EditParsedEventSheetProps {
 }
 
 export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditParsedEventSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -522,19 +527,19 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <CalendarCheck size={16} color="#6C8EFF" />
+                <CalendarCheck size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>Edit Parsed Event</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
           <View style={styles.formGroup}>
             <Text style={styles.label}>Event Title</Text>
-            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Independence Day" placeholderTextColor="#64748B" />
+            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Foundation Day" placeholderTextColor={colors.mutedForeground} />
           </View>
 
           <View style={[styles.formGroup, styles.timeRow]}>
@@ -550,13 +555,13 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={10} color="#94A3B8" />
+                  <RotateCcw size={10} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Today</Text>
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
+                <Calendar size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -569,7 +574,7 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
@@ -582,7 +587,7 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                 <Text style={styles.pickerText}>
                   {formatDate(endDate)}
                 </Text>
-                <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                <Calendar size={14} color={!startDate ? colors.mutedForeground : colors.foreground} />
               </Pressable>
             </View>
           </View>
@@ -599,8 +604,8 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                 minimumDate={activePickerField === 'endDate' ? startDate : undefined}
                 display="spinner"
                 onChange={handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
+                textColor={colors.foreground}
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={styles.iosPicker}
               />
               <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
@@ -611,12 +616,12 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Location (Optional)</Text>
-            <TextInput style={styles.input} placeholder="Optional" placeholderTextColor="#94A3B8" value={location} onChangeText={setLocation} />
+            <TextInput style={styles.input} placeholder="Optional" placeholderTextColor={colors.mutedForeground} value={location} onChangeText={setLocation} />
           </View>
 
-          <Button style={styles.saveButton} onPress={handleSave}>
+          <Pressable style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveBtnText}>Save Changes</Text>
-          </Button>
+          </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -634,6 +639,9 @@ export interface EditParsedBlockerSheetProps {
 }
 
 export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditParsedBlockerSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<'EXAM' | 'HOLIDAY' | 'SUSPENSION'>('EXAM');
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -657,10 +665,15 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
   const handleSave = () => {
     if (!item) return;
     const clean = title.trim() || getCleanPeriodTitle(item.title) || 'Blocker';
-    const tag = category === 'EXAM' ? '🎓 ' : category === 'HOLIDAY' ? '🏖️ ' : '⚠️ ';
+    let formatted = clean;
+    if (category === 'HOLIDAY' && !clean.toLowerCase().includes('holiday')) {
+      formatted = `${clean} (Holiday)`;
+    } else if (category === 'SUSPENSION' && !clean.toLowerCase().includes('suspension')) {
+      formatted = `${clean} (Suspension)`;
+    }
     onSave({
       ...item,
-      title: `${tag}${clean}`,
+      title: formatted,
       startDate: toISODate(startDate),
       endDate: toISODate(endDate),
     });
@@ -711,13 +724,13 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
-              <View style={[styles.headerBadge, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)' }]}>
+              <View style={[styles.headerBadge, { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : '#FEF3C7', borderColor: '#F59E0B' }]}>
                 <AlertTriangle size={16} color="#F59E0B" />
               </View>
               <Text style={styles.headerTitle}>Edit Calendar Blocker</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -730,36 +743,36 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
                 style={[
                   styles.pill,
                   styles.pillWide,
-                  category === 'EXAM' && { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#F59E0B' },
+                  category === 'EXAM' && { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7', borderColor: '#F59E0B' },
                 ]}
                 onPress={() => setCategory('EXAM')}
               >
-                <Text style={[styles.pillText, category === 'EXAM' && { color: '#F59E0B' }]}>
-                  🎓 Exam Week
+                <Text style={[styles.pillText, category === 'EXAM' && { color: '#F59E0B', fontWeight: '700' }]}>
+                  Exam Week
                 </Text>
               </Pressable>
               <Pressable
                 style={[
                   styles.pill,
                   styles.pillWide,
-                  category === 'HOLIDAY' && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' },
+                  category === 'HOLIDAY' && { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5', borderColor: '#10B981' },
                 ]}
                 onPress={() => setCategory('HOLIDAY')}
               >
-                <Text style={[styles.pillText, category === 'HOLIDAY' && { color: '#10B981' }]}>
-                  🏖️ Holiday
+                <Text style={[styles.pillText, category === 'HOLIDAY' && { color: '#10B981', fontWeight: '700' }]}>
+                  Holiday
                 </Text>
               </Pressable>
               <Pressable
                 style={[
                   styles.pill,
                   styles.pillWide,
-                  category === 'SUSPENSION' && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' },
+                  category === 'SUSPENSION' && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2', borderColor: '#EF4444' },
                 ]}
                 onPress={() => setCategory('SUSPENSION')}
               >
-                <Text style={[styles.pillText, category === 'SUSPENSION' && { color: '#EF4444' }]}>
-                  ⚠️ Suspension
+                <Text style={[styles.pillText, category === 'SUSPENSION' && { color: '#EF4444', fontWeight: '700' }]}>
+                  Suspension
                 </Text>
               </Pressable>
             </View>
@@ -772,7 +785,7 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. Midterm Exam Week"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={colors.mutedForeground}
             />
           </View>
 
@@ -790,13 +803,13 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={10} color="#94A3B8" />
+                  <RotateCcw size={10} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Today</Text>
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
+                <Calendar size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -812,7 +825,7 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
                 <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {!startDate ? 'Select start date first' : endDate ? formatDate(endDate) : 'Select end date...'}
                 </Text>
-                <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                <Calendar size={14} color={!startDate ? colors.mutedForeground : colors.foreground} />
               </Pressable>
             </View>
           </View>
@@ -830,8 +843,8 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
                 minimumDate={activePickerField === 'endDate' ? startDate : undefined}
                 display="spinner"
                 onChange={handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
+                textColor={colors.foreground}
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={styles.iosPicker}
               />
               <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
@@ -840,9 +853,9 @@ export function EditParsedBlockerSheet({ visible, item, onClose, onSave }: EditP
             </View>
           )}
 
-          <Button style={styles.saveButton} onPress={handleSave}>
+          <Pressable style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveBtnText}>Save Changes</Text>
-          </Button>
+          </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -896,6 +909,9 @@ function resolveFromBlock(dayOfWeek: number, blockId: string, blocks: import('@/
 type ExamPickerField = 'startDate' | 'endDate' | 'startTime' | 'endTime';
 
 export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, onSave }: EditParsedExamSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [title, setTitle] = useState('');
   const [room, setRoom] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -1040,13 +1056,13 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
-              <View style={[styles.headerBadge, { backgroundColor: 'rgba(139,92,246,0.18)', borderColor: 'rgba(139,92,246,0.35)' }]}>
-                <GraduationCap size={16} color="#8B5CF6" />
+              <View style={[styles.headerBadge, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.2)' }]}>
+                <GraduationCap size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>Edit Exam Schedule</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -1054,13 +1070,13 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
           {/* Title */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Exam Title / Subject</Text>
-            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. IT101 Midterm Exam" placeholderTextColor="#64748B" />
+            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. IT101 Midterm Exam" placeholderTextColor={colors.mutedForeground} />
           </View>
 
           {/* Room */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Room / Location (Optional)</Text>
-            <TextInput style={styles.input} value={room} onChangeText={setRoom} placeholder="e.g. Room 402 / Online" placeholderTextColor="#64748B" />
+            <TextInput style={styles.input} value={room} onChangeText={setRoom} placeholder="e.g. Room 402 / Online" placeholderTextColor={colors.mutedForeground} />
           </View>
 
           {/* Exam Week Block selector — only shown for students with day-of-week based exams */}
@@ -1103,13 +1119,13 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={10} color="#94A3B8" />
+                  <RotateCcw size={10} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Today</Text>
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
                 <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
+                <Calendar size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -1125,7 +1141,7 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
                 <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {!startDate ? 'Select start date first' : endDate ? formatDate(endDate) : 'Select end date...'}
                 </Text>
-                <Calendar size={14} color={!startDate ? '#475569' : '#94A3B8'} />
+                <Calendar size={14} color={!startDate ? colors.mutedForeground : colors.foreground} />
               </Pressable>
             </View>
           </View>
@@ -1141,14 +1157,14 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
                 <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
@@ -1161,14 +1177,14 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color="#94A3B8" />
+                    <RotateCcw size={10} color={colors.mutedForeground} />
                     <Text style={styles.resetBtnText}>Reset</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
                 <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
+                <Clock size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -1182,8 +1198,8 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
                 minimumDate={activePickerField === 'endDate' ? startDate : undefined}
                 display="spinner"
                 onChange={isTimePicker ? handleTimeChange : handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
+                textColor={colors.foreground}
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={styles.iosPicker}
               />
               <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
@@ -1192,9 +1208,9 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
             </View>
           )}
 
-          <Button style={styles.saveButton} onPress={handleSave}>
+          <Pressable style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveBtnText}>Save Changes</Text>
-          </Button>
+          </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -1204,163 +1220,210 @@ export function EditParsedExamSheet({ visible, item, examWeeks = [], onClose, on
 
 // ── Shared Styles ───────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: 'rgba(108, 142, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: { padding: 6 },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: '#1E2433',
-  },
-  resetBtnText: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  formGroup: { marginBottom: 18 },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 8,
-  },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    backgroundColor: '#10131C',
-    minWidth: 48,
-    alignItems: 'center',
-  },
-  pillWide: { flex: 1 },
-  pillSelected: { backgroundColor: 'rgba(108,142,255,0.15)', borderColor: '#6C8EFF' },
-  pillText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
-  pillTextSelected: { color: '#6C8EFF' },
-  timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  timeField: { flex: 1 },
-  timeSeparator: { paddingBottom: 12 },
-  timeSeparatorText: { color: '#94A3B8', fontSize: 16 },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#ffffff',
-    fontSize: 14,
-  },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 14, flex: 1 },
-  pickerPlaceholder: { color: '#64748B', fontSize: 14, flex: 1 },
-  pickerDisabled: {
-    opacity: 0.45,
-    backgroundColor: '#0F131D',
-    borderColor: '#1E2433',
-  },
-  iosPickerWrapper: {
-    marginTop: -10,
-    marginBottom: 12,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  iosPicker: { height: 150 },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: { color: '#6C8EFF', fontSize: 14, fontWeight: '600' },
-  saveButton: {
-    backgroundColor: '#6C8EFF',
-    marginTop: 8,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: 24,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      letterSpacing: -0.4,
+      includeFontPadding: false,
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? colors.muted : '#E4E4E7',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    resetBtnText: {
+      fontSize: 10,
+      color: colors.mutedForeground,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    formGroup: { marginBottom: 18 },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      minWidth: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pillWide: { flex: 1 },
+    pillSelected: {
+      backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
+      borderColor: '#6366F1',
+    },
+    pillText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+      flexShrink: 0,
+    },
+    pillTextSelected: {
+      color: '#6366F1',
+      fontWeight: '700',
+    },
+    timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    timeField: { flex: 1 },
+    timeSeparator: { paddingBottom: 12 },
+    timeSeparatorText: { color: colors.mutedForeground, fontSize: 16 },
+    input: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 14,
+    },
+    picker: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 14,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    pickerDisabled: {
+      opacity: 0.5,
+    },
+    iosPickerWrapper: {
+      marginTop: -10,
+      marginBottom: 12,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    iosPicker: { height: 150 },
+    iosDoneBtn: {
+      alignItems: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    iosDoneBtnText: {
+      color: '#6366F1',
+      fontSize: 14,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    saveButton: {
+      backgroundColor: '#6366F1',
+      marginTop: 8,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    saveBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+  });
+}
+

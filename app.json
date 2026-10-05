@@ -6,7 +6,17 @@
     "orientation": "portrait",
     "icon": "./assets/images/new-splash-favicon-icon.png",
     "scheme": "acadmate",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/new-splash-favicon-icon.png",
+      "imageWidth": 100,
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAFA",
+      "dark": {
+        "image": "./assets/images/new-splash-favicon-icon.png",
+        "backgroundColor": "#090A0F"
+      }
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.acadmate.app",
@@ -14,8 +24,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0b0f19",
+        "backgroundColor": "#090A0F",
         "foregroundImage": "./assets/images/new-splash-favicon-icon.png"
+      },
+      "splash": {
+        "image": "./assets/images/new-splash-favicon-icon.png",
+        "imageWidth": 100,
+        "resizeMode": "contain",
+        "backgroundColor": "#FAFAFA",
+        "dark": {
+          "image": "./assets/images/new-splash-favicon-icon.png",
+          "backgroundColor": "#090A0F"
+        }
       },
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
@@ -40,9 +60,13 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/new-splash-favicon-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 100,
           "resizeMode": "contain",
-          "backgroundColor": "#10131C"
+          "backgroundColor": "#FAFAFA",
+          "dark": {
+            "image": "./assets/images/new-splash-favicon-icon.png",
+            "backgroundColor": "#090A0F"
+          }
         }
       ],
       "@react-native-community/datetimepicker",

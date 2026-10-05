@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Modal, Animated, Easing } from 'react-native';
-import { Text } from '@/src/components/ui/text';
-import { Sparkles } from 'lucide-react-native';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { View, StyleSheet, Modal, Animated, Easing, TouchableOpacity, Text } from 'react-native';
+import { Sparkles, X } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 export interface ProgressStage {
   step: number;
@@ -44,9 +45,13 @@ const STAGES: ProgressStage[] = [
 
 interface AILoadingOverlayProps {
   visible: boolean;
+  onCancel?: () => void;
 }
 
-export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
+export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const spinClockwise = useRef(new Animated.Value(0)).current;
@@ -55,9 +60,11 @@ export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
   const textFadeAnim = useRef(new Animated.Value(1)).current;
 
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [isTakingLonger, setIsTakingLonger] = useState(false);
 
   useEffect(() => {
     if (!visible) {
+      setIsTakingLonger(false);
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
@@ -71,6 +78,7 @@ export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
 
     // Reset initial values
     setCurrentStageIndex(0);
+    setIsTakingLonger(false);
     progressAnim.setValue(0.08);
     textFadeAnim.setValue(1);
 
@@ -172,6 +180,12 @@ export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
       accumulatedTime += stage.durationMs;
     }
 
+    // Long wait timer (after 20s show a subtle hint)
+    const longWaitTimer = setTimeout(() => {
+      setIsTakingLonger(true);
+    }, 20000);
+    timers.push(longWaitTimer);
+
     return () => {
       pulseLoop.stop();
       spinClockwiseLoop.stop();
@@ -215,7 +229,7 @@ export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
 
             {/* Core icon disc */}
             <View style={styles.coreDisc}>
-              <Sparkles size={26} color="#6C8EFF" />
+              <Sparkles size={26} color="#6366F1" />
             </View>
           </View>
 
@@ -271,185 +285,239 @@ export function AILoadingOverlay({ visible }: AILoadingOverlayProps) {
               <Text style={styles.liveText}>Processing</Text>
             </View>
           </View>
+
+          {/* Long-wait message */}
+          {isTakingLonger && (
+            <Text style={styles.takingLongerText}>
+              Taking longer than usual... please hold on.
+            </Text>
+          )}
+
+          {/* Cancel Button */}
+          {onCancel && (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={onCancel}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={14} color={colors.mutedForeground} />
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(8, 10, 16, 0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#131722',
-    borderRadius: 24,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.16)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(108, 142, 255, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.22)',
-    marginBottom: 20,
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#6C8EFF',
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#A5B4FC',
-    letterSpacing: 1.2,
-  },
-  coreWrapper: {
-    width: 96,
-    height: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  ambientHalo: {
-    position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(108, 142, 255, 0.08)',
-  },
-  outerRing: {
-    position: 'absolute',
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    borderTopColor: '#6C8EFF',
-    borderRightColor: 'rgba(108, 142, 255, 0.35)',
-  },
-  innerRing: {
-    position: 'absolute',
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    borderBottomColor: '#8B5CF6',
-    borderLeftColor: 'rgba(139, 92, 246, 0.3)',
-  },
-  coreDisc: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1A2132',
-    borderWidth: 1,
-    borderColor: '#2A344A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    letterSpacing: 0.2,
-    marginBottom: 8,
-  },
-  stageTextContainer: {
-    alignItems: 'center',
-    minHeight: 40,
-    marginBottom: 20,
-    paddingHorizontal: 8,
-  },
-  stageLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E2E8F0',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  stageDetail: {
-    fontSize: 12,
-    color: '#818CF8',
-    textAlign: 'center',
-  },
-  segmentsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 6,
-    marginBottom: 8,
-  },
-  segmentBar: {
-    flex: 1,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#1E2536',
-  },
-  segmentBarDone: {
-    backgroundColor: '#6C8EFF',
-  },
-  segmentBarActive: {
-    backgroundColor: '#818CF8',
-  },
-  progressTrack: {
-    width: '100%',
-    height: 4,
-    backgroundColor: '#161C2A',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#6C8EFF',
-    borderRadius: 2,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  stepCounterText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  liveText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.72)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 340,
+      backgroundColor: colors.card,
+      borderRadius: 24,
+      paddingVertical: 28,
+      paddingHorizontal: 22,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: isDark ? 0.5 : 0.12,
+      shadowRadius: 24,
+      elevation: 10,
+    },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.2)',
+      marginBottom: 20,
+    },
+    badgeDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#6366F1',
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#6366F1',
+      letterSpacing: 1.2,
+      includeFontPadding: false,
+    },
+    coreWrapper: {
+      width: 96,
+      height: 96,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 18,
+    },
+    ambientHalo: {
+      position: 'absolute',
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+    },
+    outerRing: {
+      position: 'absolute',
+      width: 82,
+      height: 82,
+      borderRadius: 41,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+      borderTopColor: '#6366F1',
+      borderRightColor: 'rgba(99, 102, 241, 0.35)',
+    },
+    innerRing: {
+      position: 'absolute',
+      width: 66,
+      height: 66,
+      borderRadius: 33,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+      borderBottomColor: '#8B5CF6',
+      borderLeftColor: 'rgba(139, 92, 246, 0.3)',
+    },
+    coreDisc: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      letterSpacing: -0.3,
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    stageTextContainer: {
+      alignItems: 'center',
+      minHeight: 40,
+      marginBottom: 20,
+      paddingHorizontal: 8,
+    },
+    stageLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.foreground,
+      marginBottom: 2,
+      textAlign: 'center',
+      includeFontPadding: false,
+    },
+    stageDetail: {
+      fontSize: 12,
+      color: '#6366F1',
+      textAlign: 'center',
+      includeFontPadding: false,
+    },
+    segmentsRow: {
+      flexDirection: 'row',
+      width: '100%',
+      gap: 6,
+      marginBottom: 8,
+    },
+    segmentBar: {
+      flex: 1,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: isDark ? colors.muted : '#E4E4E7',
+    },
+    segmentBarDone: {
+      backgroundColor: '#6366F1',
+    },
+    segmentBarActive: {
+      backgroundColor: '#818CF8',
+    },
+    progressTrack: {
+      width: '100%',
+      height: 4,
+      backgroundColor: isDark ? colors.background : '#E4E4E7',
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginBottom: 14,
+    },
+    progressBar: {
+      height: '100%',
+      backgroundColor: '#6366F1',
+      borderRadius: 2,
+    },
+    footerRow: {
+      flexDirection: 'row',
+      width: '100%',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    stepCounterText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    liveIndicator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    liveText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#10B981',
+      includeFontPadding: false,
+    },
+    takingLongerText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      marginTop: 12,
+      textAlign: 'center',
+      includeFontPadding: false,
+    },
+    cancelBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 16,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      backgroundColor: isDark ? colors.muted : '#E4E4E7',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cancelBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+  });
+}
+

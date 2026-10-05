@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Pressable, Animated } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Text } from '@/src/components/ui/text';
-import { Plus, CalendarDays, BookOpen, GraduationCap, ScanLine, X } from 'lucide-react-native';
+import { CalendarDays, BookOpen, GraduationCap, CalendarRange, ScanLine } from 'lucide-react-native';
+import {
+  ActionMenuButton,
+  ActionMenuDropdown,
+  useActionMenu,
+  ActionMenuItem,
+} from '@/src/components/common/ActionMenuDropdown';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ApiService } from '@/src/services/api';
 import { usePowerSync } from '@powersync/react';
 import { NotificationService } from '@/src/services/notificationService';
 import { parseToEpoch } from '@/src/utils/philippineTime';
 import { parseDateLocal } from '@/src/utils/scheduleUtils';
+import { useTheme } from '@/src/theme/useTheme';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
 import { WeekStrip } from '@/src/components/calendar/WeekStrip';
@@ -19,16 +25,17 @@ import { AddExamSheet } from '@/src/components/calendar/AddExamSheet';
 import { AddClassSheet } from '@/src/components/calendar/AddClassSheet';
 import { EditEventSheet } from '@/src/components/calendar/EditEventSheet';
 import { EditClassSheet } from '@/src/components/calendar/EditClassSheet';
+import { ClassDetailModal } from '@/src/components/calendar/ClassDetailModal';
+import { EventDetailModal } from '@/src/components/calendar/EventDetailModal';
+import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
+import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { AddExamWeekModal } from '@/src/components/calendar/AddExamWeekModal';
 
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { useTasks } from '@/src/hooks/useTasks';
+import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
-
 import { useAuthStore } from '@/src/features/auth/auth.store';
-
-// Holidays will be fetched from the API
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +54,7 @@ function addDays(date: Date, days: number): Date {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function CalendarScreen() {
+  const { colors, isDark } = useTheme();
   const today = startOfDay(new Date());
   const { user } = useAuthStore();
   const params = useLocalSearchParams<{ date?: string; t?: string }>();
@@ -69,41 +77,14 @@ export default function CalendarScreen() {
     }
   }, [params.date, params.t]);
 
-  // Action menu (shown when + is tapped)
-  const [actionMenuVisible, setActionMenuVisible] = useState(false);
-  const menuAnim = useRef(new Animated.Value(0)).current;
-  const btnRotate = useRef(new Animated.Value(0)).current;
-
-  const toggleActionMenu = (forceClose = false) => {
-    const toValue = (forceClose || actionMenuVisible) ? 0 : 1;
-    setActionMenuVisible(!actionMenuVisible && !forceClose);
-    Animated.parallel([
-      Animated.spring(menuAnim, {
-        toValue,
-        useNativeDriver: true,
-        speed: 20,
-        bounciness: 6,
-      }),
-      Animated.spring(btnRotate, {
-        toValue,
-        useNativeDriver: true,
-        speed: 20,
-        bounciness: 6,
-      }),
-    ]).start();
-  };
-
-  const closeActionMenu = () => {
-    setActionMenuVisible(false);
-    Animated.parallel([
-      Animated.spring(menuAnim, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }),
-      Animated.spring(btnRotate, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }),
-    ]).start();
-  };
-
-  const btnRotateDeg = btnRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
-  const menuOpacity = menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
-  const menuTranslateY = menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] });
+  // Action menu hook
+  const {
+    isOpen: isMenuOpen,
+    isMounted: isMenuMounted,
+    anim: menuAnim,
+    closeMenu: closeActionMenu,
+    toggleMenu: toggleActionMenu,
+  } = useActionMenu();
 
   // Sheet visibility
   const [isAddEventVisible, setIsAddEventVisible] = useState(false);
@@ -111,9 +92,13 @@ export default function CalendarScreen() {
   const [isAddClassVisible, setIsAddClassVisible] = useState(false);
   const [isAddExamWeekVisible, setIsAddExamWeekVisible] = useState(false);
 
-  // Edit sheet state
+  // Edit sheet and view modal state
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
+  const [viewingEvent, setViewingEvent] = useState<CalendarEventRow | null>(null);
   const [editingClass, setEditingClass] = useState<ClassScheduleRow | null>(null);
+  const [viewingClass, setViewingClass] = useState<ClassScheduleRow | null>(null);
+  const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+  const [viewingTask, setViewingTask] = useState<TaskRow | null>(null);
   const [editingExamWeek, setEditingExamWeek] = useState<import('@/src/hooks/useExamWeeks').ExamWeekRow | null>(null);
 
   // Data
@@ -122,6 +107,7 @@ export default function CalendarScreen() {
   const { tasks } = useTasks();
   const { examWeeks } = useExamWeeks();
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [headerHeight, setHeaderHeight] = useState(64);
   const powerSync = usePowerSync();
 
   useEffect(() => {
@@ -163,7 +149,7 @@ export default function CalendarScreen() {
     setSelectedDate(startOfDay(date));
     setDisplayYear(date.getFullYear());
     setDisplayMonth(date.getMonth());
-    setActionMenuVisible(false);
+    closeActionMenu();
   };
 
   const handlePrevMonth = () => {
@@ -223,110 +209,84 @@ export default function CalendarScreen() {
     router.push('/(app)/schedule-upload' as any);
   };
 
+  const calendarMenuItems: ActionMenuItem[] = useMemo(() => [
+    {
+      id: 'event',
+      label: 'Add Event',
+      subtitle: 'One-off event or appointment',
+      icon: CalendarDays,
+      iconColor: '#6366F1',
+      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      onPress: openAddEvent,
+    },
+    {
+      id: 'exam',
+      label: 'Add Exam',
+      subtitle: 'Subject exam session & room',
+      icon: GraduationCap,
+      iconColor: '#F59E0B',
+      iconBg: isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.1)',
+      onPress: openAddExam,
+    },
+    {
+      id: 'class',
+      label: 'Add Class',
+      subtitle: 'Recurring weekly class schedule',
+      icon: BookOpen,
+      iconColor: '#10B981',
+      iconBg: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.1)',
+      onPress: openAddClass,
+    },
+    {
+      id: 'period',
+      label: 'Add Period / Holiday',
+      subtitle: 'Exam week, holiday, or suspension',
+      icon: CalendarRange,
+      iconColor: '#EF4444',
+      iconBg: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.1)',
+      onPress: openAddExamWeek,
+    },
+    {
+      id: 'scan',
+      label: 'Scan Schedule',
+      subtitle: 'Upload PDF, photo or Word doc',
+      icon: ScanLine,
+      iconColor: '#6366F1',
+      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      onPress: openScanSchedule,
+    },
+  ], [isDark]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.safeArea}>
 
         {/* Screen header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Calendar</Text>
-          <Animated.View style={{ transform: [{ rotate: btnRotateDeg }] }}>
-            <Pressable
-              style={[styles.addBtn, actionMenuVisible && styles.addBtnActive]}
-              onPress={() => toggleActionMenu()}
-              hitSlop={8}
-            >
-              <Plus size={22} color={actionMenuVisible ? '#ffffff' : '#6C8EFF'} />
-            </Pressable>
-          </Animated.View>
+        <View
+          style={styles.header}
+          onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+        >
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Calendar</Text>
+          <ActionMenuButton
+            isOpen={isMenuOpen}
+            onPress={toggleActionMenu}
+            anim={menuAnim}
+            accessibilityLabel="Add calendar item"
+          />
         </View>
 
         {/* Action menu dropdown */}
-        {actionMenuVisible && (
-          <>
-            {/* Backdrop to dismiss */}
-            <Pressable
-              style={[StyleSheet.absoluteFill, styles.menuBackdrop]}
-              onPress={closeActionMenu}
-            />
-            <Animated.View
-              style={[
-                styles.actionMenu,
-                { opacity: menuOpacity, transform: [{ translateY: menuTranslateY }] },
-              ]}
-            >
-              {/* Menu header with close button */}
-              <View style={styles.actionMenuHeader}>
-                <Text style={styles.actionMenuTitle}>Add to Calendar</Text>
-                <Pressable onPress={closeActionMenu} style={styles.actionMenuCloseBtn} hitSlop={8}>
-                  <X size={16} color="#64748B" />
-                </Pressable>
-              </View>
-
-              <View style={styles.actionMenuDivider} />
-
-              <Pressable style={styles.actionMenuItem} onPress={openAddEvent}>
-                <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(108,142,255,0.15)' }]}>
-                  <CalendarDays size={18} color="#6C8EFF" />
-                </View>
-                <View style={styles.actionMenuText}>
-                  <Text style={styles.actionMenuLabel}>Add Event</Text>
-                  <Text style={styles.actionMenuSub}>One-off event or appointment</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.actionMenuDivider} />
-
-              <Pressable style={styles.actionMenuItem} onPress={openAddExam}>
-                <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(139,92,246,0.15)' }]}>
-                  <GraduationCap size={18} color="#8B5CF6" />
-                </View>
-                <View style={styles.actionMenuText}>
-                  <Text style={styles.actionMenuLabel}>Add Exam</Text>
-                  <Text style={styles.actionMenuSub}>Subject exam session & room</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.actionMenuDivider} />
-
-              <Pressable style={styles.actionMenuItem} onPress={openAddClass}>
-                <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-                  <BookOpen size={18} color="#10B981" />
-                </View>
-                <View style={styles.actionMenuText}>
-                  <Text style={styles.actionMenuLabel}>Add Class</Text>
-                  <Text style={styles.actionMenuSub}>Recurring weekly class schedule</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.actionMenuDivider} />
-
-              <Pressable style={styles.actionMenuItem} onPress={openAddExamWeek}>
-                <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
-                  <GraduationCap size={18} color="#F59E0B" />
-                </View>
-                <View style={styles.actionMenuText}>
-                  <Text style={styles.actionMenuLabel}>Add Period / Holiday</Text>
-                  <Text style={styles.actionMenuSub}>Exam week, holiday, or class suspension</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.actionMenuDivider} />
-
-              <Pressable style={styles.actionMenuItem} onPress={openScanSchedule}>
-                <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(139,92,246,0.15)' }]}>
-                  <ScanLine size={18} color="#8B5CF6" />
-                </View>
-                <View style={styles.actionMenuText}>
-                  <Text style={styles.actionMenuLabel}>Scan Schedule</Text>
-                  <Text style={styles.actionMenuSub}>Upload PDF, photo or Word doc</Text>
-                </View>
-              </Pressable>
-            </Animated.View>
-          </>
-        )}
+        <ActionMenuDropdown
+          isMounted={isMenuMounted}
+          isOpen={isMenuOpen}
+          anim={menuAnim}
+          onClose={closeActionMenu}
+          items={calendarMenuItems}
+          top={headerHeight + 56}
+          right={16}
+        />
 
         {/* Month grid (collapsible) */}
         {isMonthExpanded && (
@@ -368,9 +328,13 @@ export default function CalendarScreen() {
           examWeeks={examWeeks}
           holidays={holidays}
           tasks={tasks}
-          onClassPress={(s) => setEditingClass(s)}
-          onEventPress={(e) => setEditingEvent(e)}
+          onClassPress={(s) => setViewingClass(s)}
+          onEditClassPress={(s) => setEditingClass(s)}
+          onEventPress={(e) => setViewingEvent(e)}
+          onEditEventPress={(e) => setEditingEvent(e)}
           onExamWeekPress={(ew) => setEditingExamWeek(ew)}
+          onTaskPress={(t) => setViewingTask(t)}
+          onEditTaskPress={(t) => setEditingTask(t)}
           onToggleTask={handleToggleTask}
         />
 
@@ -400,6 +364,38 @@ export default function CalendarScreen() {
           schedule={editingClass}
           onClose={() => setEditingClass(null)}
         />
+        <ClassDetailModal
+          visible={viewingClass !== null}
+          schedule={viewingClass}
+          onClose={() => setViewingClass(null)}
+          onEdit={(s) => {
+            setViewingClass(null);
+            setEditingClass(s);
+          }}
+        />
+        <EventDetailModal
+          visible={viewingEvent !== null}
+          event={viewingEvent}
+          onClose={() => setViewingEvent(null)}
+          onEdit={(e) => {
+            setViewingEvent(null);
+            setEditingEvent(e);
+          }}
+        />
+        <TaskDetailModal
+          visible={viewingTask !== null}
+          task={viewingTask}
+          onClose={() => setViewingTask(null)}
+          onEdit={(t) => {
+            setViewingTask(null);
+            setEditingTask(t);
+          }}
+        />
+        <EditTaskSheet
+          visible={editingTask !== null}
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+        />
         <AddExamWeekModal
           visible={isAddExamWeekVisible || editingExamWeek !== null}
           initialData={editingExamWeek}
@@ -415,8 +411,12 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#10131C' },
-  safeArea: { flex: 1 },
+  root: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -424,105 +424,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
+    zIndex: 150,
+    elevation: 15,
   },
   headerTitle: {
     fontSize: 28,
     lineHeight: 36,
     fontWeight: '700',
-    color: '#ffffff',
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    backgroundColor: '#161A26',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtnActive: {
-    backgroundColor: '#6C8EFF',
-    borderColor: '#6C8EFF',
-  },
-
-  // Action menu
-  menuBackdrop: {
-    zIndex: 99,
-  },
-  actionMenu: {
-    position: 'absolute',
-    top: 64,
-    right: 16,
-    backgroundColor: '#161B2C',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#252D42',
-    zIndex: 100,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 16,
-    minWidth: 240,
-  },
-  actionMenuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  actionMenuTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  actionMenuCloseBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: '#1E2639',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2A3448',
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  actionMenuIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionMenuText: {
-    flex: 1,
-  },
-  actionMenuLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#E8EEFF',
-  },
-  actionMenuSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  actionMenuDivider: {
-    height: 1,
-    backgroundColor: '#1E2639',
-    marginHorizontal: 14,
+    letterSpacing: -0.6,
   },
 });
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Modal,
@@ -9,9 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
+  Text,
 } from 'react-native';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
 import {
   X,
   Calendar,
@@ -28,7 +27,9 @@ import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
 import { useExamWeeks, ExamWeekRow } from '@/src/hooks/useExamWeeks';
-import { parseDateLocal, formatDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import { parseDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 export interface AddExamSheetProps {
   visible: boolean;
@@ -39,18 +40,6 @@ export interface AddExamSheetProps {
 
 type DateField = 'start' | 'end';
 type DatePickerStep = 'date' | 'time' | null;
-
-const PRESET_COLORS = [
-  '#6C8EFF',
-  '#8B5CF6',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#EC4899',
-  '#14B8A6',
-  '#6366F1',
-  '#F97316',
-];
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -82,6 +71,9 @@ export function AddExamSheet({
   onClose,
   onOpenAddExamWeek,
 }: AddExamSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
@@ -103,7 +95,6 @@ export function AddExamSheet({
   // Inline Subject Creation State
   const [isCreatingSubject, setIsCreatingSubject] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
-  const [newSubjectColor, setNewSubjectColor] = useState('#8B5CF6');
   const [isSavingSubject, setIsSavingSubject] = useState(false);
 
   // Picker State
@@ -275,7 +266,7 @@ export function AddExamSheet({
       await powerSync.execute(
         `INSERT INTO Subject (id, name, color, userId, createdAt, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, newSubjectName.trim(), newSubjectColor, userId, now, now]
+        [id, newSubjectName.trim(), null, userId, now, now]
       );
       setSelectedSubjectId(id);
       setNewSubjectName('');
@@ -335,8 +326,8 @@ export function AddExamSheet({
       // Auto-generate title combining subject and term
       const examTitle = `${selectedSubject.name} - ${selectedTerm.title}`;
       const examDesc = description.trim()
-        ? `🎓 ${selectedTerm.title} · ${description.trim()}`
-        : `🎓 Exam Session · ${selectedTerm.title}`;
+        ? `${selectedTerm.title} · ${description.trim()}`
+        : `Exam Session · ${selectedTerm.title}`;
 
       await powerSync.execute(
         `INSERT INTO CalendarEvent
@@ -350,7 +341,7 @@ export function AddExamSheet({
           endISO,
           0,
           location.trim() || null,
-          '#8B5CF6',
+          '#F59E0B',
           selectedSubject.id,
           userId,
           now,
@@ -379,12 +370,12 @@ export function AddExamSheet({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.examBadge}>
-                <GraduationCap size={16} color="#8B5CF6" />
+                <GraduationCap size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>New Exam Schedule</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -421,7 +412,7 @@ export function AddExamSheet({
                       onOpenAddExamWeek?.();
                     }}
                   >
-                    <Plus size={14} color="#8B5CF6" />
+                    <Plus size={14} color="#6366F1" />
                     <Text style={styles.createTermBtnText}>Add Exam Period</Text>
                   </Pressable>
                 </View>
@@ -434,14 +425,14 @@ export function AddExamSheet({
                   }}
                 >
                   <View style={styles.pickerLeft}>
-                    <GraduationCap size={16} color="#8B5CF6" />
+                    <GraduationCap size={16} color="#6366F1" />
                     <Text style={selectedTerm ? styles.pickerText : styles.pickerPlaceholder}>
                       {selectedTerm ? getCleanPeriodTitle(selectedTerm.title) : 'Select Exam Term...'}
                     </Text>
                   </View>
                   <ChevronDown
                     size={16}
-                    color="#94A3B8"
+                    color={colors.mutedForeground}
                     style={{ transform: [{ rotate: showTermPicker ? '180deg' : '0deg' }] }}
                   />
                 </Pressable>
@@ -466,7 +457,7 @@ export function AddExamSheet({
                             {formatDateShort(ew.startDate)} – {formatDateShort(ew.endDate)}
                           </Text>
                         </View>
-                        {isSelected && <Check size={16} color="#8B5CF6" />}
+                        {isSelected && <Check size={16} color="#6366F1" />}
                       </Pressable>
                     );
                   })}
@@ -486,18 +477,17 @@ export function AddExamSheet({
               >
                 {selectedSubject ? (
                   <View style={styles.pickerLeft}>
-                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color || '#6C8EFF' }]} />
                     <Text style={styles.pickerText}>{selectedSubject.name}</Text>
                   </View>
                 ) : (
                   <View style={styles.pickerLeft}>
-                    <BookOpen size={16} color="#94A3B8" />
+                    <BookOpen size={16} color={colors.mutedForeground} />
                     <Text style={styles.pickerPlaceholder}>Select subject for this exam...</Text>
                   </View>
                 )}
                 <ChevronDown
                   size={16}
-                  color="#94A3B8"
+                  color={colors.mutedForeground}
                   style={{ transform: [{ rotate: showSubjectPicker ? '180deg' : '0deg' }] }}
                 />
               </Pressable>
@@ -518,7 +508,6 @@ export function AddExamSheet({
                             setError(null);
                           }}
                         >
-                          <View style={[styles.subjectDot, { backgroundColor: sub.color || '#6C8EFF' }]} />
                           <Text
                             style={[
                               styles.dropdownItemText,
@@ -528,7 +517,7 @@ export function AddExamSheet({
                           >
                             {sub.name}
                           </Text>
-                          {isSelected && <Check size={16} color="#6C8EFF" />}
+                          {isSelected && <Check size={16} color="#6366F1" />}
                         </Pressable>
                       );
                     })}
@@ -539,7 +528,7 @@ export function AddExamSheet({
                         style={styles.addSubjectRow}
                         onPress={() => setIsCreatingSubject(true)}
                       >
-                        <Plus size={16} color="#6C8EFF" />
+                        <Plus size={16} color="#6366F1" />
                         <Text style={styles.addSubjectText}>+ Create New Subject</Text>
                       </Pressable>
                     ) : (
@@ -548,43 +537,30 @@ export function AddExamSheet({
                         <TextInput
                           style={styles.newSubjectInput}
                           placeholder="e.g. Physics 101"
-                          placeholderTextColor="#64748B"
+                          placeholderTextColor={colors.mutedForeground}
                           value={newSubjectName}
                           onChangeText={setNewSubjectName}
                           autoFocus
                         />
-                        <View style={styles.colorRow}>
-                          {PRESET_COLORS.slice(0, 5).map((c) => (
-                            <Pressable
-                              key={c}
-                              style={[
-                                styles.colorSwatch,
-                                { backgroundColor: c },
-                                newSubjectColor === c && styles.colorSwatchActive,
-                              ]}
-                              onPress={() => setNewSubjectColor(c)}
-                            />
-                          ))}
-                        </View>
+
                         <View style={styles.newSubjectActions}>
-                          <Button
-                            variant="secondary"
-                            size="sm"
+                          <Pressable
+                            style={styles.cancelSmallBtn}
                             onPress={() => setIsCreatingSubject(false)}
                           >
-                            <Text style={{ color: '#94A3B8' }}>Cancel</Text>
-                          </Button>
-                          <Button
-                            size="sm"
+                            <Text style={styles.cancelSmallBtnText}>Cancel</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.saveSmallBtn, (!newSubjectName.trim() || isSavingSubject) && { opacity: 0.5 }]}
                             onPress={handleCreateSubject}
                             disabled={isSavingSubject || !newSubjectName.trim()}
                           >
                             {isSavingSubject ? (
                               <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                              <Text>Save</Text>
+                              <Text style={styles.saveSmallBtnText}>Save</Text>
                             )}
-                          </Button>
+                          </Pressable>
                         </View>
                       </View>
                     )}
@@ -605,7 +581,7 @@ export function AddExamSheet({
               </View>
               <Pressable style={styles.picker} onPress={() => openDatePicker('start')}>
                 <Text style={styles.pickerText}>{formatDateTime(startDate)}</Text>
-                <Calendar size={16} color="#94A3B8" />
+                <Calendar size={16} color={colors.mutedForeground} />
               </Pressable>
 
               {Platform.OS === 'ios' && activeDateField === 'start' && datePickerStep !== null && (
@@ -617,8 +593,8 @@ export function AddExamSheet({
                     maximumDate={termMax}
                     display="spinner"
                     onChange={handleDateChange}
-                    textColor="#ffffff"
-                    themeVariant="dark"
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
                     style={styles.iosPicker}
                   />
                   <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -651,7 +627,7 @@ export function AddExamSheet({
                     ? formatDateTime(endDate)
                     : 'Select exam end time...'}
                 </Text>
-                <Clock size={16} color={!startDate ? '#475569' : '#94A3B8'} />
+                <Clock size={16} color={colors.mutedForeground} />
               </Pressable>
 
               {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && startDate && (
@@ -663,8 +639,8 @@ export function AddExamSheet({
                     maximumDate={termMax}
                     display="spinner"
                     onChange={handleDateChange}
-                    textColor="#ffffff"
-                    themeVariant="dark"
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
                     style={styles.iosPicker}
                   />
                   <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -680,7 +656,7 @@ export function AddExamSheet({
               <TextInput
                 style={styles.input}
                 placeholder="e.g. Room 402, Science Hall / Online"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={colors.mutedForeground}
                 value={location}
                 onChangeText={setLocation}
               />
@@ -692,7 +668,7 @@ export function AddExamSheet({
               <TextInput
                 style={[styles.input, styles.multiline]}
                 placeholder="e.g. Chapters 1–4, formula sheet allowed"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={colors.mutedForeground}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -701,8 +677,11 @@ export function AddExamSheet({
             </View>
 
             {/* Submit Button */}
-            <Button
-              style={styles.submitBtn}
+            <Pressable
+              style={[
+                styles.submitBtn,
+                (isLoading || !selectedSubjectId || !selectedTermId) && styles.submitBtnDisabled,
+              ]}
               onPress={handleAddExam}
               disabled={isLoading || !selectedSubjectId || !selectedTermId}
             >
@@ -711,7 +690,7 @@ export function AddExamSheet({
               ) : (
                 <Text style={styles.submitBtnText}>Add Exam Schedule</Text>
               )}
-            </Button>
+            </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -719,322 +698,359 @@ export function AddExamSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  examBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: 'rgba(139, 92, 246, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: {
-    padding: 6,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    flex: 1,
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  formGroup: {
-    marginBottom: 16,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  termRangeBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#8B5CF6',
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  boundHint: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerActive: {
-    borderColor: '#8B5CF6',
-  },
-  pickerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  pickerText: {
-    color: '#ffffff',
-    fontSize: 14,
-  },
-  pickerPlaceholder: {
-    color: '#64748B',
-    fontSize: 14,
-  },
-  pickerDisabled: {
-    opacity: 0.45,
-    backgroundColor: '#0F131D',
-    borderColor: '#1E2433',
-  },
-  dropdownList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    marginTop: 6,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E2433',
-    gap: 10,
-  },
-  dropdownItemSelected: {
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-  },
-  dropdownItemText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dropdownItemTextSelected: {
-    color: '#8B5CF6',
-    fontWeight: '700',
-  },
-  dropdownItemSub: {
-    color: '#64748B',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  subjectDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  addSubjectRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  addSubjectText: {
-    color: '#6C8EFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  newSubjectBox: {
-    padding: 12,
-    backgroundColor: '#161B26',
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  newSubjectTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 6,
-  },
-  newSubjectInput: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    color: '#ffffff',
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  colorRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  colorSwatch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  colorSwatchActive: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  newSubjectActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  noTermsBox: {
-    backgroundColor: 'rgba(139, 92, 246, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.25)',
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-    gap: 8,
-  },
-  noTermsText: {
-    color: '#94A3B8',
-    fontSize: 13,
-  },
-  createTermBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(139, 92, 246, 0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  createTermBtnText: {
-    color: '#8B5CF6',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  clearBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  clearBtnText: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#ffffff',
-    fontSize: 14,
-  },
-  multiline: {
-    minHeight: 68,
-    textAlignVertical: 'top',
-  },
-  iosPickerWrapper: {
-    marginTop: 8,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  iosPicker: {
-    height: 150,
-  },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: {
-    color: '#8B5CF6',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  submitBtn: {
-    backgroundColor: '#8B5CF6',
-    marginTop: 8,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    examBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      letterSpacing: -0.4,
+      includeFontPadding: false,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    termRangeBadge: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#6366F1',
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+      includeFontPadding: false,
+    },
+    boundHint: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    picker: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerActive: {
+      borderColor: '#6366F1',
+    },
+    pickerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    pickerDisabled: {
+      opacity: 0.5,
+    },
+    dropdownList: {
+      backgroundColor: isDark ? colors.background : colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 6,
+      overflow: 'hidden',
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 10,
+    },
+    dropdownItemSelected: {
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+    },
+    dropdownItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    dropdownItemTextSelected: {
+      color: '#6366F1',
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+    dropdownItemSub: {
+      color: colors.mutedForeground,
+      fontSize: 11,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    subjectDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    addSubjectRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    addSubjectText: {
+      color: '#6366F1',
+      fontSize: 13,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    newSubjectBox: {
+      padding: 12,
+      backgroundColor: isDark ? colors.card : colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    newSubjectTitle: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    newSubjectInput: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      color: colors.foreground,
+      fontSize: 13,
+      marginBottom: 8,
+    },
+    newSubjectActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+    },
+    cancelSmallBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      backgroundColor: isDark ? colors.muted : '#E4E4E7',
+    },
+    cancelSmallBtnText: {
+      color: colors.mutedForeground,
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    saveSmallBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      backgroundColor: '#6366F1',
+    },
+    saveSmallBtnText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    noTermsBox: {
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.2)',
+      borderRadius: 10,
+      padding: 14,
+      alignItems: 'center',
+      gap: 8,
+    },
+    noTermsText: {
+      color: colors.mutedForeground,
+      fontSize: 13,
+      includeFontPadding: false,
+    },
+    createTermBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    createTermBtnText: {
+      color: '#6366F1',
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    clearBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    clearBtnText: {
+      color: '#EF4444',
+      fontSize: 11,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    input: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 14,
+    },
+    multiline: {
+      minHeight: 68,
+      textAlignVertical: 'top',
+    },
+    iosPickerWrapper: {
+      marginTop: 8,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    iosPicker: {
+      height: 150,
+    },
+    iosDoneBtn: {
+      alignItems: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    iosDoneBtnText: {
+      color: '#6366F1',
+      fontSize: 14,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    submitBtn: {
+      backgroundColor: '#6366F1',
+      marginTop: 16,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitBtnDisabled: {
+      opacity: 0.5,
+    },
+    submitBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+  });
+}
+

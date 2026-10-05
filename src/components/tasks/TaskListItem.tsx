@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Vibration } from 'react-native';
 import { Text } from '../ui/text';
-import { Check, Trash, AlertTriangle, Clock, Calendar, FileText } from 'lucide-react-native';
+import { Check, Trash, AlertTriangle, Clock, Calendar, FileText, ListChecks, ChevronDown } from 'lucide-react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { isOverduePHT, isTodayPHT, isTomorrowPHT, formatTimePHT } from '@/src/utils/philippineTime';
+import { SubtaskItem } from '@/src/hooks/useTasks';
 
 export interface Task {
   id: string;
@@ -14,6 +15,7 @@ export interface Task {
   dueDate: string;
   dueDateIso?: string | null;
   completed: boolean;
+  subtasks?: string | null;
 }
 
 interface TaskListItemProps {
@@ -21,9 +23,24 @@ interface TaskListItemProps {
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   onPress: () => void;
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void;
 }
 
-export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListItemProps) {
+export function TaskListItem({ task, onComplete, onDelete, onPress, onToggleSubtask }: TaskListItemProps) {
+  const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
+
+  const subtaskList: SubtaskItem[] = useMemo(() => {
+    if (!task.subtasks) return [];
+    try {
+      const parsed = JSON.parse(task.subtasks);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [task.subtasks]);
+
+  const completedSubtasksCount = subtaskList.filter((s) => s.completed).length;
+
   const handleToggleComplete = (e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
     try {
@@ -135,12 +152,13 @@ export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListIt
             >
               {task.title}
             </Text>
-            <View style={[styles.subjectTag, { backgroundColor: task.subjectColor + '22' }]}>
-              <View style={[styles.subjectDot, { backgroundColor: task.subjectColor }]} />
-              <Text style={[styles.subjectText, { color: task.subjectColor }]} numberOfLines={1}>
-                {task.subject}
-              </Text>
-            </View>
+            {!!task.subject && (
+              <View style={styles.subjectTag}>
+                <Text style={styles.subjectText} numberOfLines={1}>
+                  {task.subject}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Description Preview if present */}
@@ -153,6 +171,55 @@ export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListIt
               >
                 {task.description}
               </Text>
+            </View>
+          )}
+
+          {/* Subtasks Progress Pill */}
+          {subtaskList.length > 0 && (
+            <Pressable
+              style={styles.subtasksPill}
+              onPress={(e) => {
+                e.stopPropagation();
+                setIsSubtasksExpanded((prev) => !prev);
+              }}
+              hitSlop={6}
+            >
+              <ListChecks size={12} color="#6C8EFF" />
+              <Text style={styles.subtasksPillText}>
+                {completedSubtasksCount}/{subtaskList.length} subtasks
+              </Text>
+              <ChevronDown
+                size={12}
+                color="#6C8EFF"
+                style={isSubtasksExpanded ? { transform: [{ rotate: '180deg' }] } : undefined}
+              />
+            </Pressable>
+          )}
+
+          {/* Subtasks Expanded List */}
+          {isSubtasksExpanded && subtaskList.length > 0 && (
+            <View style={styles.subtasksContainer}>
+              {subtaskList.map((st) => (
+                <Pressable
+                  key={st.id}
+                  style={styles.subtaskRow}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onToggleSubtask?.(task.id, st.id);
+                  }}
+                  hitSlop={6}
+                >
+                  <View style={[styles.subtaskCheckbox, st.completed && styles.subtaskCheckboxDone]}>
+                    {st.completed && <Check size={10} color="#ffffff" strokeWidth={3} />}
+                  </View>
+                  <Text
+                    style={[styles.subtaskTitle, st.completed && styles.subtaskTitleDone]}
+                    numberOfLines={2}
+                  >
+                    {st.title}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           )}
 
@@ -222,22 +289,16 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   subjectTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     maxWidth: 130,
-  },
-  subjectDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    backgroundColor: 'rgba(113, 113, 122, 0.16)',
   },
   subjectText: {
     fontSize: 11,
     fontWeight: '600',
+    color: '#94A3B8',
   },
   descRow: {
     flexDirection: 'row',
@@ -349,5 +410,60 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
     marginLeft: 16,
     marginRight: -8,
+  },
+  subtasksPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: 'rgba(108, 142, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginVertical: 4,
+  },
+  subtasksPillText: {
+    fontSize: 11,
+    color: '#6C8EFF',
+    fontWeight: '600',
+  },
+  subtasksContainer: {
+    backgroundColor: '#10131C',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1E2330',
+    padding: 8,
+    gap: 6,
+    marginVertical: 4,
+  },
+  subtaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  subtaskCheckbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#4A5568',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtaskCheckboxDone: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  subtaskTitle: {
+    fontSize: 12,
+    color: '#CBD5E1',
+    flex: 1,
+  },
+  subtaskTitleDone: {
+    color: '#64748B',
+    textDecorationLine: 'line-through',
   },
 });

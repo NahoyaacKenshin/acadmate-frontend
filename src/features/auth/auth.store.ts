@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { authApi } from './auth.api';
 import { ApiError } from '@/src/lib/api';
+import { signOutFromGoogle } from '@/src/lib/google-auth';
 import type { AuthTokens, AuthUser, LoginInput, SignupInput } from './auth.types';
 
 const ACCESS_TOKEN_KEY = 'acadmate.accessToken';
@@ -15,6 +16,7 @@ type AuthState = {
   isRestoring: boolean;
   isLoading: boolean;
   error: string | null;
+  setError: (error: string | null) => void;
   clearError: () => void;
   restoreSession: () => Promise<void>;
   login: (input: LoginInput) => Promise<void>;
@@ -90,6 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  setError: (error: string | null) => set({ error }),
   clearError: () => set({ error: null }),
 
   setSession: async (tokens, user = null) => {
@@ -195,9 +198,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().setSession(tokens, response.data?.user ?? null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google sign-in failed';
+      const raw = error instanceof Error ? error.message : '';
+      let message = 'Google sign-in failed. Please try again.';
+      if (
+        raw.toLowerCase().includes('network') ||
+        raw.toLowerCase().includes('failed to fetch') ||
+        raw.toLowerCase().includes('timeout') ||
+        raw.toLowerCase().includes('offline')
+      ) {
+        message = 'No internet connection. Please check your Wi-Fi or mobile data and try again.';
+      } else if (raw) {
+        message = raw;
+      }
       set({ error: message });
-      throw error;
+      throw new Error(message);
     } finally {
       set({ isLoading: false });
     }
@@ -255,7 +269,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Local logout should still succeed if the backend is unreachable.
     } finally {
-      await clearSessionStorage();
+      await Promise.allSettled([clearSessionStorage(), signOutFromGoogle()]);
       set({ user: null, accessToken: null, refreshToken: null, isLoading: false });
     }
   },
@@ -279,7 +293,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        await clearSessionStorage();
+        await Promise.allSettled([clearSessionStorage(), signOutFromGoogle()]);
         set({ user: null, accessToken: null, refreshToken: null });
       }
       return false;

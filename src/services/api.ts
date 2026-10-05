@@ -1,5 +1,6 @@
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { getValidAccessToken, refreshSharedSession } from '@/src/lib/aiRequest';
 
 const getHeaders = () => {
   const token = useAuthStore.getState().accessToken;
@@ -75,6 +76,51 @@ export const ApiService = {
         headers: getHeaders(),
       });
       return handleResponse(response);
+    },
+    breakdown: async (data: { title: string; description?: string | null; dueDate?: string | null }) => {
+      const url = `${ENV.API_URL}/tasks/breakdown`;
+      const body = JSON.stringify(data);
+
+      const makeRequest = async (token: string | null) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45_000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body,
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      try {
+        let token = await getValidAccessToken();
+        let response = await makeRequest(token);
+
+        if (response.status === 401) {
+          const refreshed = await refreshSharedSession();
+          if (refreshed) {
+            token = await getValidAccessToken();
+            response = await makeRequest(token);
+          }
+        }
+
+        return await handleResponse(response);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error('AI breakdown took too long to respond. Please try again.');
+          (timeoutErr as any).type = 'TIMEOUT';
+          throw timeoutErr;
+        }
+        throw err;
+      }
     },
   },
 
@@ -159,12 +205,50 @@ export const ApiService = {
   // --- Notebook Chat (RAG) ---
   chat: {
     send: async (notebookId: string, message: string, sessionId?: string | null) => {
-      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ message, sessionId: sessionId ?? undefined }),
-      });
-      return handleResponse(response);
+      const url = `${ENV.API_URL}/notebooks/${notebookId}/chat`;
+      const body = JSON.stringify({ message, sessionId: sessionId ?? undefined });
+
+      const makeRequest = async (token: string | null) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45_000); // 45s timeout
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body,
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      try {
+        let token = await getValidAccessToken();
+        let response = await makeRequest(token);
+
+        if (response.status === 401) {
+          const refreshed = await refreshSharedSession();
+          if (refreshed) {
+            token = await getValidAccessToken();
+            response = await makeRequest(token);
+          }
+        }
+
+        return await handleResponse(response);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error('Notebook chat took too long to respond (timeout). Please try again.');
+          (timeoutErr as any).type = 'TIMEOUT';
+          throw timeoutErr;
+        }
+        throw err;
+      }
     },
     history: async (notebookId: string) => {
       const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history`, {

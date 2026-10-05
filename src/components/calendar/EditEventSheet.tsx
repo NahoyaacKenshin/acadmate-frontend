@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,15 +11,16 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Text,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
-import { useSubjects } from '@/src/hooks/useSubjects';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { isExamEvent } from '@/src/services/notificationService';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface EditEventSheetProps {
   visible: boolean;
@@ -31,7 +32,7 @@ type DateField = 'start' | 'end';
 type DatePickerStep = 'date' | 'time' | null;
 
 const PRESET_COLORS = [
-  '#6C8EFF', // primary blue
+  '#6366F1', // indigo
   '#10B981', // emerald
   '#F59E0B', // amber
   '#EF4444', // red
@@ -39,7 +40,6 @@ const PRESET_COLORS = [
   '#06B6D4', // cyan
   '#EC4899', // pink
   '#14B8A6', // teal
-  '#6366F1', // indigo
   '#F97316', // orange
 ];
 
@@ -54,13 +54,18 @@ function formatDateTime(date: Date): string {
 }
 
 export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const powerSync = usePowerSync();
-  const { subjects } = useSubjects();
 
   const isExam =
-    event?.color === '#8B5CF6' ||
-    Boolean(event?.description && event.description.toLowerCase().includes('exam')) ||
-    Boolean(event?.title && event.title.toLowerCase().includes('exam'));
+    event?.color === '#F59E0B' ||
+    Boolean(event?.description?.startsWith('🎓')) ||
+    Boolean(event?.title?.startsWith('🎓')) ||
+    Boolean(event?.description?.toLowerCase().includes('exam')) ||
+    Boolean(event?.title?.toLowerCase().includes('exam')) ||
+    (event ? isExamEvent(event) : false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -69,8 +74,6 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   const [allTime, setAllTime] = useState(false);
   const [location, setLocation] = useState('');
   const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
-  const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [activeDateField, setActiveDateField] = useState<DateField | null>(null);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,18 +92,13 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
       setAllTime(event.all_day === 1);
       setLocation(event.location ?? '');
       setSelectedColor(event.color ?? PRESET_COLORS[0]);
-      setSelectedSubjectId(event.subject_id);
-      setShowSubjectPicker(false);
       setActiveDateField(null);
       setDatePickerStep(null);
       setError(null);
     }
   }, [event]);
 
-  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
-
   const handleClose = () => {
-    setShowSubjectPicker(false);
     setActiveDateField(null);
     setDatePickerStep(null);
     setError(null);
@@ -108,7 +106,6 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   };
 
   const openDatePicker = (field: DateField) => {
-    setShowSubjectPicker(false);
     if (field === 'end' && !startDate) return;
 
     if (Platform.OS === 'android') {
@@ -186,6 +183,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
       const startISO = toPhilippineISO(startDate);
       const endISO = !allTime && endDate ? toPhilippineISO(endDate) : null;
       const isAllTimeVal = allTime ? 1 : 0;
+      const finalColor = event.color ?? (isExam ? '#F59E0B' : '#6366F1');
+
       await powerSync.execute(
         `UPDATE CalendarEvent SET
           title = ?, description = ?, startDate = ?, endDate = ?,
@@ -198,8 +197,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
           endISO,
           isAllTimeVal,
           location.trim() || null,
-          selectedColor,
-          selectedSubjectId,
+          finalColor,
+          null,
           now,
           event.id,
         ]
@@ -253,7 +252,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <Calendar size={16} color="#F59E0B" />
+                <Calendar size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
             </View>
@@ -265,7 +264,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                 }
               </Pressable>
               <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-                <X size={20} color="#94A3B8" />
+                <X size={20} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -289,10 +288,9 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
               <TextInput
                 style={styles.input}
                 placeholder={isExam ? "e.g. Midterm Examination" : "What's the event?"}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.mutedForeground}
                 value={title}
                 onChangeText={setTitle}
-                onFocus={() => setShowSubjectPicker(false)}
               />
             </View>
 
@@ -302,12 +300,11 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
               <TextInput
                 style={[styles.input, styles.multiline]}
                 placeholder="Optional details..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.mutedForeground}
                 value={description}
                 onChangeText={setDescription}
                 multiline
                 numberOfLines={3}
-                onFocus={() => setShowSubjectPicker(false)}
               />
             </View>
 
@@ -324,7 +321,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                     setAllTime(val);
                     if (val) setEndDate(null);
                   }}
-                  trackColor={{ false: '#2A3143', true: '#6C8EFF' }}
+                  trackColor={{ false: colors.border, true: '#6366F1' }}
                   thumbColor="#ffffff"
                 />
               </View>
@@ -345,13 +342,13 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   style={styles.resetBtn}
                   hitSlop={8}
                 >
-                  <RotateCcw size={12} color="#94A3B8" />
+                  <RotateCcw size={12} color={colors.mutedForeground} />
                   <Text style={styles.resetBtnText}>Reset</Text>
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openDatePicker('start')}>
                 <Text style={styles.pickerText}>{formatDateTime(startDate)}</Text>
-                <Calendar size={16} color="#94A3B8" />
+                <Calendar size={16} color={colors.mutedForeground} />
               </Pressable>
               {Platform.OS === 'ios' && activeDateField === 'start' && datePickerStep !== null && (
                 <View style={styles.iosPickerWrapper}>
@@ -361,8 +358,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                     minimumDate={new Date()}
                     display="spinner"
                     onChange={handleDateChange}
-                    textColor="#ffffff"
-                    themeVariant="dark"
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
                     style={styles.iosPicker}
                   />
                   <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -396,7 +393,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                   <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
                     {!startDate ? 'Select start date first' : endDate ? formatDateTime(endDate) : 'Select end time...'}
                   </Text>
-                  <Clock size={16} color={!startDate ? '#475569' : '#94A3B8'} />
+                  <Clock size={16} color={colors.mutedForeground} />
                 </Pressable>
                 {Platform.OS === 'ios' && activeDateField === 'end' && datePickerStep !== null && (
                   <View style={styles.iosPickerWrapper}>
@@ -406,8 +403,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                       minimumDate={startDate}
                       display="spinner"
                       onChange={handleDateChange}
-                      textColor="#ffffff"
-                      themeVariant="dark"
+                      textColor={colors.foreground}
+                      themeVariant={isDark ? 'dark' : 'light'}
                       style={styles.iosPicker}
                     />
                     <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -422,77 +419,15 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
             <View style={styles.formGroup}>
               <Text style={styles.label}>Location (Optional)</Text>
               <View style={styles.inputWithIcon}>
-                <MapPin size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+                <MapPin size={16} color={colors.mutedForeground} style={{ marginRight: 8 }} />
                 <TextInput
                   style={styles.inputInline}
                   placeholder="Room, building, or online link..."
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.mutedForeground}
                   value={location}
                   onChangeText={setLocation}
-                  onFocus={() => setShowSubjectPicker(false)}
                 />
               </View>
-            </View>
-
-            {/* Color */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Color</Text>
-              <View style={styles.colorRow}>
-                {PRESET_COLORS.map((color) => (
-                  <Pressable
-                    key={color}
-                    style={[
-                      styles.colorSwatch,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.colorSwatchSelected
-                    ]}
-                    onPress={() => setSelectedColor(color)}
-                  />
-                ))}
-              </View>
-            </View>
-
-            {/* Subject */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Subject (Optional)</Text>
-              <Pressable
-                style={styles.picker}
-                onPress={() => setShowSubjectPicker((prev) => !prev)}
-              >
-                <View style={styles.subjectPickerInner}>
-                  {selectedSubject ? (
-                    <>
-                      <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerText}>{selectedSubject.name}</Text>
-                    </>
-                  ) : (
-                    <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
-                  )}
-                </View>
-                <ChevronDown size={16} color="#94A3B8" />
-              </Pressable>
-              {showSubjectPicker && (
-                <View style={styles.pickerList}>
-                  <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
-                    <Pressable
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
-                    >
-                      <Text style={styles.pickerItemText}>None</Text>
-                    </Pressable>
-                    {subjects.map((s) => (
-                      <Pressable
-                        key={s.id}
-                        style={styles.pickerItem}
-                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
-                      >
-                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                        <Text style={styles.pickerItemText}>{s.name}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
             </View>
 
             <Pressable
@@ -513,213 +448,256 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  deleteBtn: { padding: 6 },
-  closeBtn: { padding: 6 },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    flex: 1,
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  submitBtn: {
-    backgroundColor: '#F59E0B',
-    marginTop: 16,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitBtnDisabled: {
-    opacity: 0.5,
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  formGroup: { marginBottom: 16 },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: '#1E2433',
-  },
-  resetBtnText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
-  sublabel: { fontSize: 12, color: '#2A3143', marginTop: 2 },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  inputWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputInline: { flex: 1, color: '#ffffff', fontSize: 16 },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
-  pickerDisabled: {
-    opacity: 0.45,
-    backgroundColor: '#0F131D',
-    borderColor: '#1E2433',
-  },
-  subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  colorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  colorSwatch: { width: 24, height: 24, borderRadius: 12 },
-  colorSwatchSelected: {
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    transform: [{ scale: 1.15 }],
-  },
-  iosPickerWrapper: {
-    marginTop: 8,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  iosPicker: { height: 180 },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
-  saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      letterSpacing: -0.4,
+      includeFontPadding: false,
+    },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    deleteBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    submitBtn: {
+      backgroundColor: '#6366F1',
+      marginTop: 16,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitBtnDisabled: {
+      opacity: 0.5,
+    },
+    submitBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+    formGroup: { marginBottom: 16 },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    resetBtnText: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    sublabel: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    input: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      color: colors.foreground,
+      fontSize: 15,
+    },
+    multiline: { minHeight: 80, textAlignVertical: 'top' },
+    inputWithIcon: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    inputInline: { flex: 1, color: colors.foreground, fontSize: 15 },
+    picker: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 15,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 15,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    pickerDisabled: {
+      opacity: 0.5,
+    },
+    subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
+    subjectDot: { width: 10, height: 10, borderRadius: 5 },
+    pickerList: {
+      backgroundColor: isDark ? colors.background : colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      marginLeft: 8,
+      includeFontPadding: false,
+    },
+    iosPickerWrapper: {
+      marginTop: 8,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    iosPicker: { height: 180 },
+    iosDoneBtn: {
+      alignItems: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    iosDoneBtnText: {
+      color: '#6366F1',
+      fontSize: 15,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+  });
+}
+
 

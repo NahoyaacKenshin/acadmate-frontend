@@ -9,13 +9,19 @@
  * the new file so that Gemini can intelligently merge/update existing items.
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { Alert } from "react-native";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import { ENV } from "@/src/config/env";
+import {
+  assertOnline,
+  classifyError,
+  refreshSharedSession,
+  getValidAccessToken,
+} from "@/src/lib/aiRequest";
 import type {
   ParsedSemesterInfo,
   ParsedClassSchedule,
@@ -26,13 +32,14 @@ import type {
 } from "@/src/components/schedule/ParsedItemRow";
 
 export type SelectedFile =
-  | { type: "document"; name: string; uri: string; mimeType: string }
+  | { type: "document"; name: string; uri: string; mimeType: string; size?: number }
   | {
       type: "image";
       uri: string;
       mimeType: string;
       name: string;
       thumbnail: string;
+      size?: number;
     };
 
 export interface ParsedScheduleResult {
@@ -48,27 +55,44 @@ export interface UseScheduleScannerResult {
   selectedFile: SelectedFile | null;
   isLoading: boolean;
   error: string | null;
+  isRetryable: boolean;
   pickDocument: () => Promise<void>;
   pickFromGallery: () => Promise<void>;
   pickFromCamera: () => Promise<void>;
   clearFile: () => void;
   clearError: () => void;
+  cancelUpload: () => void;
   uploadAndParse: (currentSchedule?: string) => Promise<ParsedScheduleResult | null>;
 }
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit
+const SCAN_TIMEOUT_MS = 60000; // 60 seconds
+
 export function useScheduleScanner(): UseScheduleScannerResult {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRetryable, setIsRetryable] = useState(false);
+
+  const isCancelledRef = useRef(false);
 
   const clearFile = () => setSelectedFile(null);
-  const clearError = () => setError(null);
+  const clearError = () => {
+    setError(null);
+    setIsRetryable(false);
+  };
+
+  const cancelUpload = () => {
+    isCancelledRef.current = true;
+    setIsLoading(false);
+    setError(null);
+    setIsRetryable(false);
+  };
 
   // ── File Pickers ─────────────────────────────────────────────────────────────
 
   const pickDocument = async () => {
-    setError(null);
+    clearError();
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -79,19 +103,29 @@ export function useScheduleScanner(): UseScheduleScannerResult {
       });
       if (result.canceled) return;
       const asset = result.assets[0];
+
+      // Pre-check size if available from picker
+      if (asset.size && asset.size > MAX_FILE_SIZE_BYTES) {
+        setError("Your file exceeds the 10 MB limit. Please choose a smaller file.");
+        setIsRetryable(false);
+        return;
+      }
+
       setSelectedFile({
         type: "document",
         name: asset.name,
         uri: asset.uri,
         mimeType: asset.mimeType ?? "application/pdf",
+        size: asset.size,
       });
     } catch {
       setError("Could not open the file. Please try again.");
+      setIsRetryable(true);
     }
   };
 
   const pickFromGallery = async () => {
-    setError(null);
+    clearError();
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert(
@@ -109,20 +143,29 @@ export function useScheduleScanner(): UseScheduleScannerResult {
       if (result.canceled) return;
       const asset = result.assets[0];
       const mime = asset.mimeType ?? "image/jpeg";
+
+      if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE_BYTES) {
+        setError("Your image exceeds the 10 MB limit. Please select a smaller photo.");
+        setIsRetryable(false);
+        return;
+      }
+
       setSelectedFile({
         type: "image",
         uri: asset.uri,
         mimeType: mime,
-        name: asset.fileName ?? `schedule_image.${mime.split("/")[1]}`,
+        name: asset.fileName ?? `schedule_image.${mime.split("/")[1] ?? "jpg"}`,
         thumbnail: asset.uri,
+        size: asset.fileSize,
       });
     } catch {
       setError("Could not load the image. Please try again.");
+      setIsRetryable(true);
     }
   };
 
   const pickFromCamera = async () => {
-    setError(null);
+    clearError();
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       Alert.alert(
@@ -139,15 +182,24 @@ export function useScheduleScanner(): UseScheduleScannerResult {
       if (result.canceled) return;
       const asset = result.assets[0];
       const mime = asset.mimeType ?? "image/jpeg";
+
+      if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE_BYTES) {
+        setError("Captured photo exceeds 10 MB. Please try again.");
+        setIsRetryable(false);
+        return;
+      }
+
       setSelectedFile({
         type: "image",
         uri: asset.uri,
         mimeType: mime,
-        name: asset.fileName ?? `schedule_photo.${mime.split("/")[1]}`,
+        name: asset.fileName ?? `schedule_photo.${mime.split("/")[1] ?? "jpg"}`,
         thumbnail: asset.uri,
+        size: asset.fileSize,
       });
     } catch {
       setError("Could not capture the photo. Please try again.");
+      setIsRetryable(true);
     }
   };
 
@@ -157,7 +209,31 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     currentSchedule?: string
   ): Promise<ParsedScheduleResult | null> => {
     if (!selectedFile) return null;
-    setError(null);
+    clearError();
+    isCancelledRef.current = false;
+
+    // 1. Pre-flight offline check
+    try {
+      assertOnline();
+    } catch (err) {
+      const classified = classifyError(err);
+      setError(classified.message);
+      setIsRetryable(classified.retryable);
+      return null;
+    }
+
+    // 2. Pre-flight file size check via FileSystem if not checked yet
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(selectedFile.uri);
+      if (fileInfo.exists && typeof fileInfo.size === "number" && fileInfo.size > MAX_FILE_SIZE_BYTES) {
+        setError("Your file exceeds the 10 MB limit. Please select a smaller file.");
+        setIsRetryable(false);
+        return null;
+      }
+    } catch {
+      // Non-fatal if info cannot be read, proceed to upload
+    }
+
     setIsLoading(true);
 
     try {
@@ -166,30 +242,11 @@ export function useScheduleScanner(): UseScheduleScannerResult {
         httpBodyParams.currentSchedule = currentSchedule;
       }
 
-      let uploadResult = await FileSystem.uploadAsync(
-        `${ENV.API_URL}/schedule-parser/parse`,
-        selectedFile.uri,
-        {
-          httpMethod: "POST",
-          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-          fieldName: "file",
-          mimeType: selectedFile.mimeType || "image/jpeg",
-          parameters: httpBodyParams,
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const token = await getValidAccessToken();
 
-      // Handle token expiration
-      if (uploadResult.status === 401) {
-        const refreshed = await useAuthStore.getState().refreshSession();
-        if (!refreshed) {
-          throw new Error("Session expired. Please log in again.");
-        }
-        
-        const newAccessToken = useAuthStore.getState().accessToken;
-        uploadResult = await FileSystem.uploadAsync(
+      // Wrapped upload promise with timeout guard
+      const uploadPromise = (async () => {
+        let uploadResult = await FileSystem.uploadAsync(
           `${ENV.API_URL}/schedule-parser/parse`,
           selectedFile.uri,
           {
@@ -199,10 +256,55 @@ export function useScheduleScanner(): UseScheduleScannerResult {
             mimeType: selectedFile.mimeType || "image/jpeg",
             parameters: httpBodyParams,
             headers: {
-              Authorization: `Bearer ${newAccessToken}`,
+              Authorization: `Bearer ${token}`,
             },
           }
         );
+
+        if (isCancelledRef.current) return null;
+
+        // Auto-refresh token if 401
+        if (uploadResult.status === 401) {
+          const refreshed = await refreshSharedSession();
+          if (!refreshed) {
+            const err = new Error("Session expired. Please sign in again.");
+            (err as any).type = "AUTH_EXPIRED";
+            throw err;
+          }
+
+          const newToken = await getValidAccessToken();
+          uploadResult = await FileSystem.uploadAsync(
+            `${ENV.API_URL}/schedule-parser/parse`,
+            selectedFile.uri,
+            {
+              httpMethod: "POST",
+              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+              fieldName: "file",
+              mimeType: selectedFile.mimeType || "image/jpeg",
+              parameters: httpBodyParams,
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+              },
+            }
+          );
+        }
+
+        return uploadResult;
+      })();
+
+      // Timeout racer
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          const err = new Error("Request timed out");
+          (err as any).type = "TIMEOUT";
+          reject(err);
+        }, SCAN_TIMEOUT_MS);
+      });
+
+      const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+
+      if (isCancelledRef.current || !uploadResult) {
+        return null;
       }
 
       if (uploadResult.status < 200 || uploadResult.status >= 300) {
@@ -211,29 +313,42 @@ export function useScheduleScanner(): UseScheduleScannerResult {
           const body = JSON.parse(uploadResult.body);
           msg = body.message || msg;
         } catch {}
-        if (uploadResult.status === 415)
-          throw new Error(
-            "That file type is not supported. Try a PDF, Word doc, or image."
-          );
-        if (uploadResult.status === 413)
-          throw new Error("Your file is too large (max 10 MB). Try a smaller file.");
-        if (uploadResult.status === 503)
-          throw new Error(
-            "The AI service is temporarily busy. Please try again in a moment."
-          );
-        throw new Error(msg);
+        const classified = classifyError(new Error(msg), uploadResult.status);
+        setError(classified.message);
+        setIsRetryable(classified.retryable);
+        return null;
       }
 
       const json = JSON.parse(uploadResult.body);
-      const data = json?.data;
-      if (!data) throw new Error("Unexpected response from the server.");
-      return data as ParsedScheduleResult;
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again."
-      );
+      const data = json?.data as ParsedScheduleResult | undefined;
+
+      if (!data) {
+        setError("Unexpected response from the server. Please try again.");
+        setIsRetryable(true);
+        return null;
+      }
+
+      // Empty schedule detection guard
+      const hasClasses = Array.isArray(data.classSchedules) && data.classSchedules.length > 0;
+      const hasEvents = Array.isArray(data.calendarEvents) && data.calendarEvents.length > 0;
+      const hasExamWeeks = Array.isArray(data.examWeeks) && data.examWeeks.length > 0;
+      const hasExamEvents = Array.isArray(data.examEvents) && data.examEvents.length > 0;
+
+      if (!hasClasses && !hasEvents && !hasExamWeeks && !hasExamEvents) {
+        const classified = classifyError(new Error("Empty schedule detected"), undefined);
+        setError(classified.message);
+        setIsRetryable(true);
+        return null;
+      }
+
+      return data;
+    } catch (err: unknown) {
+      if (isCancelledRef.current) {
+        return null;
+      }
+      const classified = classifyError(err);
+      setError(classified.message);
+      setIsRetryable(classified.retryable);
       return null;
     } finally {
       setIsLoading(false);
@@ -244,11 +359,13 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     selectedFile,
     isLoading,
     error,
+    isRetryable,
     pickDocument,
     pickFromGallery,
     pickFromCamera,
     clearFile,
     clearError,
+    cancelUpload,
     uploadAndParse,
   };
 }

@@ -1,13 +1,20 @@
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, TextInput, View, Pressable } from 'react-native';
+import {
+  ActivityIndicator,
+  TextInput,
+  View,
+  Pressable,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { Button } from '@/src/components/ui/button';
 import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff } from 'lucide-react-native';
-import { Image } from 'react-native';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { promptGoogleSignIn } from '@/src/lib/google-auth';
+import { AuthScaffold } from './AuthScaffold';
+import { useTheme } from '@/src/theme/useTheme';
 
 type FieldErrors = {
   email?: string;
@@ -20,16 +27,19 @@ function validateEmail(email: string) {
 
 export function LoginForm() {
   const router = useRouter();
-  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
+  const { colors, isDark } = useTheme();
+  const { login, loginWithGoogle, isLoading, error, clearError, setError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   useEffect(() => {
     clearError();
-  }, []);
+  }, [clearError]);
 
   const validate = (): boolean => {
     const errors: FieldErrors = {};
@@ -37,7 +47,7 @@ export function LoginForm() {
     if (!email.trim()) {
       errors.email = 'Please enter your email address.';
     } else if (!validateEmail(email.trim())) {
-      errors.email = 'That doesn\'t look like a valid email address. Please check and try again.';
+      errors.email = 'Enter a valid email address.';
     }
 
     if (!password) {
@@ -49,8 +59,14 @@ export function LoginForm() {
   };
 
   const handleSubmit = async () => {
+    clearError();
     if (!validate()) return;
-    await login({ email: email.trim(), password });
+
+    try {
+      await login({ email: email.trim(), password });
+    } catch {
+      // Handled via auth store error
+    }
   };
 
   const handleGoToSignup = () => {
@@ -69,112 +85,263 @@ export function LoginForm() {
     try {
       const idToken = await promptGoogleSignIn();
       await loginWithGoogle(idToken);
-      // Navigation is handled by the root layout session listener
     } catch (err) {
       if (err instanceof Error && err.message === 'CANCELLED') return;
-      // Error is set in the store; it will be shown by the error text below
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to connect to Google. Please check your internet connection.';
+      setError(message);
+      Alert.alert('Sign-In Error', message);
     } finally {
       setGoogleLoading(false);
     }
   };
 
   return (
-    <View className="flex-1 justify-center bg-background px-8">
-      <View className="mb-8 items-center">
-        <Image
-          source={require('../../../../assets/images/new-splash-favicon-icon.png')}
-          style={{ width: 90, height: 90, marginBottom: 12 }}
-          resizeMode="contain"
-        />
-        <Text className="text-3xl font-bold text-foreground font-sans">Welcome Back</Text>
-        <Text className="mt-2 text-center text-sm text-muted-foreground font-sans">
-          Log in to continue your journey with AcadMate.
-        </Text>
-      </View>
-
-      <View className="gap-5">
-        {/* Email */}
-        <View>
+    <AuthScaffold
+      title="Welcome back"
+      subtitle="Sign in to your account to continue"
+      footer={
+        <Pressable onPress={handleGoToSignup} hitSlop={10}>
+          <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
+            Don't have an account?{' '}
+            <Text style={[styles.footerLink, { color: colors.foreground }]}>Sign up</Text>
+          </Text>
+        </Pressable>
+      }
+    >
+      <View style={styles.formGap}>
+        {/* Email Field */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Email</Text>
           <TextInput
             autoCapitalize="none"
+            autoCorrect={false}
             keyboardType="email-address"
-            placeholder="Email Address"
-            placeholderTextColor="#94A3B8"
+            placeholder="name@university.edu"
+            placeholderTextColor={colors.mutedForeground}
             value={email}
-            onChangeText={(val) => { setEmail(val); setFieldErrors((e) => ({ ...e, email: undefined })); }}
-            className="rounded-2xl border border-border bg-input/50 px-5 py-4 text-foreground font-sans text-base"
+            onChangeText={(val) => {
+              setEmail(val);
+              if (fieldErrors.email) setFieldErrors((e) => ({ ...e, email: undefined }));
+            }}
+            onFocus={() => setEmailFocused(true)}
+            onBlur={() => setEmailFocused(false)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.input,
+                borderColor: fieldErrors.email
+                  ? colors.destructive
+                  : emailFocused
+                    ? colors.ring
+                    : colors.inputBorder,
+                color: colors.foreground,
+              },
+            ]}
           />
           {fieldErrors.email ? (
-            <Text className="mt-1 ml-1 text-xs text-red-500 font-sans">{fieldErrors.email}</Text>
+            <Text style={[styles.errorText, { color: colors.destructive }]}>
+              {fieldErrors.email}
+            </Text>
           ) : null}
         </View>
 
-        {/* Password */}
-        <View>
-          <View className="relative">
+        {/* Password Field */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Password</Text>
+          <View style={styles.passwordWrap}>
             <TextInput
-              placeholder="Password"
-              placeholderTextColor="#94A3B8"
+              placeholder="Enter your password"
+              placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPassword}
               value={password}
-              onChangeText={(val) => { setPassword(val); setFieldErrors((e) => ({ ...e, password: undefined })); }}
-              className="rounded-2xl border border-border bg-input/50 px-5 py-4 pr-12 text-foreground font-sans text-base"
+              onChangeText={(val) => {
+                setPassword(val);
+                if (fieldErrors.password) setFieldErrors((e) => ({ ...e, password: undefined }));
+              }}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
+              style={[
+                styles.input,
+                styles.passwordInput,
+                {
+                  backgroundColor: colors.input,
+                  borderColor: fieldErrors.password
+                    ? colors.destructive
+                    : passwordFocused
+                      ? colors.ring
+                      : colors.inputBorder,
+                  color: colors.foreground,
+                },
+              ]}
             />
             <Pressable
               onPress={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-4"
+              hitSlop={12}
+              style={styles.eyeBtn}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? (
-                <EyeOff size={24} color="#94A3B8" />
+                <EyeOff size={18} color={colors.mutedForeground} />
               ) : (
-                <Eye size={24} color="#94A3B8" />
+                <Eye size={18} color={colors.mutedForeground} />
               )}
             </Pressable>
           </View>
           {fieldErrors.password ? (
-            <Text className="mt-1 ml-1 text-xs text-red-500 font-sans">{fieldErrors.password}</Text>
+            <Text style={[styles.errorText, { color: colors.destructive }]}>
+              {fieldErrors.password}
+            </Text>
           ) : null}
 
-          <Pressable onPress={handleGoToForgotPassword} className="mt-2 self-end">
-            <Text className="text-sm text-primary font-sans font-medium">Forgot Password?</Text>
+          <Pressable onPress={handleGoToForgotPassword} style={styles.forgotBtn} hitSlop={8}>
+            <Text style={[styles.forgotText, { color: colors.mutedForeground }]}>
+              Forgot password?
+            </Text>
           </Pressable>
         </View>
-      </View>
 
-      {/* API-level error (e.g. wrong credentials) */}
-      {error ? <Text className="mt-4 text-center text-sm text-red-500 font-sans">{error}</Text> : null}
+        {/* API-level Error Banner */}
+        {error ? (
+          <View
+            style={[
+              styles.apiErrorBox,
+              {
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+              },
+            ]}
+          >
+            <Text style={[styles.apiErrorText, { color: colors.destructive }]}>{error}</Text>
+          </View>
+        ) : null}
 
-      <View className="mt-8">
-        <Button
-          disabled={isLoading || googleLoading}
+        {/* Submit Button */}
+        <Pressable
           onPress={handleSubmit}
-          className="rounded-2xl h-14"
+          disabled={isLoading || googleLoading}
+          style={({ pressed }) => [
+            styles.submitBtn,
+            {
+              backgroundColor: colors.primary,
+              opacity: isLoading || googleLoading ? 0.6 : pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.985 : 1 }],
+            },
+          ]}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator color={colors.primaryForeground} size="small" />
           ) : (
-            <Text className="font-bold text-lg font-sans">Log In</Text>
+            <Text style={[styles.submitText, { color: colors.primaryForeground }]}>Sign in</Text>
           )}
-        </Button>
+        </Pressable>
 
         {/* OR Divider */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 10 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-          <Text className="text-xs text-muted-foreground font-sans tracking-widest">OR</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>OR</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
         </View>
 
-        <GoogleSignInButton
-          onPress={handleGoogleSignIn}
-          isLoading={googleLoading}
-        />
+        {/* Google Sign-In */}
+        <GoogleSignInButton onPress={handleGoogleSignIn} isLoading={googleLoading} />
       </View>
-
-      <Pressable onPress={handleGoToSignup} className="mt-8">
-        <Text className="text-center text-primary font-bold font-sans text-base">
-          Don't have an account? Sign up
-        </Text>
-      </Pressable>
-    </View>
+    </AuthScaffold>
   );
 }
+
+const styles = StyleSheet.create({
+  formGap: {
+    gap: 18,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  input: {
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontFamily: 'Inter',
+  },
+  passwordWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 48,
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 14,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 12.5,
+    marginTop: 2,
+    marginLeft: 2,
+    fontFamily: 'Inter',
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  apiErrorBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  apiErrorText: {
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '500',
+    fontFamily: 'Inter',
+  },
+  submitBtn: {
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  submitText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  footerText: {
+    fontSize: 14,
+  },
+  footerLink: {
+    fontWeight: '700',
+  },
+});

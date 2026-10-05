@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Text } from '@/src/components/ui/text';
-import { Calendar, Sparkles, CheckCircle2, ChevronRight } from 'lucide-react-native';
+import { Calendar, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -35,7 +35,13 @@ const slides: Slide[] = [
     id: '2',
     title: 'Grounded Study Notebooks',
     subtitle: 'Attach course materials, lecture slides, and notes for context-grounded AI search and summarization.',
-    icon: <Sparkles size={40} color="#6C8EFF" />,
+    icon: (
+      <Image
+        source={require('../assets/images/new-splash-favicon-icon.png')}
+        style={{ width: 44, height: 44 }}
+        resizeMode="contain"
+      />
+    ),
     accent: '#6C8EFF',
   },
   {

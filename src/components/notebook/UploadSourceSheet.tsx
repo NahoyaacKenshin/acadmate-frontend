@@ -23,7 +23,15 @@ import {
   CheckCircle2,
   AlertCircle,
   File,
+  WifiOff,
 } from 'lucide-react-native';
+import { useSystemStore } from '@/src/store/systemStore';
+import {
+  assertOnline,
+  classifyError,
+  refreshSharedSession,
+  getValidAccessToken,
+} from '@/src/lib/aiRequest';
 
 interface UploadSourceSheetProps {
   visible: boolean;
@@ -83,12 +91,14 @@ export function UploadSourceSheet({
   onUploaded,
 }: UploadSourceSheetProps) {
   const { accessToken } = useAuthStore();
+  const isOnline = useSystemStore((s) => s.isOnline);
 
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0); // 0–1
 
+  const uploadTaskRef = useRef<FileSystem.UploadTask | null>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -107,8 +117,22 @@ export function UploadSourceSheet({
     progressAnim.setValue(0);
   };
 
+  const handleCancelUpload = async () => {
+    if (uploadTaskRef.current) {
+      try {
+        await uploadTaskRef.current.cancelAsync();
+      } catch {}
+      uploadTaskRef.current = null;
+    }
+    setUploadState('idle');
+    setUploadProgress(0);
+    setErrorMsg('Upload cancelled.');
+  };
+
   const handleClose = () => {
-    if (uploadState === 'uploading') return;
+    if (uploadState === 'uploading') {
+      handleCancelUpload();
+    }
     resetState();
     onClose();
   };
@@ -153,47 +177,73 @@ export function UploadSourceSheet({
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    try {
+      assertOnline();
+    } catch (err) {
+      const classified = classifyError(err);
+      setUploadState('error');
+      setErrorMsg(classified.message);
+      return;
+    }
+
     setUploadState('uploading');
     setErrorMsg(null);
     setUploadProgress(0);
 
     try {
       const uploadUrl = `${ENV.API_URL}/notebooks/${notebookId}/sources`;
+      let token = await getValidAccessToken();
       
-      const uploadTask = FileSystem.createUploadTask(
-        uploadUrl,
-        selectedFile.uri,
-        {
-          httpMethod: 'POST',
-          uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
-          fieldName: 'file',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+      const createAndRunTask = async (authToken: string | null) => {
+        const task = FileSystem.createUploadTask(
+          uploadUrl,
+          selectedFile.uri,
+          {
+            httpMethod: 'POST',
+            uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
+            fieldName: 'file',
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
           },
-        },
-        (data) => {
-          if (data.totalBytesExpectedToSend > 0) {
-            const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
-            setUploadProgress(progress);
+          (data) => {
+            if (data.totalBytesExpectedToSend > 0) {
+              const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
+              setUploadProgress(progress);
+            }
           }
-        }
-      );
+        );
+        uploadTaskRef.current = task;
+        return await task.uploadAsync();
+      };
 
-      const response = await uploadTask.uploadAsync();
+      let response = await createAndRunTask(token);
+
+      // Handle 401 session expiration
+      if (response && response.status === 401) {
+        const refreshed = await refreshSharedSession();
+        if (!refreshed) {
+          throw new Error('Session expired. Please sign in again.');
+        }
+        token = await getValidAccessToken();
+        response = await createAndRunTask(token);
+      }
+
+      uploadTaskRef.current = null;
 
       if (!response) {
         throw new Error('Upload returned no response.');
       }
 
       if (response.status >= 400) {
-        let errorMessage = 'Upload failed.';
+        let msg = 'Upload failed.';
         try {
           const body = JSON.parse(response.body);
-          errorMessage = body.message ?? errorMessage;
+          msg = body.message ?? msg;
         } catch {}
-        if (response.status === 413) errorMessage = 'File is too large (max 20MB).';
-        if (response.status === 415) errorMessage = 'Unsupported file type.';
-        throw new Error(errorMessage);
+        const classified = classifyError(new Error(msg), response.status);
+        throw new Error(classified.message);
       }
 
       setUploadProgress(1);
@@ -205,8 +255,10 @@ export function UploadSourceSheet({
         onClose();
       }, 1500);
     } catch (err: any) {
+      uploadTaskRef.current = null;
       setUploadState('error');
-      setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
+      const classified = classifyError(err);
+      setErrorMsg(classified.message);
       setUploadProgress(0);
     }
   };
@@ -244,6 +296,15 @@ export function UploadSourceSheet({
           </Pressable>
         </View>
 
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <WifiOff size={16} color="#F59E0B" />
+            <Text style={styles.offlineText}>
+              You're offline. Reconnect to upload and index documents.
+            </Text>
+          </View>
+        )}
+
         <Text style={styles.sectionLabel}>Choose a file to upload</Text>
 
         {/* Picker cards */}
@@ -254,7 +315,7 @@ export function UploadSourceSheet({
             subtitle="PDF, DOCX, TXT"
             color="#EF4444"
             onPress={pickDocument}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
           />
           <PickerCard
             icon={<ImageIcon size={22} color="#8B5CF6" />}
@@ -262,7 +323,7 @@ export function UploadSourceSheet({
             subtitle="JPG, PNG"
             color="#8B5CF6"
             onPress={pickImage}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
           />
           <PickerCard
             icon={<Camera size={22} color="#22C55E" />}
@@ -270,7 +331,7 @@ export function UploadSourceSheet({
             subtitle="Take a photo"
             color="#22C55E"
             onPress={pickCamera}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
           />
         </View>
 
@@ -298,9 +359,14 @@ export function UploadSourceSheet({
             <View style={styles.progressTrack}>
               <Animated.View style={[styles.progressFill, { width: progressBarWidth }]} />
             </View>
-            <Text style={styles.progressLabel}>
-              {Math.round(uploadProgress * 100)}% — Uploading, please wait…
-            </Text>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>
+                {Math.round(uploadProgress * 100)}% — Uploading, please wait…
+              </Text>
+              <Pressable onPress={handleCancelUpload} hitSlop={8}>
+                <Text style={styles.cancelUploadText}>Cancel</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -325,17 +391,19 @@ export function UploadSourceSheet({
           <Pressable
             style={[
               styles.uploadBtn,
-              (!selectedFile || uploadState === 'uploading') && styles.uploadBtnDisabled,
+              (!selectedFile || !isOnline || uploadState === 'uploading') && styles.uploadBtnDisabled,
             ]}
             onPress={handleUpload}
-            disabled={!selectedFile || uploadState === 'uploading'}
+            disabled={!selectedFile || !isOnline || uploadState === 'uploading'}
           >
             {uploadState === 'uploading' ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
               <>
                 <Upload size={18} color="#ffffff" />
-                <Text style={styles.uploadBtnText}>Upload & Index</Text>
+                <Text style={styles.uploadBtnText}>
+                  {!isOnline ? 'Offline — Connect to Upload' : 'Upload & Index'}
+                </Text>
               </>
             )}
           </Pressable>
@@ -545,5 +613,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  offlineText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '500',
+    flex: 1,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cancelUploadText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '600',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
   },
 });

@@ -14,6 +14,7 @@ export const Task = new Table({
   dueDate: column.text,
   completed: column.integer,
   color: column.text,
+  subtasks: column.text,
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text,

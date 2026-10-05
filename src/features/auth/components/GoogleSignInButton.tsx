@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Pressable, View, StyleSheet } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
-import { useState } from 'react';
+import { useTheme } from '@/src/theme/useTheme';
 
 type GoogleSignInButtonProps = {
   onPress: () => void | Promise<void>;
@@ -10,7 +11,7 @@ type GoogleSignInButtonProps = {
 };
 
 /** Official Google "G" logo in SVG */
-function GoogleGLogo({ size = 20 }: { size?: number }) {
+function GoogleGLogo({ size = 19 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Defs>
@@ -40,7 +41,12 @@ function GoogleGLogo({ size = 20 }: { size?: number }) {
   );
 }
 
-export function GoogleSignInButton({ onPress, isLoading = false, label = 'Continue with Google' }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({
+  onPress,
+  isLoading = false,
+  label = 'Continue with Google',
+}: GoogleSignInButtonProps) {
+  const { colors, isDark } = useTheme();
   const [pressed, setPressed] = useState(false);
 
   const handlePress = async () => {
@@ -53,44 +59,73 @@ export function GoogleSignInButton({ onPress, isLoading = false, label = 'Contin
     }
   };
 
+  const backgroundColor = isDark
+    ? pressed
+      ? '#1C2030'
+      : '#141722'
+    : pressed
+      ? '#F4F4F5'
+      : '#FFFFFF';
+
+  const borderColor = isDark
+    ? pressed
+      ? '#383E54'
+      : '#272B3B'
+    : pressed
+      ? '#D4D4D8'
+      : '#E4E4E7';
+
   return (
     <Pressable
       onPress={handlePress}
       disabled={isLoading}
-      style={({ pressed: nativePressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: pressed || nativePressed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-        backgroundColor: pressed || nativePressed ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-        paddingVertical: 13,
-        paddingHorizontal: 16,
-        opacity: isLoading ? 0.6 : 1,
-        transform: [{ scale: pressed || nativePressed ? 0.98 : 1 }],
-      })}
-      accessibilityLabel="Continue with Google"
+      style={({ pressed: nativePressed }) => [
+        styles.button,
+        {
+          backgroundColor: nativePressed ? (isDark ? '#1C2030' : '#F4F4F5') : backgroundColor,
+          borderColor: nativePressed ? (isDark ? '#383E54' : '#D4D4D8') : borderColor,
+          opacity: isLoading ? 0.6 : 1,
+          transform: [{ scale: pressed || nativePressed ? 0.985 : 1 }],
+        },
+      ]}
+      accessibilityLabel={label}
       accessibilityRole="button"
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color="#ffffff" />
+        <ActivityIndicator size="small" color={colors.foreground} />
       ) : (
-        <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
-          <GoogleGLogo size={20} />
+        <View style={styles.iconWrap}>
+          <GoogleGLogo size={19} />
         </View>
       )}
-      <Text
-        style={{
-          fontSize: 15,
-          fontWeight: '600',
-          color: '#ffffff',
-          letterSpacing: 0.2,
-        }}
-      >
-        {isLoading ? 'Signing in...' : label}
+      <Text style={[styles.label, { color: colors.foreground }]}>
+        {isLoading ? 'Connecting...' : label}
       </Text>
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 50,
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  iconWrap: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+});

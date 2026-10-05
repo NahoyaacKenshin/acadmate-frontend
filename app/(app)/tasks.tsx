@@ -1,21 +1,31 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, Pressable, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  SectionList,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
 import { Button } from '@/src/components/ui/button';
-import { Plus, CheckCircle2 } from 'lucide-react-native';
+import { Plus, CheckCircle2, Sparkles, ChevronDown } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { usePowerSync } from '@powersync/react';
 
 import { TaskListItem } from '@/src/components/tasks/TaskListItem';
 import { AddTaskSheet } from '@/src/components/tasks/AddTaskSheet';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
-import { useTasks, TaskRow } from '@/src/hooks/useTasks';
+import { TaskScanModal } from '@/src/components/tasks/TaskScanModal';
+import { useTasks, TaskRow, SubtaskItem } from '@/src/hooks/useTasks';
 import { useSubjects } from '@/src/hooks/useSubjects';
 
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { NotificationService } from '@/src/services/notificationService';
 import { formatDateTimePHT, isOverduePHT, parseToEpoch } from '@/src/utils/philippineTime';
+import { groupTasksByTimeline, TaskSection } from '@/src/utils/taskGrouping';
 
 type TaskFilter = 'all' | 'pending' | 'overdue' | 'done';
 
@@ -27,6 +37,8 @@ export default function TasksScreen() {
   const [activeFilter, setActiveFilter] = useState<TaskFilter>('all');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
+  const [isScanModalVisible, setIsScanModalVisible] = useState(false);
+  const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
@@ -35,9 +47,9 @@ export default function TasksScreen() {
   const completedTasks = useMemo(() => tasks.filter((t) => t.completed === 1).length, [tasks]);
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Filtered & Sorted Tasks
+  // Filtered Tasks
   const filteredTasks = useMemo(() => {
-    const filtered = tasks.filter((t) => {
+    return tasks.filter((t) => {
       // Subject filter
       if (selectedSubjectId !== null && t.subject_id !== selectedSubjectId) {
         return false;
@@ -51,19 +63,51 @@ export default function TasksScreen() {
       }
       return true; // 'all'
     });
-
-    return filtered.sort((a, b) => {
-      // Completed tasks go to the bottom in 'all' view
-      if (activeFilter === 'all' && a.completed !== b.completed) {
-        return a.completed - b.completed;
-      }
-      // Sort by due date ascending (earliest first); items without due date at the end
-      if (!a.due_date && !b.due_date) return 0;
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return (parseToEpoch(a.due_date) ?? 0) - (parseToEpoch(b.due_date) ?? 0);
-    });
   }, [tasks, activeFilter, selectedSubjectId]);
+
+  // Grouped Timeline Sections
+  const timelineSections = useMemo<TaskSection[]>(() => {
+    if (activeFilter === 'overdue') {
+      return [{
+        key: 'overdue' as const,
+        title: 'Overdue Tasks',
+        badgeColor: '#EF4444',
+        data: filteredTasks,
+        totalCount: filteredTasks.length,
+      }].filter((s) => s.data.length > 0);
+    }
+    if (activeFilter === 'done') {
+      return [{
+        key: 'completed' as const,
+        title: 'Completed Tasks',
+        badgeColor: '#10B981',
+        data: filteredTasks,
+        totalCount: filteredTasks.length,
+        collapsible: false,
+      }].filter((s) => s.data.length > 0);
+    }
+
+    const grouped = groupTasksByTimeline(filteredTasks);
+    const activeGrouped = activeFilter === 'pending'
+      ? grouped.filter((s) => s.key !== 'completed')
+      : grouped;
+
+    return activeGrouped
+      .filter((s) => s.data.length > 0)
+      .map((s) => {
+        if (s.collapsible && isCompletedCollapsed) {
+          return {
+            ...s,
+            totalCount: s.data.length,
+            data: [],
+          };
+        }
+        return {
+          ...s,
+          totalCount: s.data.length,
+        };
+      });
+  }, [filteredTasks, activeFilter, isCompletedCollapsed]);
 
   const handleCompleteTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
@@ -89,6 +133,30 @@ export default function TasksScreen() {
       }
     } catch (err) {
       console.error('[Tasks] Toggle complete failed:', err);
+    }
+  };
+
+  const handleToggleSubtask = async (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    let subtaskList: SubtaskItem[] = [];
+    try {
+      subtaskList = task.subtasks ? JSON.parse(task.subtasks) : [];
+    } catch {}
+
+    const updatedSubtasks = subtaskList.map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+
+    const now = new Date().toISOString();
+    try {
+      await powerSync.execute(
+        `UPDATE Task SET subtasks = ?, updatedAt = ? WHERE id = ?`,
+        [JSON.stringify(updatedSubtasks), now, taskId]
+      );
+    } catch (err) {
+      console.error('[Tasks] Toggle subtask failed:', err);
     }
   };
 
@@ -128,6 +196,7 @@ export default function TasksScreen() {
     dueDate: formatDueDate(task.due_date),
     dueDateIso: task.due_date,
     completed: task.completed === 1,
+    subtasks: task.subtasks,
   });
 
   const filterTabs: Array<{ key: TaskFilter; label: string }> = [
@@ -143,9 +212,19 @@ export default function TasksScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Tasks</Text>
-          <Button size="icon" variant="ghost" onPress={() => setIsAddSheetVisible(true)}>
-            <Plus size={24} color="#6C8EFF" />
-          </Button>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.scanHeaderBtn}
+              onPress={() => setIsScanModalVisible(true)}
+              hitSlop={8}
+            >
+              <Sparkles size={16} color="#6C8EFF" />
+              <Text style={styles.scanHeaderBtnText}>Scan</Text>
+            </Pressable>
+            <Button size="icon" variant="ghost" onPress={() => setIsAddSheetVisible(true)}>
+              <Plus size={24} color="#6C8EFF" />
+            </Button>
+          </View>
         </View>
 
         {/* Progress Card */}
@@ -210,24 +289,19 @@ export default function TasksScreen() {
               </Pressable>
               {subjects.map((sub) => {
                 const isSubActive = selectedSubjectId === sub.id;
-                const dotColor = sub.color ?? '#6C8EFF';
                 return (
                   <Pressable
                     key={sub.id}
                     style={[
                       styles.subjectPill,
-                      isSubActive && {
-                        borderColor: dotColor,
-                        backgroundColor: dotColor + '20',
-                      },
+                      isSubActive && styles.subjectPillActive,
                     ]}
                     onPress={() => setSelectedSubjectId(isSubActive ? null : sub.id)}
                   >
-                    <View style={[styles.subjectPillDot, { backgroundColor: dotColor }]} />
                     <Text
                       style={[
                         styles.subjectPillText,
-                        isSubActive && { color: '#ffffff', fontWeight: '700' },
+                        isSubActive && styles.subjectPillTextActive,
                       ]}
                       numberOfLines={1}
                     >
@@ -263,16 +337,47 @@ export default function TasksScreen() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={filteredTasks}
+          <SectionList
+            sections={timelineSections}
             keyExtractor={(item) => item.id}
+            stickySectionHeadersEnabled={false}
             renderItem={({ item }) => (
               <TaskListItem
                 task={mapToListItem(item)}
                 onComplete={handleCompleteTask}
                 onDelete={handleDeleteTask}
                 onPress={() => handlePressTask(item)}
+                onToggleSubtask={handleToggleSubtask}
               />
+            )}
+            renderSectionHeader={({ section }) => (
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <View style={[styles.sectionIndicator, { backgroundColor: section.badgeColor }]} />
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                  <View style={[styles.sectionBadge, { backgroundColor: section.badgeColor + '20' }]}>
+                    <Text style={[styles.sectionBadgeText, { color: section.badgeColor }]}>
+                      {section.totalCount ?? section.data.length}
+                    </Text>
+                  </View>
+                </View>
+                {section.collapsible && (
+                  <Pressable
+                    style={styles.collapseBtn}
+                    onPress={() => setIsCompletedCollapsed((prev) => !prev)}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.collapseBtnText}>
+                      {isCompletedCollapsed ? 'Show' : 'Hide'}
+                    </Text>
+                    <ChevronDown
+                      size={14}
+                      color="#94A3B8"
+                      style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
+                    />
+                  </Pressable>
+                )}
+              </View>
             )}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -287,6 +392,16 @@ export default function TasksScreen() {
           visible={isAddSheetVisible}
           subjects={subjects}
           onClose={() => setIsAddSheetVisible(false)}
+          onOpenScanner={() => {
+            setIsAddSheetVisible(false);
+            setIsScanModalVisible(true);
+          }}
+        />
+
+        <TaskScanModal
+          visible={isScanModalVisible}
+          subjects={subjects}
+          onClose={() => setIsScanModalVisible(false)}
         />
 
         <EditTaskSheet
@@ -462,5 +577,72 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scanHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(108, 142, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.25)',
+  },
+  scanHeaderBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6C8EFF',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: '#10131C',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#E2E8F0',
+    letterSpacing: 0.2,
+  },
+  sectionBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  collapseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  collapseBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
 });

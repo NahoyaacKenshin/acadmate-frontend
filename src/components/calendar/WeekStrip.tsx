@@ -1,16 +1,16 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Pressable, StyleSheet, PanResponder } from 'react-native';
-import { Text } from '../ui/text';
+import { View, Pressable, StyleSheet, PanResponder, Text } from 'react-native';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
-import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 import { TaskRow } from '@/src/hooks/useTasks';
 import { parseToPHTDate } from '@/src/utils/philippineTime';
 import { useUserStore, computeCurrentSet, StudentSet } from '@/src/store/userStore';
+import { useTheme } from '@/src/theme/useTheme';
 
 interface WeekStripProps {
   selectedDate: Date;
@@ -93,21 +93,17 @@ function getDayDots(
   studentSet?: StudentSet | null,
 ): string[] {
   const colors: string[] = [];
-  // Holiday dot (Regular/Suspension = Red #EF4444, Special = Green #10B981)
+
+  // 1. Holiday / Suspension dot (Crimson Red #EF4444)
   const dayHoliday = holidays.find((h) => {
     const hd = parseDateLocal(h.date) ?? new Date(h.date);
     return isSameDay(hd, date);
   });
   if (dayHoliday) {
-    const isSpecial =
-      dayHoliday.type === 'SPECIAL' ||
-      (dayHoliday.type !== 'REGULAR' &&
-        dayHoliday.type !== 'SUSPENSION' &&
-        !dayHoliday.name?.toLowerCase().includes('suspension'));
-    colors.push(isSpecial ? '#10B981' : '#EF4444');
+    colors.push(CALENDAR_THEME.HOLIDAY_SUSPENSION);
   }
 
-  // User-defined period dots — color depends on category (EXAM=amber, HOLIDAY=green, SUSPENSION=red)
+  // 2. User-defined period dots (EXAM = Amber, HOLIDAY/SUSPENSION = Crimson Red)
   for (const ew of examWeeks) {
     if (colors.length >= 3) break;
     const ewStart = parseDateLocal(ew.startDate);
@@ -116,28 +112,40 @@ function getDayDots(
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
     if (target >= ewStart && target <= ewEnd) {
-      colors.push(getPeriodColor(getPeriodCategory(ew)));
-      break; // one period dot per date is enough
+      const periodColor = getPeriodColor(getPeriodCategory(ew));
+      if (!colors.includes(periodColor)) {
+        colors.push(periodColor);
+      }
+      break;
     }
   }
 
-  // Class schedule dot (recurring — respects bounds, blockers, and active Set)
+  // 3. Class schedule dot (Class Blue #6C8EFF or Emerald)
   const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays, studentSet));
-  if (cls && colors.length < 3) colors.push(cls.subject_color ?? '#6C8EFF');
+  if (cls && colors.length < 3 && !colors.includes(CALENDAR_THEME.CLASS)) {
+    colors.push(CALENDAR_THEME.CLASS);
+  }
 
-  // Calendar events
+  // 4. Calendar events / subject exams (Amber for exams, Indigo for events)
   const dayEvents = events.filter((e) => isEventActiveOnDate(e, date));
   for (const ev of dayEvents) {
     if (colors.length >= 3) break;
-    colors.push(ev.subject_color ?? ev.color ?? '#6C8EFF');
+    const isExam =
+      Boolean(ev.description?.toLowerCase().includes('exam')) ||
+      Boolean(ev.title?.toLowerCase().includes('exam')) ||
+      Boolean(ev.description?.startsWith('🎓')) ||
+      Boolean(ev.title?.startsWith('🎓'));
+    const dotColor = isExam ? CALENDAR_THEME.EXAM : CALENDAR_THEME.EVENT;
+    if (!colors.includes(dotColor)) {
+      colors.push(dotColor);
+    }
   }
 
-  // Tasks (show task color on calendar)
+  // 5. Tasks (Emerald Green #10B981)
   if (tasks && colors.length < 3) {
     const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, date));
-    for (const t of dayTasks) {
-      if (colors.length >= 3) break;
-      colors.push(t.color ?? t.subject_color ?? '#6C8EFF');
+    if (dayTasks.length > 0 && !colors.includes(CALENDAR_THEME.TASK)) {
+      colors.push(CALENDAR_THEME.TASK);
     }
   }
 
@@ -157,6 +165,7 @@ export function WeekStrip({
   onNextWeek,
   onToggleMonth,
 }: WeekStripProps) {
+  const { colors, isDark } = useTheme();
   const { studentSet, anchorMonday, anchorSet } = useUserStore();
   const today = new Date();
   const todayNoTime = new Date();
@@ -192,24 +201,44 @@ export function WeekStrip({
   ).current;
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.card,
+          borderBottomColor: colors.border,
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
       {/* Week navigation row */}
       <View style={styles.navRow}>
         <Pressable onPress={onPrevWeek} style={styles.navBtn} hitSlop={12}>
-          <ChevronLeft size={16} color="#94A3B8" />
+          <ChevronLeft size={16} color={colors.mutedForeground} />
         </Pressable>
 
-        <Text style={styles.rangeLabel}>{rangeLabel}</Text>
+        <Text style={[styles.rangeLabel, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
+          {rangeLabel}
+        </Text>
 
         <Pressable onPress={onNextWeek} style={styles.navBtn} hitSlop={12}>
-          <ChevronRight size={16} color="#94A3B8" />
+          <ChevronRight size={16} color={colors.mutedForeground} />
         </Pressable>
 
         {/* Month expand/collapse toggle */}
-        <Pressable onPress={onToggleMonth} style={styles.toggleBtn} hitSlop={12}>
+        <Pressable
+          onPress={onToggleMonth}
+          style={[
+            styles.toggleBtn,
+            {
+              backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+            },
+          ]}
+          hitSlop={12}
+        >
           {isMonthExpanded
-            ? <ChevronUp size={16} color="#6C8EFF" />
-            : <ChevronDown size={16} color="#6C8EFF" />
+            ? <ChevronUp size={16} color="#6366F1" />
+            : <ChevronDown size={16} color="#6366F1" />
           }
         </Pressable>
       </View>
@@ -230,24 +259,32 @@ export function WeekStrip({
               onPress={() => onDayPress(d)}
             >
               {/* Short day name */}
-              <Text style={[
-                styles.dayName,
-                isSelected && styles.dayNameSelected,
-              ]}>
+              <Text
+                style={[
+                  styles.dayName,
+                  { color: colors.mutedForeground },
+                  isSelected && styles.dayNameSelected,
+                ]}
+              >
                 {DAY_SHORT[d.getDay()]}
               </Text>
 
               {/* Day number bubble */}
-              <View style={[
-                styles.dayBubble,
-                isSelected && styles.dayBubbleSelected,
-                !isSelected && isToday && styles.dayBubbleToday,
-              ]}>
-                <Text style={[
-                  styles.dayNumber,
-                  isSelected && styles.dayNumberSelected,
-                  !isSelected && isToday && styles.dayNumberToday,
-                ]}>
+              <View
+                style={[
+                  styles.dayBubble,
+                  isSelected && styles.dayBubbleSelected,
+                  !isSelected && isToday && styles.dayBubbleToday,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dayNumber,
+                    { color: colors.foreground },
+                    isSelected && styles.dayNumberSelected,
+                    !isSelected && isToday && styles.dayNumberToday,
+                  ]}
+                >
                   {d.getDate()}
                 </Text>
               </View>
@@ -270,12 +307,10 @@ const BUBBLE = 32;
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#10131C',
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
   },
   navRow: {
     flexDirection: 'row',
@@ -290,8 +325,9 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   toggleBtn: {
     padding: 4,
@@ -307,17 +343,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pastCell: {
-    opacity: 0.4,
+    opacity: 0.38,
   },
   dayName: {
     fontSize: 11,
-    fontWeight: '500',
-    color: '#94A3B8',
+    fontWeight: '600',
     marginBottom: 4,
     letterSpacing: 0.3,
+    includeFontPadding: false,
   },
   dayNameSelected: {
-    color: '#6C8EFF',
+    color: '#6366F1',
     fontWeight: '700',
   },
   dayBubble: {
@@ -328,16 +364,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dayBubbleSelected: {
-    backgroundColor: '#6C8EFF',
+    backgroundColor: '#6366F1',
   },
   dayBubbleToday: {
     borderWidth: 1.5,
-    borderColor: '#6C8EFF',
+    borderColor: '#6366F1',
   },
   dayNumber: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
   dayNumberSelected: {
     fontWeight: '700',
@@ -345,14 +381,14 @@ const styles = StyleSheet.create({
   },
   dayNumberToday: {
     fontWeight: '700',
-    color: '#6C8EFF',
+    color: '#6366F1',
   },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 2,
     marginTop: 3,
-    height: 6,
+    height: 5,
   },
   dot: {
     width: 4,
@@ -360,4 +396,3 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 });
-

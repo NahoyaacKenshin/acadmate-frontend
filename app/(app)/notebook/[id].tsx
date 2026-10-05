@@ -26,7 +26,6 @@ import { SourceViewerModal } from '@/src/components/notebook/SourceViewerModal';
 import { useSystemStore } from '@/src/store/systemStore';
 import {
   ArrowLeft,
-  Plus,
   Upload,
   FileText,
   PenLine,
@@ -36,6 +35,12 @@ import {
   Bell,
   WifiOff,
 } from 'lucide-react-native';
+import {
+  ActionMenuButton,
+  ActionMenuDropdown,
+  useActionMenu,
+  ActionMenuItem,
+} from '@/src/components/common/ActionMenuDropdown';
 
 export default function NotebookDetailScreen() {
   const router = useRouter();
@@ -61,7 +66,13 @@ export default function NotebookDetailScreen() {
   const [isUploadVisible, setIsUploadVisible] = useState(false);
   const [isNoteEditorVisible, setIsNoteEditorVisible] = useState(false);
   const [isSchedulerVisible, setIsSchedulerVisible] = useState(false);
-  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const {
+    isOpen: isActionMenuOpen,
+    isMounted: isActionMenuMounted,
+    anim: menuAnim,
+    closeMenu: closeActionMenu,
+    toggleMenu: toggleActionMenu,
+  } = useActionMenu();
   const [isEditVisible, setIsEditVisible] = useState(false);
   const [viewingSource, setViewingSource] = useState<Source | null>(null);
   const [editingSource, setEditingSource] = useState<Source | null>(null);
@@ -193,43 +204,27 @@ export default function NotebookDetailScreen() {
 
   // ─── Action Menu ──────────────────────────────────────────────────────────
 
-  const ActionMenu = () => (
-    <View style={styles.actionMenuContent}>
-      <Pressable
-        style={styles.actionMenuItem}
-        onPress={() => {
-          setIsActionMenuOpen(false);
-          setIsUploadVisible(true);
-        }}
-      >
-        <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(108,142,255,0.15)' }]}>
-          <Upload size={18} color="#6C8EFF" />
-        </View>
-        <View>
-          <Text style={styles.actionMenuLabel}>Upload File</Text>
-          <Text style={styles.actionMenuSub}>PDF, DOCX, Image</Text>
-        </View>
-      </Pressable>
-
-      <View style={styles.actionMenuDivider} />
-
-      <Pressable
-        style={styles.actionMenuItem}
-        onPress={() => {
-          setIsActionMenuOpen(false);
-          setIsNoteEditorVisible(true);
-        }}
-      >
-        <View style={[styles.actionMenuIcon, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
-          <PenLine size={18} color="#22C55E" />
-        </View>
-        <View>
-          <Text style={styles.actionMenuLabel}>Write a Note</Text>
-          <Text style={styles.actionMenuSub}>Plain-text note</Text>
-        </View>
-      </Pressable>
-    </View>
-  );
+  // Action Menu Items
+  const sourceMenuItems: ActionMenuItem[] = [
+    {
+      id: 'upload',
+      label: 'Upload File',
+      subtitle: 'PDF, DOCX, or image document',
+      icon: Upload,
+      iconColor: '#6C8EFF',
+      iconBg: 'rgba(108, 142, 255, 0.15)',
+      onPress: () => setIsUploadVisible(true),
+    },
+    {
+      id: 'note',
+      label: 'Write a Note',
+      subtitle: 'Plain-text study material',
+      icon: PenLine,
+      iconColor: '#22C55E',
+      iconBg: 'rgba(34, 197, 94, 0.15)',
+      onPress: () => setIsNoteEditorVisible(true),
+    },
+  ];
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -328,27 +323,25 @@ export default function NotebookDetailScreen() {
             <MessageSquare size={16} color="#6C8EFF" />
             <Text style={styles.askAiLabel}>Ask AI</Text>
           </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
-            onPress={() => setIsActionMenuOpen((v) => !v)}
-          >
-            <Plus size={22} color="#6C8EFF" />
-          </Pressable>
+          <ActionMenuButton
+            isOpen={isActionMenuOpen}
+            onPress={toggleActionMenu}
+            anim={menuAnim}
+            accessibilityLabel="Add study material"
+          />
         </View>
       </View>
 
-      {/* ── Action Menu Overlay ── */}
-      {isActionMenuOpen && (
-        <>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setIsActionMenuOpen(false)}
-          />
-          <View style={[styles.actionMenu, { top: headerHeight + 4 }]}>
-            <ActionMenu />
-          </View>
-        </>
-      )}
+      {/* Action Menu Dropdown */}
+      <ActionMenuDropdown
+        isMounted={isActionMenuMounted}
+        isOpen={isActionMenuOpen}
+        anim={menuAnim}
+        onClose={closeActionMenu}
+        items={sourceMenuItems}
+        top={headerHeight + 56}
+        right={16}
+      />
 
       {/* ── Error Banner ── */}
       {error && (
@@ -482,6 +475,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1A1F2E',
     gap: 12,
+    zIndex: 150,
+    elevation: 15,
   },
   headerLeft: {
     flex: 1,
@@ -492,9 +487,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -513,22 +508,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   refreshBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: '#161A26',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.3)',
+    borderColor: '#2A3143',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   askAiBtn: {
     flexDirection: 'row',
@@ -545,54 +532,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#6C8EFF',
-  },
-  // ── Action Menu ───────────────────────────────────────────────────────────
-  actionMenu: {
-    // Positioning only — top is set dynamically via headerHeight
-    position: 'absolute',
-    right: 16,
-    zIndex: 999,
-    width: 220,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  actionMenuContent: {
-    backgroundColor: '#161A26',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    overflow: 'hidden',
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  actionMenuIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionMenuLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  actionMenuSub: {
-    fontSize: 12,
-    color: '#4A5568',
-    marginTop: 2,
-  },
-  actionMenuDivider: {
-    height: 1,
-    backgroundColor: '#1A1F2E',
-    marginHorizontal: 14,
   },
   // ── Error ─────────────────────────────────────────────────────────────────
   errorBanner: {

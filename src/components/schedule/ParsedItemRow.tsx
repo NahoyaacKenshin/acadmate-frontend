@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { X, BookOpen, CalendarDays, GraduationCap, Pencil } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 // ── Types (mirroring backend ParsedScheduleResult) ───────────────────────────
 
@@ -101,28 +101,30 @@ interface ClassRowProps {
 }
 
 export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject, onEdit }: ClassRowProps) {
+  const { colors, isDark } = useTheme();
+
   return (
-    <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)' }]}>
         <BookOpen size={16} color="#10B981" />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
         <View style={styles.titleRow}>
-          <Text style={styles.rowTitle} numberOfLines={1}>{item.subjectName}</Text>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.subjectName}</Text>
           {isNewSubject && (
             <Pressable style={styles.newSubjectBadge} onPress={onCreateSubject}>
               <Text style={styles.newSubjectText}>+ New Subject</Text>
             </Pressable>
           )}
         </View>
-        <Text style={styles.rowSub}>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
           {DAY_LABELS[item.dayOfWeek]} · {to12h(item.startTime)} – {to12h(item.endTime)}
           {item.modality ? `  ·  ${item.modality}` : ''}
           {item.room ? `  ·  ${item.room}` : ''}
         </Text>
         {(item.startDate || item.setType) && (
-          <Text style={styles.rowMeta}>
+          <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>
             {item.setType && item.setType !== 'BOTH' ? `Set ${item.setType}  ·  ` : ''}
             {item.startDate ? formatDate(item.startDate) : ''}
             {item.endDate ? ` – ${formatDate(item.endDate)}` : ''}
@@ -130,8 +132,12 @@ export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject
         )}
       </Pressable>
 
-      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-        <X size={16} color="#64748B" />
+      <Pressable
+        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+        onPress={onRemove}
+        hitSlop={8}
+      >
+        <X size={16} color={colors.mutedForeground} />
       </Pressable>
     </View>
   );
@@ -146,23 +152,29 @@ interface EventRowProps {
 }
 
 export function CalendarEventRow({ item, onRemove, onEdit }: EventRowProps) {
+  const { colors, isDark } = useTheme();
+
   return (
-    <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: 'rgba(108, 142, 255, 0.15)' }]}>
-        <CalendarDays size={16} color="#6C8EFF" />
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
+        <CalendarDays size={16} color="#6366F1" />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.rowSub}>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
           {item.allDay ? 'All Day  ·  ' : ''}{formatDate(item.startDate)}
           {item.endDate && item.endDate !== item.startDate ? ` – ${formatDate(item.endDate)}` : ''}
           {item.location ? `  ·  ${item.location}` : ''}
         </Text>
       </Pressable>
 
-      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-        <X size={16} color="#64748B" />
+      <Pressable
+        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+        onPress={onRemove}
+        hitSlop={8}
+      >
+        <X size={16} color={colors.mutedForeground} />
       </Pressable>
     </View>
   );
@@ -177,31 +189,40 @@ interface ExamBlockerRowProps {
 }
 
 export function ExamBlockerRow({ item, onRemove, onEdit }: ExamBlockerRowProps) {
+  const { colors, isDark } = useTheme();
   const startStr = formatDate(item.startDate);
   const endStr = formatDate(item.endDate);
   const dateSub = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
 
   return (
-    <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
         <GraduationCap size={16} color="#F59E0B" />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
         <Text style={[styles.rowSub, { color: '#F59E0B' }]}>
-          🛡️ Class Blocker  ·  {dateSub}
+          Class Blocker  ·  {dateSub}
         </Text>
       </Pressable>
 
       <View style={styles.actionButtons}>
         {onEdit && (
-          <Pressable style={styles.editBtn} onPress={onEdit} hitSlop={8}>
-            <Pencil size={15} color="#94A3B8" />
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
           </Pressable>
         )}
-        <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-          <X size={16} color="#64748B" />
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
         </Pressable>
       </View>
     </View>
@@ -217,6 +238,7 @@ interface ExamEventRowProps {
 }
 
 export function ExamEventRow({ item, onRemove, onEdit }: ExamEventRowProps) {
+  const { colors, isDark } = useTheme();
   const isPending = !item.startDate && item.dayOfWeek != null;
   const dayLabel = item.dayOfWeek != null ? DAY_LABELS[item.dayOfWeek] : null;
 
@@ -239,33 +261,41 @@ export function ExamEventRow({ item, onRemove, onEdit }: ExamEventRowProps) {
     return `${datePart}${timePart ? `  ·  ${timePart}` : (timeSub ? `  ·  ${timeSub}` : '')}`;
   })();
 
-  const roomSub = item.room ? `  ·  📍 ${item.room}` : '';
+  const roomSub = item.room ? `  ·  ${item.room}` : '';
 
   return (
-    <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: isPending ? 'rgba(100,116,139,0.15)' : 'rgba(139, 92, 246, 0.15)' }]}>
-        <GraduationCap size={16} color={isPending ? '#64748B' : '#8B5CF6'} />
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isPending ? (isDark ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.1)') : (isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)') }]}>
+        <GraduationCap size={16} color={isPending ? colors.mutedForeground : '#6366F1'} />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
         {isPending ? (
-          <Text style={[styles.rowSub, { color: '#64748B', fontStyle: 'italic' }]}>
+          <Text style={[styles.rowSub, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
             {dayLabel}{timeSub ? `  ·  ${timeSub}` : ''}{'  —  Tap to assign date'}{roomSub}
           </Text>
         ) : (
-          <Text style={styles.rowSub}>{(dateSub ?? timeSub ?? 'Exam session') + roomSub}</Text>
+          <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{(dateSub ?? timeSub ?? 'Exam session') + roomSub}</Text>
         )}
       </Pressable>
 
       <View style={styles.actionButtons}>
         {onEdit && (
-          <Pressable style={styles.editBtn} onPress={onEdit} hitSlop={8}>
-            <Pencil size={15} color="#94A3B8" />
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
           </Pressable>
         )}
-        <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-          <X size={16} color="#64748B" />
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
         </Pressable>
       </View>
     </View>
@@ -281,6 +311,7 @@ interface ExamWeekRowProps {
 }
 
 export function ExamWeekRow({ item, onRemove, onEdit }: ExamWeekRowProps) {
+  const { colors, isDark } = useTheme();
   const isPending = !item.startDate && item.dayOfWeek != null;
   const dayLabel = item.dayOfWeek != null ? DAY_LABELS[item.dayOfWeek] : null;
 
@@ -307,24 +338,28 @@ export function ExamWeekRow({ item, onRemove, onEdit }: ExamWeekRowProps) {
   })();
 
   return (
-    <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: isPending ? 'rgba(100,116,139,0.15)' : 'rgba(139, 92, 246, 0.15)' }]}>
-        <GraduationCap size={16} color={isPending ? '#64748B' : '#8B5CF6'} />
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isPending ? (isDark ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.1)') : (isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)') }]}>
+        <GraduationCap size={16} color={isPending ? colors.mutedForeground : '#6366F1'} />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
         {isPending ? (
-          <Text style={[styles.rowSub, { color: '#64748B', fontStyle: 'italic' }]}>
+          <Text style={[styles.rowSub, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
             {dayLabel}{timeSub ? `  ·  ${timeSub}` : ''}{'  —  Tap to assign date'}
           </Text>
         ) : (
-          <Text style={styles.rowSub}>{dateSub ?? timeSub ?? ''}</Text>
+          <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{dateSub ?? timeSub ?? ''}</Text>
         )}
       </Pressable>
 
-      <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-        <X size={16} color="#64748B" />
+      <Pressable
+        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+        onPress={onRemove}
+        hitSlop={8}
+      >
+        <X size={16} color={colors.mutedForeground} />
       </Pressable>
     </View>
   );
@@ -339,7 +374,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1F2E',
   },
   iconWrap: {
     width: 36,
@@ -362,18 +396,19 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#ffffff',
     flexShrink: 1,
+    includeFontPadding: false,
+    letterSpacing: -0.2,
   },
   rowSub: {
     fontSize: 12,
-    color: '#94A3B8',
     lineHeight: 17,
+    includeFontPadding: false,
   },
   rowMeta: {
     fontSize: 11,
-    color: '#64748B',
     marginTop: 2,
+    includeFontPadding: false,
   },
   newSubjectBadge: {
     backgroundColor: 'rgba(245, 158, 11, 0.18)',
@@ -382,11 +417,14 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.4)',
+    flexShrink: 0,
   },
   newSubjectText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#F59E0B',
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -398,7 +436,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#1A1F2E',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -406,9 +443,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#1A1F2E',
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
+
 

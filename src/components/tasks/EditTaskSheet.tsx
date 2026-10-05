@@ -13,17 +13,30 @@ import {
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Text } from '../ui/text';
 import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar, CheckSquare, AlertCircle } from 'lucide-react-native';
+import {
+  X,
+  ChevronDown,
+  Calendar,
+  CheckSquare,
+  AlertCircle,
+  Sparkles,
+  Plus,
+  Trash2,
+  ListChecks,
+  Check,
+} from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
-import { SubjectRow } from '@/src/hooks/useSubjects';
+import { SubjectRow, useSubjects } from '@/src/hooks/useSubjects';
 import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
-import { TaskRow } from '@/src/hooks/useTasks';
+import { TaskRow, SubtaskItem } from '@/src/hooks/useTasks';
 import { NotificationService } from '@/src/services/notificationService';
+import { ApiService } from '@/src/services/api';
+import { assertOnline, classifyError } from '@/src/lib/aiRequest';
 
 interface EditTaskSheetProps {
   visible: boolean;
   task: TaskRow | null;
-  subjects: SubjectRow[];
+  subjects?: SubjectRow[];
   onClose: () => void;
 }
 
@@ -51,14 +64,19 @@ function formatDateTime(date: Date): string {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
-export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskSheetProps) {
+export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }: EditTaskSheetProps) {
   const powerSync = usePowerSync();
+  const { subjects: dbSubjects } = useSubjects();
+  const subjects = propSubjects ?? dbSubjects;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
+  const [isGeneratingSubtasks, setIsGeneratingSubtasks] = useState(false);
+  const [newSubtaskText, setNewSubtaskText] = useState('');
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +90,19 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
       setDueDate(task.due_date ? (parseToPHTDate(task.due_date) ?? new Date(task.due_date)) : null);
       setSelectedColor(task.color ?? PRESET_COLORS[0]);
       setSelectedSubjectId(task.subject_id);
+
+      if (task.subtasks) {
+        try {
+          const parsed = JSON.parse(task.subtasks);
+          setSubtasks(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setSubtasks([]);
+        }
+      } else {
+        setSubtasks([]);
+      }
+
+      setNewSubtaskText('');
       setShowSubjectPicker(false);
       setDatePickerStep(null);
       setError(null);
@@ -135,6 +166,53 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     setDatePickerStep(null);
   };
 
+  const handleAIBreakdown = async () => {
+    if (!title.trim()) {
+      setError('Please provide a task title first.');
+      return;
+    }
+    setIsGeneratingSubtasks(true);
+    setError(null);
+    try {
+      assertOnline();
+      const res = await ApiService.tasks.breakdown({
+        title: title.trim(),
+        description: description.trim() || null,
+        dueDate: dueDate ? toPhilippineISO(dueDate) : null,
+      });
+      const generated = res?.data?.subtasks ?? [];
+      if (generated.length > 0) {
+        setSubtasks(generated);
+      }
+    } catch (err: any) {
+      const classified = classifyError(err);
+      setError(classified.message);
+    } finally {
+      setIsGeneratingSubtasks(false);
+    }
+  };
+
+  const handleToggleSubtask = (id: string) => {
+    setSubtasks((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
+    );
+  };
+
+  const handleDeleteSubtask = (id: string) => {
+    setSubtasks((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleAddSubtask = () => {
+    if (!newSubtaskText.trim()) return;
+    const newItem: SubtaskItem = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      title: newSubtaskText.trim(),
+      completed: false,
+    };
+    setSubtasks((prev) => [...prev, newItem]);
+    setNewSubtaskText('');
+  };
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
@@ -150,11 +228,14 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     try {
       const now = toPhilippineISO(new Date());
       const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
+      const subtasksJson = JSON.stringify(subtasks);
+
+      const finalColor = task.color ?? selectedSubject?.color ?? '#6C8EFF';
 
       await powerSync.execute(
-        `UPDATE Task SET title = ?, description = ?, dueDate = ?, color = ?, subjectId = ?, updatedAt = ?
+        `UPDATE Task SET title = ?, description = ?, dueDate = ?, color = ?, subtasks = ?, subjectId = ?, updatedAt = ?
          WHERE id = ?`,
-        [title.trim(), description.trim() || null, dueDateISO, selectedColor, selectedSubjectId, now, task.id]
+        [title.trim(), description.trim() || null, dueDateISO, finalColor, subtasksJson, selectedSubjectId, now, task.id]
       );
 
       // Cancel previous notification alarms
@@ -168,7 +249,8 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
           description: description.trim() || null,
           due_date: dueDateISO,
           completed: 0,
-          color: selectedColor,
+          color: finalColor,
+          subtasks: subtasksJson,
           subject_id: selectedSubjectId,
           user_id: task.user_id,
           created_at: task.created_at,
@@ -254,6 +336,78 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
               />
             </View>
 
+            {/* Subtasks Section with AI Breakdown */}
+            <View style={styles.formGroup}>
+              <View style={styles.subtasksHeaderRow}>
+                <View style={styles.subtasksTitleRow}>
+                  <ListChecks size={14} color="#6C8EFF" />
+                  <Text style={styles.label}>
+                    Subtasks ({subtasks.filter((s) => s.completed).length}/{subtasks.length})
+                  </Text>
+                </View>
+                <Pressable
+                  style={[styles.aiBreakdownBtn, (!title.trim() || isGeneratingSubtasks) && { opacity: 0.5 }]}
+                  onPress={handleAIBreakdown}
+                  disabled={!title.trim() || isGeneratingSubtasks}
+                >
+                  {isGeneratingSubtasks ? (
+                    <ActivityIndicator size="small" color="#6C8EFF" />
+                  ) : (
+                    <>
+                      <Sparkles size={12} color="#6C8EFF" />
+                      <Text style={styles.aiBreakdownBtnText}>Break it down</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* Subtask items list */}
+              {subtasks.length > 0 && (
+                <View style={styles.subtaskList}>
+                  {subtasks.map((st) => (
+                    <View key={st.id} style={styles.subtaskEditRow}>
+                      <Pressable
+                        style={[styles.subtaskCheck, st.completed && styles.subtaskCheckDone]}
+                        onPress={() => handleToggleSubtask(st.id)}
+                        hitSlop={6}
+                      >
+                        {st.completed && <Check size={10} color="#fff" strokeWidth={3} />}
+                      </Pressable>
+                      <Text
+                        style={[styles.subtaskEditText, st.completed && styles.subtaskEditTextDone]}
+                        numberOfLines={2}
+                      >
+                        {st.title}
+                      </Text>
+                      <Pressable onPress={() => handleDeleteSubtask(st.id)} hitSlop={6}>
+                        <Trash2 size={14} color="#64748B" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Add subtask input */}
+              <View style={styles.addSubtaskRow}>
+                <TextInput
+                  style={styles.addSubtaskInput}
+                  value={newSubtaskText}
+                  onChangeText={setNewSubtaskText}
+                  placeholder="Add a milestone step..."
+                  placeholderTextColor="#475569"
+                  onSubmitEditing={handleAddSubtask}
+                  returnKeyType="done"
+                />
+                <Pressable
+                  style={[styles.addSubtaskBtn, !newSubtaskText.trim() && { opacity: 0.5 }]}
+                  onPress={handleAddSubtask}
+                  disabled={!newSubtaskText.trim()}
+                >
+                  <Plus size={16} color="#ffffff" />
+                </Pressable>
+              </View>
+            </View>
+
             {/* Due Date & Time */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
@@ -296,23 +450,6 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
               )}
             </View>
 
-            {/* Color Picker */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Color</Text>
-              <View style={styles.colorRow}>
-                {PRESET_COLORS.map((color) => (
-                  <Pressable
-                    key={color}
-                    style={[
-                      styles.colorSwatch,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.colorSwatchSelected,
-                    ]}
-                    onPress={() => setSelectedColor(color)}
-                  />
-                ))}
-              </View>
-            </View>
 
             {/* Subject */}
             <View style={styles.formGroup}>
@@ -341,7 +478,6 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
                         style={styles.pickerItem}
                         onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
                       >
-                        <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
                         <Text style={styles.pickerItemText}>{s.name}</Text>
                       </Pressable>
                     ))}
@@ -560,6 +696,93 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  subtasksHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  subtasksTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiBreakdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(108, 142, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(108, 142, 255, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  aiBreakdownBtnText: {
+    fontSize: 11,
+    color: '#6C8EFF',
+    fontWeight: '600',
+  },
+  subtaskList: {
+    backgroundColor: '#10131C',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    padding: 10,
+    gap: 8,
+    marginBottom: 8,
+  },
+  subtaskEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  subtaskCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#4A5568',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtaskCheckDone: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  subtaskEditText: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    flex: 1,
+  },
+  subtaskEditTextDone: {
+    color: '#64748B',
+    textDecorationLine: 'line-through',
+  },
+  addSubtaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addSubtaskInput: {
+    flex: 1,
+    backgroundColor: '#10131C',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2A3143',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#ffffff',
+  },
+  addSubtaskBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#6C8EFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
