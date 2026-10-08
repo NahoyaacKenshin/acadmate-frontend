@@ -126,7 +126,7 @@ export function ClassDetailModal({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <BookOpen size={16} color="#10B981" />
+                <BookOpen size={16} color="#6366F1" />
               </View>
               <Text style={styles.headerTitle}>Class Details</Text>
             </View>
@@ -300,8 +300,8 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       height: 32,
       borderRadius: 8,
       borderWidth: 1,
-      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
-      borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)',
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -349,9 +349,10 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     modalityBadgeText: {
       fontSize: 11,
       fontWeight: '700',
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
       includeFontPadding: false,
       flexShrink: 0,
+      paddingRight: 4,
     },
     setTag: {
       paddingHorizontal: 9,

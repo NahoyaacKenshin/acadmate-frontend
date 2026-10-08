@@ -15,6 +15,7 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 import { promptGoogleSignIn } from '@/src/lib/google-auth';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
+import { formatAuthErrorMessage } from '../auth.error';
 
 type FieldErrors = {
   email?: string;
@@ -91,10 +92,10 @@ export function SignupForm() {
       await loginWithGoogle(idToken);
     } catch (err) {
       if (err instanceof Error && err.message === 'CANCELLED') return;
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Unable to connect to Google. Please check your internet connection.';
+      const message = formatAuthErrorMessage(
+        err,
+        'Unable to connect to Google. Please check your internet connection and try again.'
+      );
       setError(message);
       Alert.alert('Sign-Up Error', message);
     } finally {
@@ -122,6 +123,10 @@ export function SignupForm() {
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="off"
+            importantForAutofill="no"
+            textContentType="none"
+            spellCheck={false}
             keyboardType="email-address"
             placeholder="name@university.edu"
             placeholderTextColor={colors.mutedForeground}
@@ -157,6 +162,12 @@ export function SignupForm() {
           <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Password</Text>
           <View style={styles.passwordWrap}>
             <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              spellCheck={false}
               placeholder="Create a strong password"
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPassword}

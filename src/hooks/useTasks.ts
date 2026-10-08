@@ -6,6 +6,34 @@ export interface SubtaskItem {
   completed: boolean;
 }
 
+/**
+ * Robust parser for subtasks, supporting JSON strings, native arrays, and objects
+ * to prevent subtasks from silently disappearing if already parsed or differently formatted.
+ */
+export function parseSubtasks(raw: unknown): SubtaskItem[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((s) => s && typeof s === 'object' && typeof (s as any).title === 'string')
+      .map((s: any, idx) => ({
+        id: String(s.id || idx + 1),
+        title: String(s.title),
+        completed: Boolean(s.completed),
+      }));
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === '[]') return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parseSubtasks(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export interface TaskRow {
   id: string;
   title: string;

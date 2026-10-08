@@ -1,4 +1,9 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import {
+  isNetworkError,
+  USER_FRIENDLY_NETWORK_ERROR,
+  formatAuthErrorMessage,
+} from '@/src/features/auth/auth.error';
 
 /**
  * Configure Google Sign-In. Call this once at app startup (e.g., in _layout.tsx).
@@ -52,34 +57,17 @@ export async function promptGoogleSignIn(): Promise<string> {
       if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new Error('Google Play Services is not available on this device.');
       }
-      // Status code 7 is NETWORK_ERROR in Google Play Services
-      if (
-        code === '7' ||
-        code === 'NETWORK_ERROR' ||
-        (statusCodes as any).NETWORK_ERROR === code
-      ) {
-        throw new Error('No internet connection. Please check your Wi-Fi or cellular data and try again.');
-      }
     }
 
-    const rawMessage = (error as any)?.message ? String((error as any).message) : '';
-    const lowerMsg = rawMessage.toLowerCase();
-    if (
-      lowerMsg.includes('network') ||
-      lowerMsg.includes('offline') ||
-      lowerMsg.includes('internet') ||
-      lowerMsg.includes('connection') ||
-      lowerMsg.includes('failed to connect') ||
-      lowerMsg.includes('timeout')
-    ) {
-      throw new Error('No internet connection. Please check your Wi-Fi or cellular data and try again.');
+    if (isNetworkError(error)) {
+      throw new Error(USER_FRIENDLY_NETWORK_ERROR);
     }
 
     if (error instanceof Error) {
-      throw error;
+      throw new Error(formatAuthErrorMessage(error, 'Google Sign-In failed. Please try again.'));
     }
 
-    throw new Error(rawMessage || 'Google Sign-In failed. Please check your internet connection.');
+    throw new Error(USER_FRIENDLY_NETWORK_ERROR);
   }
 }
 

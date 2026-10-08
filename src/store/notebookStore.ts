@@ -122,16 +122,14 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   },
 
   updateNotebook: async (id, data) => {
-    const res = await ApiService.notebooks.update(id, data);
-    const updated = res?.data ?? res?.notebook ?? res;
     let mappedNotebook: Notebook | null = null;
     const updatedList = get().notebooks.map((n) => {
       if (n.id === id) {
         const m: Notebook = {
           ...n,
-          title: updated.title ?? (data.title ?? n.title),
-          description: updated.description !== undefined ? updated.description : (data.description !== undefined ? data.description : n.description),
-          updatedAt: updated.updatedAt ?? new Date().toISOString(),
+          title: data.title ?? n.title,
+          description: data.description !== undefined ? data.description : n.description,
+          updatedAt: new Date().toISOString(),
         };
         mappedNotebook = m;
         return m;
@@ -140,16 +138,52 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     });
     set({ notebooks: updatedList });
     NotebookStorage.saveNotebooks(updatedList);
-    return mappedNotebook ?? updated;
+
+    const { isOnline } = useSystemStore.getState();
+    if (isOnline) {
+      try {
+        const res = await ApiService.notebooks.update(id, data);
+        const updated = res?.data ?? res?.notebook ?? res;
+        if (updated) {
+          const refinedList = get().notebooks.map((n) => {
+            if (n.id === id) {
+              const m: Notebook = {
+                ...n,
+                title: updated.title ?? n.title,
+                description: updated.description !== undefined ? updated.description : n.description,
+                updatedAt: updated.updatedAt ?? n.updatedAt,
+              };
+              mappedNotebook = m;
+              return m;
+            }
+            return n;
+          });
+          set({ notebooks: refinedList });
+          NotebookStorage.saveNotebooks(refinedList);
+        }
+      } catch (err) {
+        console.warn('[notebookStore] updateNotebook API sync failed:', err);
+      }
+    }
+
+    return mappedNotebook ?? get().notebooks.find((n) => n.id === id)!;
   },
 
   deleteNotebook: async (id) => {
-    await ApiService.notebooks.delete(id);
     const filtered = get().notebooks.filter((n) => n.id !== id);
     const updatedPinned = get().pinnedIds.filter((x) => x !== id);
     set({ notebooks: filtered, pinnedIds: updatedPinned });
     NotebookStorage.saveNotebooks(filtered);
     NotebookStorage.savePinnedIds(updatedPinned);
+
+    const { isOnline } = useSystemStore.getState();
+    if (isOnline) {
+      try {
+        await ApiService.notebooks.delete(id);
+      } catch (err) {
+        console.warn('[notebookStore] deleteNotebook API sync failed:', err);
+      }
+    }
   },
 
   fetchSources: async (notebookId, silent = false) => {
@@ -209,7 +243,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   },
 
   deleteSource: async (notebookId, sourceId) => {
-    await ApiService.sources.delete(notebookId, sourceId);
     const currentSources = get().sourcesByNotebook[notebookId] || [];
     const filtered = currentSources.filter((s) => s.id !== sourceId);
     set((state) => ({
@@ -217,8 +250,20 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         ...state.sourcesByNotebook,
         [notebookId]: filtered,
       },
+      notebooks: state.notebooks.map((nb) =>
+        nb.id === notebookId ? { ...nb, sourceCount: Math.max(0, (nb.sourceCount || 1) - 1) } : nb
+      ),
     }));
     NotebookStorage.saveSources(notebookId, filtered);
+
+    const { isOnline } = useSystemStore.getState();
+    if (isOnline) {
+      try {
+        await ApiService.sources.delete(notebookId, sourceId);
+      } catch (err) {
+        console.warn('[notebookStore] deleteSource API sync failed:', err);
+      }
+    }
   },
 
   retrySource: async (notebookId, sourceId) => {
@@ -239,8 +284,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   },
 
   updateSource: async (notebookId, sourceId, data) => {
-    const res = await ApiService.sources.update(notebookId, sourceId, data);
-    const updatedSource = res?.data ?? res?.source ?? res;
     set((state) => {
       const currentSources = state.sourcesByNotebook[notebookId] || [];
       const updated = currentSources.map((s) => {
@@ -249,11 +292,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
             ...s,
             fileName: data.fileName?.trim() || s.fileName,
             rawText: data.rawText !== undefined ? data.rawText : s.rawText,
-            ...(updatedSource ? {
-              fileName: updatedSource.fileName ?? s.fileName,
-              rawText: updatedSource.rawText ?? s.rawText,
-              chunkCount: updatedSource.chunkCount ?? s.chunkCount,
-            } : {}),
           };
         }
         return s;
@@ -266,6 +304,39 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         },
       };
     });
+
+    const { isOnline } = useSystemStore.getState();
+    if (isOnline) {
+      try {
+        const res = await ApiService.sources.update(notebookId, sourceId, data);
+        const updatedSource = res?.data ?? res?.source ?? res;
+        if (updatedSource) {
+          set((state) => {
+            const currentSources = state.sourcesByNotebook[notebookId] || [];
+            const updated = currentSources.map((s) => {
+              if (s.id === sourceId) {
+                return {
+                  ...s,
+                  fileName: updatedSource.fileName ?? s.fileName,
+                  rawText: updatedSource.rawText ?? s.rawText,
+                  chunkCount: updatedSource.chunkCount ?? s.chunkCount,
+                };
+              }
+              return s;
+            });
+            NotebookStorage.saveSources(notebookId, updated);
+            return {
+              sourcesByNotebook: {
+                ...state.sourcesByNotebook,
+                [notebookId]: updated,
+              },
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[notebookStore] updateSource API sync failed:', err);
+      }
+    }
   },
 }));
 

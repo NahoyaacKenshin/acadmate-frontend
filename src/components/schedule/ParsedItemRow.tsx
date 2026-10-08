@@ -18,7 +18,7 @@ export interface ParsedClassSchedule {
   endTime: string;
   subjectName: string;
   room?: string | null;
-  modality?: 'F2F' | 'ONLINE' | 'HYBRID';
+  modality?: 'F2F' | 'ONLINE';
   setType?: 'A' | 'B' | 'BOTH' | null;
   startDate?: string;
   endDate?: string | null;
@@ -90,6 +90,11 @@ function to12h(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+export function isExamKeyword(text?: string | null): boolean {
+  if (!text) return false;
+  return /\b(exam|examination|examinations|midterm|midterms|final|finals|prelim|prelims|semi-?final|semifinal|periodical|summative|assessment|quiz)\b/i.test(text);
+}
+
 // ── ClassSchedule row ─────────────────────────────────────────────────────────
 
 interface ClassRowProps {
@@ -100,13 +105,19 @@ interface ClassRowProps {
   onEdit?: () => void;
 }
 
-export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject, onEdit }: ClassRowProps) {
+export function ClassScheduleRow({
+  item,
+  isNewSubject,
+  onRemove,
+  onCreateSubject,
+  onEdit,
+}: ClassRowProps) {
   const { colors, isDark } = useTheme();
 
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
-      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)' }]}>
-        <BookOpen size={16} color="#10B981" />
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
+        <BookOpen size={16} color="#6366F1" />
       </View>
 
       <Pressable style={styles.content} onPress={onEdit}>
@@ -121,7 +132,7 @@ export function ClassScheduleRow({ item, isNewSubject, onRemove, onCreateSubject
         <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
           {DAY_LABELS[item.dayOfWeek]} · {to12h(item.startTime)} – {to12h(item.endTime)}
           {item.modality ? `  ·  ${item.modality}` : ''}
-          {item.room ? `  ·  ${item.room}` : ''}
+          {item.room && item.room.trim().toLowerCase() !== item.modality?.toLowerCase() && !/^(online|virtual|n\/?a|none)$/i.test(item.room.trim()) ? `  ·  ${item.room}` : ''}
         </Text>
         {(item.startDate || item.setType) && (
           <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>

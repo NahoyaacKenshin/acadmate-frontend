@@ -30,6 +30,8 @@ import { EventDetailModal } from '@/src/components/calendar/EventDetailModal';
 import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { AddExamWeekModal } from '@/src/components/calendar/AddExamWeekModal';
+import { StudySessionDetailModal } from '@/src/components/calendar/StudySessionDetailModal';
+import { EditStudySessionSheet } from '@/src/components/calendar/EditStudySessionSheet';
 
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
@@ -100,6 +102,8 @@ export default function CalendarScreen() {
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [viewingTask, setViewingTask] = useState<TaskRow | null>(null);
   const [editingExamWeek, setEditingExamWeek] = useState<import('@/src/hooks/useExamWeeks').ExamWeekRow | null>(null);
+  const [viewingStudySession, setViewingStudySession] = useState<CalendarEventRow | null>(null);
+  const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
 
   // Data
   const { events } = useCalendarEvents();
@@ -142,6 +146,16 @@ export default function CalendarScreen() {
       }
     } catch (err) {
       console.error('[Calendar] Toggle task failed:', err);
+    }
+  };
+
+  const handleDeleteStudySession = async (session: CalendarEventRow) => {
+    try {
+      await powerSync.execute(`DELETE FROM CalendarEvent WHERE id = ?`, [session.id]);
+      await NotificationService.cancelNotification(session.id);
+      setViewingStudySession(null);
+    } catch (err) {
+      console.error('[Calendar] Failed to delete study session:', err);
     }
   };
 
@@ -215,8 +229,8 @@ export default function CalendarScreen() {
       label: 'Add Event',
       subtitle: 'One-off event or appointment',
       icon: CalendarDays,
-      iconColor: '#6366F1',
-      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      iconColor: '#8B5CF6',
+      iconBg: isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(139, 92, 246, 0.1)',
       onPress: openAddEvent,
     },
     {
@@ -233,8 +247,8 @@ export default function CalendarScreen() {
       label: 'Add Class',
       subtitle: 'Recurring weekly class schedule',
       icon: BookOpen,
-      iconColor: '#10B981',
-      iconBg: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.1)',
+      iconColor: '#6366F1',
+      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
       onPress: openAddClass,
     },
     {
@@ -336,6 +350,8 @@ export default function CalendarScreen() {
           onTaskPress={(t) => setViewingTask(t)}
           onEditTaskPress={(t) => setEditingTask(t)}
           onToggleTask={handleToggleTask}
+          onStudySessionPress={(s) => setViewingStudySession(s)}
+          onEditStudySessionPress={(s) => setEditingStudySession(s)}
         />
 
         {/* Sheets */}
@@ -403,6 +419,22 @@ export default function CalendarScreen() {
             setIsAddExamWeekVisible(false);
             setEditingExamWeek(null);
           }}
+        />
+        <StudySessionDetailModal
+          visible={viewingStudySession !== null}
+          event={viewingStudySession}
+          onClose={() => setViewingStudySession(null)}
+          onEdit={(s) => {
+            setViewingStudySession(null);
+            setEditingStudySession(s);
+          }}
+          onDelete={handleDeleteStudySession}
+        />
+        <EditStudySessionSheet
+          visible={editingStudySession !== null}
+          session={editingStudySession}
+          onClose={() => setEditingStudySession(null)}
+          onDelete={handleDeleteStudySession}
         />
 
       </SafeAreaView>

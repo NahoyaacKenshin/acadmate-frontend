@@ -118,4 +118,38 @@ export const NotebookStorage = {
     const data = await readJson<{ sessionId: string | null }>(`last_session_${notebookId}.json`);
     return data?.sessionId ?? null;
   },
+
+  // ─── Flashcard Decks per Notebook ────────────────────────────────────────────
+  saveFlashcardDecks: async (notebookId: string, decks: any[]): Promise<void> => {
+    await writeJson(`decks_${notebookId}.json`, decks);
+  },
+
+  loadFlashcardDecks: async (notebookId: string): Promise<any[] | null> => {
+    return await readJson<any[]>(`decks_${notebookId}.json`);
+  },
+
+  saveFlashcardDeckDetail: async (deckId: string, deck: any): Promise<void> => {
+    await writeJson(`deck_${deckId}.json`, deck);
+  },
+
+  loadFlashcardDeckDetail: async (deckId: string): Promise<any | null> => {
+    return await readJson<any>(`deck_${deckId}.json`);
+  },
+
+  // ─── Quizzes per Notebook ────────────────────────────────────────────────────
+  saveQuizzes: async (notebookId: string, quizzes: any[]): Promise<void> => {
+    await writeJson(`quizzes_${notebookId}.json`, quizzes);
+  },
+
+  loadQuizzes: async (notebookId: string): Promise<any[] | null> => {
+    return await readJson<any[]>(`quizzes_${notebookId}.json`);
+  },
+
+  saveQuizDetail: async (quizId: string, quiz: any): Promise<void> => {
+    await writeJson(`quiz_${quizId}.json`, quiz);
+  },
+
+  loadQuizDetail: async (quizId: string): Promise<any | null> => {
+    return await readJson<any>(`quiz_${quizId}.json`);
+  },
 };

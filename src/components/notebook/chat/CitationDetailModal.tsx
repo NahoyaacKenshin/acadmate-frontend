@@ -9,6 +9,7 @@ import {
 import { Text } from '@/src/components/ui/text';
 import { Citation } from './ChatMessageCitations';
 import { FileText, Image as ImageIcon, File, X, Layers } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 interface CitationDetailModalProps {
   visible: boolean;
@@ -25,21 +26,20 @@ function fileTypeLabel(fileName: string): string {
   return 'Text File';
 }
 
-function FileIcon({ fileName }: { fileName: string }) {
+function FileIcon({ fileName, isDark }: { fileName: string; isDark: boolean }) {
   const lower = fileName.toLowerCase();
   if (lower.endsWith('.pdf')) return <FileText size={20} color="#EF4444" />;
   if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp'))
-    return <ImageIcon size={20} color="#8B5CF6" />;
-  return <File size={20} color="#22C55E" />;
+    return <ImageIcon size={20} color={isDark ? '#A78BFA' : '#7C3AED'} />;
+  return <File size={20} color="#10B981" />;
 }
 
-function SimilarityBar({ value }: { value: number }) {
+function SimilarityBar({ value, trackBg }: { value: number; trackBg: string }) {
   const pct = Math.round(value * 100);
-  // colour shifts from amber → blue → green as similarity rises
-  const color = pct >= 80 ? '#22C55E' : pct >= 60 ? '#6C8EFF' : '#F59E0B';
+  const color = pct >= 80 ? '#10B981' : pct >= 60 ? '#6366F1' : '#F59E0B';
   return (
     <View style={styles.simBarWrapper}>
-      <View style={styles.simBarTrack}>
+      <View style={[styles.simBarTrack, { backgroundColor: trackBg }]}>
         <View style={[styles.simBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
       </View>
       <Text style={[styles.simPct, { color }]}>{pct}%</Text>
@@ -48,6 +48,8 @@ function SimilarityBar({ value }: { value: number }) {
 }
 
 export function CitationDetailModal({ visible, citation, onClose }: CitationDetailModalProps) {
+  const { colors, isDark } = useTheme();
+
   if (!citation) return null;
 
   return (
@@ -61,55 +63,98 @@ export function CitationDetailModal({ visible, citation, onClose }: CitationDeta
       <Pressable style={styles.backdrop} onPress={onClose} />
 
       {/* Sheet */}
-      <View style={styles.sheet}>
+      <View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
         {/* Handle */}
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.fileIconWrap}>
-            <FileIcon fileName={citation.fileName} />
+          <View
+            style={[
+              styles.fileIconWrap,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#F9FAFB',
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <FileIcon fileName={citation.fileName} isDark={isDark} />
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.fileName} numberOfLines={2}>{citation.fileName}</Text>
-            <Text style={styles.fileType}>{fileTypeLabel(citation.fileName)}</Text>
+            <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>
+              {citation.fileName}
+            </Text>
+            <Text style={[styles.fileType, { color: colors.mutedForeground }]}>
+              {fileTypeLabel(citation.fileName)}
+            </Text>
           </View>
-          <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
-            <X size={18} color="#64748B" />
+          <Pressable
+            style={[
+              styles.closeBtn,
+              { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F4F4F5' },
+            ]}
+            onPress={onClose}
+            hitSlop={8}
+          >
+            <X size={18} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
         {/* Metadata row */}
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
-            <Layers size={13} color="#6C8EFF" />
-            <Text style={styles.metaLabel}>Section</Text>
-            <Text style={styles.metaValue}>#{citation.chunkIndex + 1}</Text>
+            <Layers size={13} color="#6366F1" />
+            <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Section</Text>
+            <Text style={[styles.metaValue, { color: colors.foreground }]}>#{citation.chunkIndex + 1}</Text>
           </View>
-          <View style={styles.metaDivider} />
+          <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
           <View style={[styles.metaItem, { flex: 2 }]}>
-            <Text style={styles.metaLabel}>Relevance</Text>
-            <SimilarityBar value={citation.similarity} />
+            <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Relevance</Text>
+            <SimilarityBar value={citation.similarity} trackBg={colors.border} />
           </View>
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
         {/* Snippet */}
-        <Text style={styles.snippetLabel}>Matched Excerpt</Text>
+        <Text style={[styles.snippetLabel, { color: colors.mutedForeground }]}>MATCHED EXCERPT</Text>
         <ScrollView
           style={styles.snippetScroll}
-          contentContainerStyle={styles.snippetContent}
+          contentContainerStyle={[
+            styles.snippetContent,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#F9FAFB',
+              borderColor: colors.border,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          <Text style={styles.snippetText}>{citation.snippet}</Text>
+          <Text style={[styles.snippetText, { color: colors.foreground }]}>{citation.snippet}</Text>
         </ScrollView>
 
         {/* Done button */}
-        <Pressable style={({ pressed }) => [styles.doneBtn, pressed && { opacity: 0.8 }]} onPress={onClose}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.doneBtn,
+            {
+              backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+              borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : '#C7D2FE',
+            },
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={onClose}
+        >
           <Text style={styles.doneBtnText}>Done</Text>
         </Pressable>
       </View>
@@ -123,11 +168,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#10131C',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderColor: '#2A3143',
     padding: 20,
     paddingBottom: 36,
     maxHeight: '70%',
@@ -136,7 +179,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#2A3143',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -150,9 +192,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#161A26',
     borderWidth: 1,
-    borderColor: '#2A3143',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -163,24 +203,22 @@ const styles = StyleSheet.create({
   fileName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#ffffff',
     lineHeight: 20,
+    includeFontPadding: false,
   },
   fileType: {
     fontSize: 12,
-    color: '#4A5568',
+    includeFontPadding: false,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#161A26',
     alignItems: 'center',
     justifyContent: 'center',
   },
   divider: {
     height: 1,
-    backgroundColor: '#1A1F2E',
     marginVertical: 14,
   },
   metaRow: {
@@ -197,17 +235,16 @@ const styles = StyleSheet.create({
   metaDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#2A3143',
   },
   metaLabel: {
     fontSize: 11,
-    color: '#4A5568',
     fontWeight: '600',
+    includeFontPadding: false,
   },
   metaValue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
   simBarWrapper: {
     flex: 1,
@@ -219,7 +256,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#1A1F2E',
     overflow: 'hidden',
   },
   simBarFill: {
@@ -231,35 +267,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 32,
     textAlign: 'right',
+    includeFontPadding: false,
   },
   snippetLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4A5568',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    letterSpacing: 1.5,
     marginBottom: 10,
+    includeFontPadding: false,
   },
   snippetScroll: {
     maxHeight: 180,
     marginBottom: 20,
   },
   snippetContent: {
-    backgroundColor: '#161A26',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2A3143',
     padding: 14,
   },
   snippetText: {
     fontSize: 13,
-    color: '#94A3B8',
     lineHeight: 20,
+    includeFontPadding: false,
   },
   doneBtn: {
-    backgroundColor: 'rgba(108,142,255,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.3)',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -267,6 +299,7 @@ const styles = StyleSheet.create({
   doneBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#6C8EFF',
+    color: '#6366F1',
+    includeFontPadding: false,
   },
 });

@@ -30,7 +30,7 @@ import { HolidayRow, useHolidays } from '@/src/hooks/useHolidays';
 import { Holiday } from './MonthGrid';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
 import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor, getCleanPeriodTitle, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
-import { isSameDayPHT, formatTimePHT, parseToPHTDate } from '@/src/utils/philippineTime';
+import { isSameDayPHT, isOverduePHT, formatTimePHT, parseToPHTDate } from '@/src/utils/philippineTime';
 import { useUserStore, computeCurrentSet } from '@/src/store/userStore';
 import { useTheme } from '@/src/theme/useTheme';
 
@@ -49,6 +49,8 @@ interface DayViewProps {
   onTaskPress?: (task: TaskRow) => void;
   onEditTaskPress?: (task: TaskRow) => void;
   onToggleTask?: (id: string) => void;
+  onStudySessionPress?: (event: CalendarEventRow) => void;
+  onEditStudySessionPress?: (event: CalendarEventRow) => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -136,7 +138,7 @@ function ClassCard({
       ]}
       onPress={onPress}
     >
-      <View style={[styles.eventColorBar, { backgroundColor: '#10B981' }]} />
+      <View style={[styles.eventColorBar, { backgroundColor: schedule.subject_color || '#6366F1' }]} />
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
           <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
@@ -297,6 +299,90 @@ function EventCard({
   );
 }
 
+// ── Study Session Card ────────────────────────────────────────────────────────
+function StudySessionCard({
+  event,
+  onPress,
+  onEditPress,
+}: {
+  event: CalendarEventRow;
+  onPress?: () => void;
+  onEditPress?: () => void;
+}) {
+  const { colors, isDark } = useTheme();
+  const displayTitle = event.title.replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim();
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.eventCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+        pressed && styles.eventCardPressed,
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.eventColorBar, { backgroundColor: '#6366F1' }]} />
+      <View style={styles.eventBody}>
+        <View style={styles.eventTopRow}>
+          <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
+            {displayTitle}
+          </Text>
+          <View style={styles.eventTopRight}>
+            <View
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#EEF2FF',
+                },
+              ]}
+            >
+              <BookOpen size={10} color="#6366F1" />
+              <Text style={[styles.badgeText, { color: '#6366F1' }]}>STUDY</Text>
+            </View>
+            {onEditPress ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.cardActionBtn,
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' },
+                  pressed && { opacity: 0.6 },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPress();
+                }}
+                hitSlop={8}
+                accessibilityLabel="Edit study session"
+              >
+                <Pencil size={12} color={colors.mutedForeground} />
+              </Pressable>
+            ) : null}
+            <ChevronRight size={14} color={colors.mutedForeground} />
+          </View>
+        </View>
+        <View style={styles.eventMeta}>
+          <View style={styles.metaItem}>
+            <Clock size={11} color={colors.mutedForeground} />
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+              {formatEventTime(event.start_date)}
+              {event.end_date ? ` – ${formatEventTime(event.end_date)}` : ''}
+            </Text>
+          </View>
+          {event.description ? (
+            <View style={[styles.metaItem, { flexShrink: 1, maxWidth: 180 }]}>
+              <Text style={[styles.metaText, { color: colors.mutedForeground }]} numberOfLines={1} ellipsizeMode="tail">
+                {event.description}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 // ── Task Due Card ──────────────────────────────────────────────────────────────
 function TaskDueCard({
   task,
@@ -311,7 +397,8 @@ function TaskDueCard({
 }) {
   const { colors, isDark } = useTheme();
   const isCompleted = task.completed === 1;
-  const taskDisplayColor = '#10B981';
+  const isOverdue = task.due_date ? isOverduePHT(task.due_date) && !isCompleted : false;
+  const taskDisplayColor = isOverdue ? '#EF4444' : '#10B981';
   const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
 
   const handleCheckboxPress = (e: any) => {
@@ -401,6 +488,13 @@ function TaskDueCard({
               <Check size={10} color="#10B981" strokeWidth={3} />
               <Text style={styles.badgeCompletedText}>Done</Text>
             </View>
+          ) : isOverdue ? (
+            <View style={[styles.taskDueBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)' }]}>
+              <AlertTriangle size={10} color="#EF4444" />
+              <Text style={[styles.taskDueLabel, { color: '#EF4444' }]}>
+                Overdue{dueTime ? ` · ${dueTime}` : ''}
+              </Text>
+            </View>
           ) : (
             <View style={styles.taskDueBadge}>
               <Clock size={10} color="#F59E0B" />
@@ -441,6 +535,8 @@ export function DayView({
   onTaskPress,
   onEditTaskPress,
   onToggleTask,
+  onStudySessionPress,
+  onEditStudySessionPress,
 }: DayViewProps) {
   const { colors, isDark } = useTheme();
   const today = new Date();
@@ -508,9 +604,15 @@ export function DayView({
   const activeHolidayPeriods = activePeriods.filter((ew) => getPeriodCategory(ew) === 'HOLIDAY');
   const activeSuspensions    = activePeriods.filter((ew) => getPeriodCategory(ew) === 'SUSPENSION');
 
+  const isStudySessionEvent = (e: CalendarEventRow): boolean =>
+    Boolean(e.location?.startsWith('study_session')) ||
+    Boolean(e.title?.toLowerCase().startsWith('study session:')) ||
+    Boolean(e.title?.toLowerCase().startsWith('study:'));
+
   const isExamBlocked = activeHolidayPeriods.length > 0 || activeSuspensions.length > 0;
   const dayExams = isExamBlocked ? [] : dayEvents.filter(isExamEvent);
-  const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e));
+  const dayStudySessions = dayEvents.filter(isStudySessionEvent);
+  const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e) && !isStudySessionEvent(e));
 
   // Filter tasks due on this date
   const dayTasks = tasks.filter((t) => t.due_date && isSameDayPHT(t.due_date, selectedDate));
@@ -521,7 +623,7 @@ export function DayView({
     return hd ? isSameDay(hd, selectedDate) : false;
   });
 
-  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activePeriods.length > 0;
+  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activePeriods.length > 0 || dayStudySessions.length > 0;
 
   // Day header label
   const dateLabel = isToday
@@ -657,6 +759,21 @@ export function DayView({
         </View>
       ) : null}
 
+      {/* Study Sessions */}
+      {dayStudySessions.length > 0 ? (
+        <View style={styles.section}>
+          <SectionHeader title="Study Sessions" />
+          {dayStudySessions.map((s) => (
+            <StudySessionCard
+              key={s.id}
+              event={s}
+              onPress={() => onStudySessionPress?.(s)}
+              onEditPress={() => onEditStudySessionPress?.(s)}
+            />
+          ))}
+        </View>
+      ) : null}
+
       {/* Tasks due */}
       {dayTasks.length > 0 ? (
         <View style={styles.section}>
@@ -690,7 +807,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 130,
   },
   dayHeader: {
     fontSize: 16,
@@ -867,6 +984,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F59E0B',
     includeFontPadding: false,
+    flexShrink: 0,
+    paddingRight: 4,
   },
   badgeCompleted: {
     flexDirection: 'row',
@@ -883,6 +1002,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#10B981',
     includeFontPadding: false,
+    flexShrink: 0,
+    paddingRight: 4,
   },
   subjectPill: {
     flexDirection: 'row',
@@ -903,21 +1024,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     includeFontPadding: false,
+    flexShrink: 1,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
     borderRadius: 6,
     flexShrink: 0,
   },
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     includeFontPadding: false,
+    flexShrink: 0,
+    paddingRight: 4,
   },
   emptyState: {
     alignItems: 'center',

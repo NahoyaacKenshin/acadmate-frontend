@@ -5,16 +5,22 @@ import {
   ScrollView,
   Pressable,
   Platform,
-  TextInput,
   Modal,
   Text,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import {
   ChevronLeft,
   BookOpen,
   CalendarDays,
+  Calendar,
+  Clock,
   GraduationCap,
   CheckCircle2,
   ChevronDown,
@@ -22,6 +28,7 @@ import {
   ScanLine,
   Sparkles,
   AlertCircle,
+  X,
 } from "lucide-react-native";
 import {
   ClassScheduleRow,
@@ -33,6 +40,7 @@ import {
   ParsedCalendarEvent,
   ParsedExamWeekBlocker,
   ParsedExamEvent,
+  isExamKeyword,
 } from "@/src/components/schedule/ParsedItemRow";
 import {
   EditParsedClassSheet,
@@ -46,13 +54,88 @@ import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
 import { useExamWeeks, type ExamWeekRow as DbExamWeekRow } from "@/src/hooks/useExamWeeks";
 import { toIsoDateString, toDateOnlyString } from "@/src/utils/scheduleUtils";
-import { toPhilippineISO, toPhilippineDateOnly } from "@/src/utils/philippineTime";
+import {
+  toPhilippineISO,
+  toPhilippineDateOnly,
+  formatDateTimePHT,
+} from "@/src/utils/philippineTime";
 import { usePowerSync } from "@powersync/react";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import { useTheme } from "@/src/theme/useTheme";
 import type { ThemeColors } from "@/src/theme/tokens";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function normalizeParsedClass(c: ParsedClassSchedule): ParsedClassSchedule {
+  const rawRoom = (c.room ?? "").trim();
+  const rawModality = (c.modality ?? "").toUpperCase().trim();
+
+  // Detect if online from modality or room/location keywords
+  const isOnlineIndicated =
+    rawModality === "ONLINE" ||
+    /^(online|virtual|canvas|zoom|teams|ms\s*teams|gmeet|google\s*meet)/i.test(rawRoom) ||
+    /\b(online|canvas|zoom|virtual)\b/i.test(rawRoom);
+
+  // If room is just a placeholder meaning "online", clean room to null
+  const isRoomOnlyOnlineMarker = /^(online|virtual|canvas|zoom|teams|ms\s*teams|gmeet|n\/?a|none)$/i.test(rawRoom);
+
+  const cleanRoom = isRoomOnlyOnlineMarker ? null : (rawRoom || null);
+  const resolvedModality: "F2F" | "ONLINE" = isOnlineIndicated ? "ONLINE" : "F2F";
+
+  return {
+    ...c,
+    modality: resolvedModality,
+    room: isOnlineIndicated && isRoomOnlyOnlineMarker ? null : cleanRoom,
+  };
+}
+
+export function partitionSchedulePayload(
+  rawClasses: any[],
+  rawExams: any[],
+  semesterInfo?: ParsedSemesterInfo | null
+) {
+  const normClasses = rawClasses.map(normalizeParsedClass);
+  const examClassCount = normClasses.filter(
+    (c) => isExamKeyword(c.subjectName) || isExamKeyword(c.room)
+  ).length;
+
+  const isDocExamSchedule =
+    Boolean(semesterInfo?.label && isExamKeyword(semesterInfo.label)) ||
+    (normClasses.length > 0 && examClassCount / normClasses.length >= 0.35);
+
+  const finalClasses: ParsedClassSchedule[] = [];
+  const migratedExams: ParsedExamEvent[] = [];
+
+  for (const c of normClasses) {
+    if (isDocExamSchedule || isExamKeyword(c.subjectName) || isExamKeyword(c.room)) {
+      const rawSubject = c.subjectName || "Subject";
+      const cleanSubject =
+        rawSubject
+          .replace(/\b(midterm|final|finals|prelim|prelims|semi-?final|semifinal|periodical|summative|exam|examination|quiz|assessment)\b/gi, "")
+          .replace(/\s+/g, " ")
+          .trim() || rawSubject;
+      const title = isExamKeyword(rawSubject) ? rawSubject : `${cleanSubject} Exam`;
+
+      migratedExams.push({
+        subjectName: cleanSubject,
+        title,
+        startDate: c.startDate || null,
+        endDate: c.endDate || null,
+        dayOfWeek: c.dayOfWeek,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        room: c.room,
+      });
+    } else {
+      finalClasses.push(c);
+    }
+  }
+
+  return {
+    classes: finalClasses,
+    exams: [...rawExams, ...migratedExams],
+  };
+}
 
 function resolveExamDate(
   dayOfWeek: number,
@@ -442,7 +525,6 @@ export default function ScheduleConfirmScreen() {
     try {
       const raw = JSON.parse(params.payload);
       const semesterInfo: ParsedSemesterInfo | null = raw.semesterInfo ?? null;
-      const classSchedules: ParsedClassSchedule[] = raw.classSchedules ?? [];
       const calendarEvents: ParsedCalendarEvent[] = raw.calendarEvents ?? [];
       const examWeekBlockers: ParsedExamWeekBlocker[] = raw.examWeekBlockers ?? [];
 
@@ -464,12 +546,18 @@ export default function ScheduleConfirmScreen() {
         }));
       }
 
+      const partitioned = partitionSchedulePayload(
+        raw.classSchedules ?? [],
+        examEvents,
+        semesterInfo
+      );
+
       return {
         semesterInfo,
-        classSchedules,
+        classSchedules: partitioned.classes,
         calendarEvents,
         examWeekBlockers,
-        examEvents,
+        examEvents: partitioned.exams,
       };
     } catch {
       return {
@@ -491,14 +579,73 @@ export default function ScheduleConfirmScreen() {
 
   const [universalStartDate, setUniversalStartDate] = useState<string>(
     initialData.semesterInfo?.startDate
-      ? toDateOnlyString(initialData.semesterInfo.startDate) ?? ""
+      ? toPhilippineISO(initialData.semesterInfo.startDate, "08:00")
       : ""
   );
   const [universalEndDate, setUniversalEndDate] = useState<string>(
     initialData.semesterInfo?.endDate
-      ? toDateOnlyString(initialData.semesterInfo.endDate) ?? ""
+      ? toPhilippineISO(initialData.semesterInfo.endDate, "17:00")
       : ""
   );
+
+  // Universal Semester Date & Time Picker state
+  const [activeUniversalPicker, setActiveUniversalPicker] = useState<"start" | "end" | null>(null);
+  const [pendingUniversalDate, setPendingUniversalDate] = useState<Date>(new Date());
+
+  const handleOpenUniversalPicker = (field: "start" | "end") => {
+    const rawVal = field === "start" ? universalStartDate : universalEndDate;
+    let initialDate: Date;
+    if (rawVal && rawVal.trim()) {
+      const parsed = new Date(rawVal);
+      initialDate = isNaN(parsed.getTime()) ? new Date() : parsed;
+    } else {
+      initialDate = new Date();
+      initialDate.setHours(field === "start" ? 8 : 17, 0, 0, 0);
+    }
+    setPendingUniversalDate(initialDate);
+
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        mode: "date",
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === "dismissed" || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(initialDate.getHours(), initialDate.getMinutes(), 0, 0);
+
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: "time",
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === "dismissed" || !selectedTime) {
+                const iso = toPhilippineISO(merged);
+                if (field === "start") setUniversalStartDate(iso);
+                else setUniversalEndDate(iso);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              const iso = toPhilippineISO(finalDate);
+              if (field === "start") setUniversalStartDate(iso);
+              else setUniversalEndDate(iso);
+            },
+          });
+        },
+      });
+    } else {
+      setActiveUniversalPicker(field);
+    }
+  };
+
+  const handleIOSUniversalDone = () => {
+    if (activeUniversalPicker) {
+      const iso = toPhilippineISO(pendingUniversalDate);
+      if (activeUniversalPicker === "start") setUniversalStartDate(iso);
+      else setUniversalEndDate(iso);
+    }
+    setActiveUniversalPicker(null);
+  };
 
   React.useEffect(() => {
     if (!dbExamWeeks || dbExamWeeks.length === 0) return;
@@ -556,15 +703,20 @@ export default function ScheduleConfirmScreen() {
     });
     const merged = await scanner.uploadAndParse(currentSchedule);
     if (!merged) return;
-    setClasses(merged.classSchedules ?? []);
+    const partitioned = partitionSchedulePayload(
+      merged.classSchedules ?? [],
+      merged.examEvents ?? [],
+      merged.semesterInfo
+    );
+    setClasses(partitioned.classes);
     setEvents(merged.calendarEvents ?? []);
     setExamBlockers(merged.examWeekBlockers ?? []);
-    setExamEvents(merged.examEvents ?? []);
+    setExamEvents(partitioned.exams);
     if (merged.semesterInfo?.startDate && !universalStartDate) {
-      setUniversalStartDate(toDateOnlyString(merged.semesterInfo.startDate) ?? "");
+      setUniversalStartDate(toPhilippineISO(merged.semesterInfo.startDate, "08:00"));
     }
     if (merged.semesterInfo?.endDate && !universalEndDate) {
-      setUniversalEndDate(toDateOnlyString(merged.semesterInfo.endDate) ?? "");
+      setUniversalEndDate(toPhilippineISO(merged.semesterInfo.endDate, "17:00"));
     }
     scanner.clearFile();
     setShowScanSheet(false);
@@ -595,7 +747,7 @@ export default function ScheduleConfirmScreen() {
             : null;
 
         const normalizedSetType = c.setType === "BOTH" || !c.setType ? null : c.setType;
-        const normalizedModality = c.modality === "HYBRID" ? "F2F" : c.modality ?? "F2F";
+        const normalizedModality = c.modality === "ONLINE" ? "ONLINE" : "F2F";
         const effectiveDays =
           c.daysOfWeek && c.daysOfWeek.length > 0 ? c.daysOfWeek : [c.dayOfWeek];
         queries.push(
@@ -704,7 +856,7 @@ export default function ScheduleConfirmScreen() {
 
   return (
     <>
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.header}>
           <Pressable
             style={styles.backBtn}
@@ -750,34 +902,95 @@ export default function ScheduleConfirmScreen() {
               them here if needed.
             </Text>
             <View style={styles.universalInputsRow}>
+              {/* Semester Start Date & Time */}
               <View style={styles.universalInputGroup}>
-                <Text style={styles.universalInputLabel}>Semester Start</Text>
-                <TextInput
-                  style={styles.universalInput}
-                  value={universalStartDate}
-                  onChangeText={setUniversalStartDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.mutedForeground}
-                />
+                <View style={styles.universalInputLabelRow}>
+                  <Text style={styles.universalInputLabel}>Semester Start (PHT)</Text>
+                  {universalStartDate ? (
+                    <Pressable
+                      onPress={() => setUniversalStartDate("")}
+                      hitSlop={6}
+                      style={styles.universalClearBtn}
+                    >
+                      <X size={11} color={colors.mutedForeground} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[
+                    styles.universalPickerBtn,
+                    universalStartDate ? styles.universalPickerBtnActive : null,
+                  ]}
+                  onPress={() => handleOpenUniversalPicker("start")}
+                >
+                  <Calendar
+                    size={14}
+                    color={universalStartDate ? "#6366F1" : colors.mutedForeground}
+                    style={{ flexShrink: 0 }}
+                  />
+                  <Text
+                    style={[
+                      styles.universalPickerText,
+                      !universalStartDate && styles.universalPickerPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {universalStartDate
+                      ? formatDateTimePHT(universalStartDate)
+                      : "+ Set Start Date & Time"}
+                  </Text>
+                </Pressable>
               </View>
+
+              {/* Semester End Date & Time */}
               <View style={styles.universalInputGroup}>
-                <Text style={styles.universalInputLabel}>Semester End</Text>
-                <TextInput
-                  style={styles.universalInput}
-                  value={universalEndDate}
-                  onChangeText={setUniversalEndDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.mutedForeground}
-                />
+                <View style={styles.universalInputLabelRow}>
+                  <Text style={styles.universalInputLabel}>Semester End (PHT)</Text>
+                  {universalEndDate ? (
+                    <Pressable
+                      onPress={() => setUniversalEndDate("")}
+                      hitSlop={6}
+                      style={styles.universalClearBtn}
+                    >
+                      <X size={11} color={colors.mutedForeground} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[
+                    styles.universalPickerBtn,
+                    universalEndDate ? styles.universalPickerBtnActive : null,
+                  ]}
+                  onPress={() => handleOpenUniversalPicker("end")}
+                >
+                  <Calendar
+                    size={14}
+                    color={universalEndDate ? "#6366F1" : colors.mutedForeground}
+                    style={{ flexShrink: 0 }}
+                  />
+                  <Text
+                    style={[
+                      styles.universalPickerText,
+                      !universalEndDate && styles.universalPickerPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {universalEndDate
+                      ? formatDateTimePHT(universalEndDate)
+                      : "+ Set End Date & Time"}
+                  </Text>
+                </Pressable>
               </View>
             </View>
           </View>
 
           <Section
-            icon={<BookOpen size={18} color="#10B981" />}
+            icon={<BookOpen size={18} color="#6366F1" />}
             title="Classes"
             count={classes.length}
-            accentColor="#10B981"
+            accentColor="#6366F1"
           >
             {classes.map((item, i) => (
               <ClassScheduleRow
@@ -970,6 +1183,7 @@ export default function ScheduleConfirmScreen() {
         onScan={handleScanAnother}
         onClose={() => {
           scanner.clearFile();
+          scanner.clearError();
           setShowScanSheet(false);
         }}
       />
@@ -1009,6 +1223,34 @@ export default function ScheduleConfirmScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* iOS Universal Date & Time Picker Modal */}
+      {Platform.OS === "ios" && activeUniversalPicker !== null && (
+        <Modal visible={true} transparent animationType="fade">
+          <View style={styles.iosPickerOverlay}>
+            <View style={styles.iosPickerContainer}>
+              <View style={styles.iosPickerHeader}>
+                <Text style={styles.iosPickerHeaderTitle}>
+                  Select Semester {activeUniversalPicker === "start" ? "Start" : "End"} (PHT)
+                </Text>
+                <Pressable onPress={handleIOSUniversalDone} hitSlop={8}>
+                  <Text style={styles.iosPickerDoneText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={pendingUniversalDate}
+                mode="datetime"
+                display="spinner"
+                onChange={(_e, date) => {
+                  if (date) setPendingUniversalDate(date);
+                }}
+                textColor={colors.foreground}
+                themeVariant={isDark ? "dark" : "light"}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </>
   );
 }
@@ -1249,6 +1491,13 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     universalInputGroup: {
       flex: 1,
+      minWidth: 0,
+    },
+    universalInputLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 6,
     },
     universalInputLabel: {
       fontSize: 11,
@@ -1256,18 +1505,39 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       color: colors.mutedForeground,
       textTransform: "uppercase",
       letterSpacing: 0.6,
-      marginBottom: 6,
       includeFontPadding: false,
+      flexShrink: 1,
     },
-    universalInput: {
+    universalClearBtn: {
+      padding: 2,
+      borderRadius: 4,
+    },
+    universalPickerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
       backgroundColor: colors.background,
       borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.border,
-      color: colors.foreground,
-      fontSize: 13,
-      paddingHorizontal: 12,
+      paddingHorizontal: 10,
       paddingVertical: 10,
+      minHeight: 44,
+    },
+    universalPickerBtnActive: {
+      borderColor: isDark ? "rgba(99, 102, 241, 0.4)" : "rgba(99, 102, 241, 0.3)",
+      backgroundColor: isDark ? "rgba(99, 102, 241, 0.08)" : "rgba(99, 102, 241, 0.04)",
+    },
+    universalPickerText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.foreground,
+      includeFontPadding: false,
+      flex: 1,
+    },
+    universalPickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontWeight: "500",
     },
     detectedBadge: {
       flexDirection: "row",
@@ -1283,6 +1553,40 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     detectedBadgeText: {
       fontSize: 11,
       fontWeight: "600",
+      color: "#6366F1",
+      includeFontPadding: false,
+    },
+    iosPickerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "flex-end",
+    },
+    iosPickerContainer: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 28,
+      paddingHorizontal: 16,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+    },
+    iosPickerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    iosPickerHeaderTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    iosPickerDoneText: {
+      fontSize: 15,
+      fontWeight: "700",
       color: "#6366F1",
       includeFontPadding: false,
     },

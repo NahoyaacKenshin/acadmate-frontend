@@ -6,6 +6,7 @@ import { Text } from '@/src/components/ui/text';
 import { Mail, ArrowLeft } from 'lucide-react-native';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
+import { formatAuthErrorMessage } from '../auth.error';
 
 export function VerifyEmailPrompt() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export function VerifyEmailPrompt() {
       setMessage(response.message ?? 'A new verification email has been sent to your inbox.');
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Unable to resend verification email. Please try again.'
+        formatAuthErrorMessage(err, 'Unable to resend verification email. Please try again.')
       );
     } finally {
       setIsSending(false);

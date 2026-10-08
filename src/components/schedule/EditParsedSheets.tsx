@@ -116,10 +116,20 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
       setSelectedDays(days);
       setStartTime(item.startTime || '08:00');
       setEndTime(item.endTime || '09:30');
-      setModality(item.modality === 'ONLINE' ? 'ONLINE' : 'F2F');
+
+      const rawRoom = (item.room || '').trim();
+      const isOnline =
+        item.modality === 'ONLINE' ||
+        /^(online|virtual|canvas|zoom|teams|ms\s*teams|gmeet)/i.test(rawRoom) ||
+        /\b(online|canvas|zoom|virtual)\b/i.test(rawRoom);
+
+      setModality(isOnline ? 'ONLINE' : 'F2F');
+
+      const isRoomOnlyOnlineMarker = /^(online|virtual|canvas|zoom|teams|ms\s*teams|gmeet|n\/?a|none)$/i.test(rawRoom);
+      setRoom(isRoomOnlyOnlineMarker ? '' : rawRoom);
+
       const st = item.setType === 'A' ? 'A' : item.setType === 'B' ? 'B' : null;
       setSetType(st);
-      setRoom(item.room || '');
       setStartDate(item.startDate ? new Date(item.startDate) : new Date());
       const parsedEnd = item.endDate ? new Date(item.endDate) : null;
       setEndDate(parsedEnd ?? (item.startDate ? new Date(item.startDate) : new Date()));
@@ -134,6 +144,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
   const handleSave = () => {
     if (!item) return;
     if (!endDate) return;
+    const isRoomOnlyOnline = modality === 'ONLINE' && /^(online|virtual|n\/?a|none)$/i.test(room.trim());
     onSave({
       ...item,
       subjectName,
@@ -143,7 +154,7 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
       endTime,
       modality,
       setType,
-      room: room.trim() || null,
+      room: isRoomOnlyOnline ? null : (room.trim() || null),
       startDate: toISODate(startDate),
       endDate: endDate ? toISODate(endDate) : null,
     });
@@ -390,7 +401,16 @@ export function EditParsedClassSheet({ visible, item, onClose, onSave }: EditPar
             <Text style={styles.label}>Modality</Text>
             <View style={styles.pillRow}>
               {MODALITIES.map((m) => (
-                <Pressable key={m.value} style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]} onPress={() => setModality(m.value)}>
+                <Pressable
+                  key={m.value}
+                  style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
+                  onPress={() => {
+                    setModality(m.value);
+                    if (m.value === 'ONLINE' && /^(online|virtual|canvas|zoom|teams|ms\s*teams|gmeet|n\/?a|none)$/i.test(room.trim())) {
+                      setRoom('');
+                    }
+                  }}
+                >
                   <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>{m.label}</Text>
                 </Pressable>
               ))}

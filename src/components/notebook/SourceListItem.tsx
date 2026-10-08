@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Pressable, StyleSheet, Alert, Animated } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, Pressable, StyleSheet, Animated, Text } from 'react-native';
 import {
   FileText,
   Image as ImageIcon,
@@ -13,6 +12,7 @@ import {
   Pencil,
 } from 'lucide-react-native';
 import { parseToPHT } from '@/src/utils/philippineTime';
+import { useTheme } from '@/src/theme/useTheme';
 
 export type SourceStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
 export type SourceFileType = 'PDF' | 'IMAGE' | 'TEXT';
@@ -39,7 +39,7 @@ function FileTypeIcon({ type }: { type: SourceFileType }) {
   const props = { size: 18 };
   if (type === 'PDF') return <FileText {...props} color="#EF4444" />;
   if (type === 'IMAGE') return <ImageIcon {...props} color="#8B5CF6" />;
-  return <File {...props} color="#64748B" />;
+  return <File {...props} color="#6366F1" />;
 }
 
 /** Animated spinning icon for the PROCESSING state */
@@ -66,10 +66,10 @@ function SpinnerIcon({ color }: { color: string }) {
 
 function StatusBadge({ status }: { status: SourceStatus }) {
   const config: Record<SourceStatus, { label: string; color: string; bg: string }> = {
-    PENDING: { label: 'Queued', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-    PROCESSING: { label: 'Processing…', color: '#6C8EFF', bg: 'rgba(108,142,255,0.12)' },
-    READY: { label: 'Ready', color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
-    FAILED: { label: 'Failed', color: '#EF4444', bg: 'rgba(239,68,68,0.12)' },
+    PENDING: { label: 'Queued', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' },
+    PROCESSING: { label: 'Processing…', color: '#6366F1', bg: 'rgba(99, 102, 241, 0.12)' },
+    READY: { label: 'Ready', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' },
+    FAILED: { label: 'Failed', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' },
   };
   const { label, color, bg } = config[status];
   return (
@@ -91,84 +91,140 @@ function StatusBadge({ status }: { status: SourceStatus }) {
 /** Format a createdAt ISO string to PHT-aware short date (e.g. "Sep 7") */
 function formatDatePHT(iso: string): string {
   const p = parseToPHT(iso);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   if (!p) {
-    // Fallback to device-local
     const d = new Date(iso);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (isNaN(d.getTime())) return '';
     return `${months[d.getMonth()]} ${d.getDate()}`;
   }
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${months[p.month - 1]} ${p.day}`;
 }
 
-export function SourceListItem({ source, onDelete, onRetry, onPress, onEdit }: SourceListItemProps) {
-  const handleDeletePress = () => {
-    Alert.alert(
-      'Remove Source',
-      `Remove "${source.fileName}" from this notebook? This will also delete its AI index data.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => onDelete(source) },
-      ]
-    );
-  };
-
+export function SourceListItem({
+  source,
+  onDelete,
+  onRetry,
+  onPress,
+  onEdit,
+}: SourceListItemProps) {
+  const { colors, isDark } = useTheme();
+  const isFailed = source.status === 'FAILED';
   const isReady = source.status === 'READY';
 
   return (
     <Pressable
       style={({ pressed }) => [
-        styles.row,
-        isReady && onPress && pressed && { backgroundColor: '#1C2234', opacity: 0.9 },
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: isFailed
+            ? (isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.4)')
+            : colors.border,
+        },
+        pressed && isReady && styles.cardPressed,
       ]}
-      onPress={isReady && onPress ? () => onPress(source) : undefined}
-      disabled={!isReady || !onPress}
+      onPress={() => isReady && onPress?.(source)}
+      disabled={!isReady}
     >
       {/* File type icon */}
-      <View style={styles.iconWrap}>
+      <View
+        style={[
+          styles.iconWrap,
+          {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+            borderColor: colors.border,
+          },
+        ]}
+      >
         <FileTypeIcon type={source.fileType} />
       </View>
 
-      {/* File info */}
+      {/* Info */}
       <View style={styles.info}>
-        <Text style={styles.fileName} numberOfLines={1}>{source.fileName}</Text>
+        <Text
+          style={[styles.fileName, { color: colors.foreground }]}
+          numberOfLines={1}
+          ellipsizeMode="middle"
+        >
+          {source.fileName}
+        </Text>
+
         <View style={styles.metaRow}>
           <StatusBadge status={source.status} />
-          {source.status === 'READY' && source.chunkCount != null && (
-            <Text style={styles.metaText}>{source.chunkCount} sections</Text>
+
+          {source.chunkCount !== undefined && source.chunkCount > 0 && (
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+              {source.chunkCount} {source.chunkCount === 1 ? 'part' : 'parts'}
+            </Text>
           )}
-          <Text style={styles.dateText}>{formatDatePHT(source.createdAt)}</Text>
+
+          <Text style={[styles.dateText, { color: colors.mutedForeground }]}>
+            {formatDatePHT(source.createdAt)}
+          </Text>
         </View>
       </View>
 
-      {/* Actions */}
-      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-        {source.status === 'FAILED' && onRetry && (
+      {/* Action buttons */}
+      <View style={styles.actions}>
+        {isFailed && onRetry && (
           <Pressable
-            style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.6 }]}
-            onPress={() => onRetry(source)}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              {
+                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+              },
+              pressed && { opacity: 0.6 },
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              onRetry(source);
+            }}
             hitSlop={8}
+            accessibilityLabel="Retry source processing"
           >
-            <RotateCw size={14} color="#6C8EFF" />
+            <RotateCw size={14} color="#6366F1" />
           </Pressable>
         )}
 
-        {source.status === 'READY' && onEdit && (
+        {isReady && onEdit && (
           <Pressable
-            style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
-            onPress={() => onEdit(source)}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                borderColor: colors.border,
+              },
+              pressed && { opacity: 0.6 },
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit(source);
+            }}
             hitSlop={8}
+            accessibilityLabel="Edit source details"
           >
-            <Pencil size={14} color="#A78BFA" />
+            <Pencil size={13} color={colors.mutedForeground} />
           </Pressable>
         )}
 
         <Pressable
-          style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
-          onPress={handleDeletePress}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.08)',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)',
+            },
+            pressed && { opacity: 0.6 },
+          ]}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete(source);
+          }}
           hitSlop={8}
+          accessibilityLabel="Delete source"
         >
-          <Trash2 size={16} color="#64748B" />
+          <Trash2 size={13} color="#EF4444" />
         </Pressable>
       </View>
     </Pressable>
@@ -176,36 +232,38 @@ export function SourceListItem({ source, onDelete, onRetry, onPress, onEdit }: S
 }
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A3143',
     marginHorizontal: 16,
     marginBottom: 10,
-    padding: 14,
+    padding: 13,
     gap: 12,
   },
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.995 }],
+  },
   iconWrap: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
-    backgroundColor: '#10131C',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2A3143',
+    flexShrink: 0,
   },
   info: {
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   fileName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    letterSpacing: -0.15,
+    includeFontPadding: false,
   },
   metaRow: {
     flexDirection: 'row',
@@ -217,49 +275,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
+    paddingHorizontal: 7.5,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   metaText: {
     fontSize: 11,
-    color: '#4A5568',
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   dateText: {
     fontSize: 11,
-    color: '#3A4455',
+    includeFontPadding: false,
     marginLeft: 'auto',
+    flexShrink: 0,
   },
-  deleteBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#10131C',
+  actions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
   },
-  retryBtn: {
-    width: 32,
-    height: 32,
+  actionBtn: {
+    width: 30,
+    height: 30,
     borderRadius: 8,
-    backgroundColor: 'rgba(108, 142, 255, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  editBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(167, 139, 250, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexShrink: 0,
   },
 });

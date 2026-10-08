@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Modal, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { Trash2, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
 
@@ -27,6 +29,9 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   if (!visible) return null;
 
   const getIcon = () => {
@@ -36,20 +41,20 @@ export function ConfirmModal({
       case 'warning':
         return <AlertTriangle size={24} color="#F59E0B" />;
       case 'info':
-        return <AlertCircle size={24} color="#6C8EFF" />;
+        return <AlertCircle size={24} color={colors.primary} />;
       default:
-        return <AlertCircle size={24} color="#6C8EFF" />;
+        return <AlertCircle size={24} color={colors.primary} />;
     }
   };
 
   const getAccentBg = () => {
     switch (variant) {
       case 'danger':
-        return 'rgba(239, 68, 68, 0.12)';
+        return isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)';
       case 'warning':
-        return 'rgba(245, 158, 11, 0.12)';
+        return isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)';
       case 'info':
-        return 'rgba(108, 142, 255, 0.12)';
+        return isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.1)';
     }
   };
 
@@ -102,97 +107,103 @@ export function ConfirmModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#161A26',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 24,
-    alignItems: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-  },
-  iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  cancelBtn: {
-    flex: 1,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: '#1E2433',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  confirmBtn: {
-    flex: 1,
-    height: 46,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmBtnDanger: {
-    backgroundColor: '#EF4444',
-  },
-  confirmBtnWarning: {
-    backgroundColor: '#F59E0B',
-  },
-  confirmBtnInfo: {
-    backgroundColor: '#6C8EFF',
-  },
-  confirmBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+    },
+    backdrop: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 340,
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 24,
+      alignItems: 'center',
+      elevation: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: isDark ? 0.4 : 0.12,
+      shadowRadius: 12,
+    },
+    iconContainer: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      textAlign: 'center',
+      marginBottom: 8,
+      includeFontPadding: false,
+    },
+    description: {
+      fontSize: 14,
+      color: colors.mutedForeground,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 24,
+      includeFontPadding: false,
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    cancelBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelBtnText: {
+      color: colors.foreground,
+      fontSize: 14,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    confirmBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    confirmBtnDanger: {
+      backgroundColor: '#EF4444',
+    },
+    confirmBtnWarning: {
+      backgroundColor: '#F59E0B',
+    },
+    confirmBtnInfo: {
+      backgroundColor: colors.primary,
+    },
+    confirmBtnText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -32,6 +32,8 @@ import { SubjectRow } from '@/src/hooks/useSubjects';
 import { useTaskScanner, ParsedScannedTask } from '@/src/hooks/useTaskScanner';
 import { NotificationService } from '@/src/services/notificationService';
 import { formatDateTimePHT, toPhilippineISO } from '@/src/utils/philippineTime';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface TaskScanModalProps {
   visible: boolean;
@@ -43,6 +45,8 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const isOnline = useSystemStore((s) => s.isOnline);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const {
     selectedFile,
@@ -140,7 +144,7 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
         const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const dueDateIso = t.dueDate || null;
         const matchedSub = subjects.find((s) => s.id === t.subjectId);
-        const color = matchedSub?.color ?? '#6C8EFF';
+        const color = matchedSub?.color ?? colors.primary;
 
         await powerSync.execute(
           `INSERT INTO Task (id, title, description, dueDate, completed, color, subtasks, subjectId, userId, createdAt, updatedAt)
@@ -188,14 +192,14 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIconWrap}>
-              <Sparkles size={18} color="#6C8EFF" />
+              <Sparkles size={18} color={colors.primary} />
             </View>
             <Text style={styles.headerTitle}>
               {scannedTasks ? 'Review Detected Tasks' : 'AI Task Scanner'}
             </Text>
           </View>
           <Pressable style={styles.closeBtn} onPress={handleClose} hitSlop={8}>
-            <X size={20} color="#64748B" />
+            <X size={20} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
@@ -259,7 +263,7 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
             {selectedFile && (
               <View style={styles.fileCard}>
                 <View style={styles.fileIconWrap}>
-                  <FileText size={18} color="#6C8EFF" />
+                  <FileText size={18} color={colors.primary} />
                 </View>
                 <View style={styles.fileInfo}>
                   <Text style={styles.fileName} numberOfLines={1}>{selectedFile.name}</Text>
@@ -271,7 +275,7 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
                 </View>
                 {!isLoading && (
                   <Pressable onPress={clearFile} hitSlop={8}>
-                    <X size={16} color="#64748B" />
+                    <X size={16} color={colors.mutedForeground} />
                   </Pressable>
                 )}
               </View>
@@ -288,7 +292,7 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
             {/* Scan Action / Loading */}
             {isLoading ? (
               <View style={styles.loadingBox}>
-                <ActivityIndicator size="small" color="#6C8EFF" />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.loadingText}>Gemini AI is analyzing your document…</Text>
                 <Pressable onPress={cancelUpload} style={styles.cancelScanBtn}>
                   <Text style={styles.cancelScanText}>Cancel</Text>
@@ -319,9 +323,9 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
             <View style={styles.reviewToolbar}>
               <Pressable style={styles.selectAllBtn} onPress={handleToggleSelectAll}>
                 {isAllSelected ? (
-                  <CheckSquare size={18} color="#6C8EFF" />
+                  <CheckSquare size={18} color={colors.primary} />
                 ) : (
-                  <Square size={18} color="#64748B" />
+                  <Square size={18} color={colors.mutedForeground} />
                 )}
                 <Text style={styles.selectAllText}>
                   {isAllSelected ? 'Deselect All' : 'Select All'} ({scannedTasks.length})
@@ -359,9 +363,9 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
                         hitSlop={8}
                       >
                         {task.selected ? (
-                          <CheckSquare size={20} color="#6C8EFF" />
+                          <CheckSquare size={20} color={colors.primary} />
                         ) : (
-                          <Square size={20} color="#3A4455" />
+                          <Square size={20} color={isDark ? '#3A4455' : '#D1D5DB'} />
                         )}
                       </Pressable>
 
@@ -372,14 +376,14 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
                           value={task.title}
                           onChangeText={(text) => handleUpdateTaskTitle(task.tempId, text)}
                           placeholder="Task title"
-                          placeholderTextColor="#475569"
+                          placeholderTextColor={colors.mutedForeground}
                         />
 
                         {/* Due Date & Subject Row */}
                         <View style={styles.taskMetaRow}>
                           {task.dueDate && (
                             <View style={styles.metaBadge}>
-                              <Calendar size={12} color="#94A3B8" />
+                              <Calendar size={12} color={colors.mutedForeground} />
                               <Text style={styles.metaBadgeText}>
                                 {formatDateTimePHT(task.dueDate)}
                               </Text>
@@ -401,12 +405,12 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
                           >
                             <BookOpen
                               size={12}
-                              color={matchedSubject?.color ?? '#6C8EFF'}
+                              color={matchedSubject?.color ?? colors.primary}
                             />
                             <Text
                               style={[
                                 styles.subjectSelectText,
-                                matchedSubject?.color ? { color: matchedSubject.color } : null,
+                                matchedSubject?.color ? { color: matchedSubject.color } : { color: colors.primary },
                               ]}
                               numberOfLines={1}
                             >
@@ -450,7 +454,7 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
                         onPress={() => handleDeleteTask(task.tempId)}
                         hitSlop={8}
                       >
-                        <Trash2 size={16} color="#64748B" />
+                        <Trash2 size={16} color={colors.mutedForeground} />
                       </Pressable>
                     </View>
                   </View>
@@ -485,352 +489,373 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-  },
-  sheet: {
-    backgroundColor: '#161A26',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: '90%',
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    backgroundColor: '#2A3143',
-    borderRadius: 2,
-    marginTop: 12,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E2330',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subtext: {
-    fontSize: 13,
-    color: '#94A3B8',
-    marginBottom: 18,
-    lineHeight: 18,
-  },
-  offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
-  },
-  offlineText: {
-    fontSize: 12,
-    color: '#F59E0B',
-    fontWeight: '500',
-    flex: 1,
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 18,
-  },
-  pickerCard: {
-    flex: 1,
-    backgroundColor: '#10131C',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 14,
-    alignItems: 'center',
-    gap: 6,
-  },
-  disabledCard: {
-    opacity: 0.45,
-  },
-  pickerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  pickerSub: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  fileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(108,142,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.2)',
-    borderRadius: 12,
-    padding: 12,
-    gap: 12,
-    marginBottom: 16,
-  },
-  fileIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor: 'rgba(108,142,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fileInfo: {
-    flex: 1,
-  },
-  fileName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  fileSize: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#EF4444',
-    flex: 1,
-  },
-  loadingBox: {
-    backgroundColor: '#10131C',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 20,
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  loadingText: {
-    fontSize: 13,
-    color: '#6C8EFF',
-    fontWeight: '600',
-  },
-  cancelScanBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#1E2330',
-  },
-  cancelScanText: {
-    fontSize: 12,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  ctaButton: {
-    flexDirection: 'row',
-    backgroundColor: '#6C8EFF',
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    shadowColor: '#6C8EFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
-    marginTop: 6,
-  },
-  ctaDisabled: {
-    opacity: 0.45,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  ctaText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  // ── Review Step Styles ──
-  reviewContainer: {
-    maxHeight: '85%',
-  },
-  reviewToolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-    marginBottom: 12,
-  },
-  selectAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  selectAllText: {
-    fontSize: 13,
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  reScanText: {
-    fontSize: 13,
-    color: '#6C8EFF',
-    fontWeight: '600',
-  },
-  tasksScrollView: {
-    maxHeight: 380,
-  },
-  tasksScrollContent: {
-    gap: 10,
-    paddingBottom: 16,
-  },
-  scannedTaskCard: {
-    backgroundColor: '#10131C',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 12,
-  },
-  scannedTaskCardSelected: {
-    borderColor: 'rgba(108,142,255,0.4)',
-    backgroundColor: 'rgba(108,142,255,0.05)',
-  },
-  scannedTaskRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  taskCheckbox: {
-    marginTop: 3,
-  },
-  taskBody: {
-    flex: 1,
-    gap: 8,
-  },
-  taskTitleInput: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-    padding: 0,
-    margin: 0,
-  },
-  taskMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1E2330',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  metaBadgeText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  subjectSelectPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1E2330',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    maxWidth: 160,
-  },
-  subjectSelectText: {
-    fontSize: 11,
-    color: '#6C8EFF',
-    fontWeight: '600',
-  },
-  subjectDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dropdown: {
-    backgroundColor: '#1A1F2E',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    marginTop: 4,
-    padding: 4,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  dropdownText: {
-    fontSize: 12,
-    color: '#ffffff',
-  },
-  descText: {
-    fontSize: 11,
-    color: '#64748B',
-    lineHeight: 15,
-  },
-  trashBtn: {
-    padding: 4,
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.65)',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 20,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+      maxHeight: '90%',
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      marginTop: 12,
+      marginBottom: 16,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.primary + '18',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    subtext: {
+      fontSize: 13,
+      color: colors.mutedForeground,
+      marginBottom: 18,
+      lineHeight: 18,
+      includeFontPadding: false,
+    },
+    offlineBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 16,
+    },
+    offlineText: {
+      fontSize: 12,
+      color: '#F59E0B',
+      fontWeight: '500',
+      flex: 1,
+      includeFontPadding: false,
+    },
+    pickerRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 18,
+    },
+    pickerCard: {
+      flex: 1,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      alignItems: 'center',
+      gap: 6,
+    },
+    disabledCard: {
+      opacity: 0.45,
+    },
+    pickerIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    pickerSub: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    fileCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.primary + '12',
+      borderWidth: 1,
+      borderColor: colors.primary + '30',
+      borderRadius: 12,
+      padding: 12,
+      gap: 12,
+      marginBottom: 16,
+    },
+    fileIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 9,
+      backgroundColor: colors.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fileInfo: {
+      flex: 1,
+    },
+    fileName: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    fileSize: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: 'rgba(239,68,68,0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(239,68,68,0.25)',
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+    },
+    errorText: {
+      fontSize: 13,
+      color: '#EF4444',
+      flex: 1,
+      includeFontPadding: false,
+    },
+    loadingBox: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 20,
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 12,
+    },
+    loadingText: {
+      fontSize: 13,
+      color: colors.primary,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    cancelScanBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+    },
+    cancelScanText: {
+      fontSize: 12,
+      color: '#EF4444',
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    ctaButton: {
+      flexDirection: 'row',
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.4 : 0.2,
+      shadowRadius: 10,
+      elevation: 6,
+      marginTop: 6,
+    },
+    ctaDisabled: {
+      opacity: 0.45,
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    ctaText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#ffffff',
+      includeFontPadding: false,
+    },
+    // ── Review Step Styles ──
+    reviewContainer: {
+      maxHeight: '85%',
+    },
+    reviewToolbar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      marginBottom: 12,
+    },
+    selectAllBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    selectAllText: {
+      fontSize: 13,
+      color: colors.foreground,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    reScanText: {
+      fontSize: 13,
+      color: colors.primary,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    tasksScrollView: {
+      maxHeight: 380,
+    },
+    tasksScrollContent: {
+      gap: 10,
+      paddingBottom: 16,
+    },
+    scannedTaskCard: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+    },
+    scannedTaskCardSelected: {
+      borderColor: colors.primary + '66',
+      backgroundColor: colors.primary + (isDark ? '18' : '10'),
+    },
+    scannedTaskRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    taskCheckbox: {
+      marginTop: 3,
+    },
+    taskBody: {
+      flex: 1,
+      gap: 8,
+    },
+    taskTitleInput: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.foreground,
+      padding: 0,
+      margin: 0,
+    },
+    taskMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    metaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    metaBadgeText: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    subjectSelectPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      maxWidth: 160,
+    },
+    subjectSelectText: {
+      fontSize: 11,
+      color: colors.primary,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    subjectDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    dropdown: {
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 4,
+      padding: 4,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 6,
+    },
+    dropdownText: {
+      fontSize: 12,
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    descText: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      lineHeight: 15,
+      includeFontPadding: false,
+    },
+    trashBtn: {
+      padding: 4,
+    },
+  });
+}

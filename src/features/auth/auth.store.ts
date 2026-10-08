@@ -4,6 +4,7 @@ import { authApi } from './auth.api';
 import { ApiError } from '@/src/lib/api';
 import { signOutFromGoogle } from '@/src/lib/google-auth';
 import type { AuthTokens, AuthUser, LoginInput, SignupInput } from './auth.types';
+import { formatAuthErrorMessage } from './auth.error';
 
 const ACCESS_TOKEN_KEY = 'acadmate.accessToken';
 const REFRESH_TOKEN_KEY = 'acadmate.refreshToken';
@@ -180,7 +181,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accessToken: null,
         refreshToken: null,
         isRestoring: false,
-        error: error instanceof Error ? error.message : 'Unable to restore session',
+        error: formatAuthErrorMessage(error, 'Unable to restore session'),
       });
     }
   },
@@ -198,18 +199,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().setSession(tokens, response.data?.user ?? null);
     } catch (error) {
-      const raw = error instanceof Error ? error.message : '';
-      let message = 'Google sign-in failed. Please try again.';
-      if (
-        raw.toLowerCase().includes('network') ||
-        raw.toLowerCase().includes('failed to fetch') ||
-        raw.toLowerCase().includes('timeout') ||
-        raw.toLowerCase().includes('offline')
-      ) {
-        message = 'No internet connection. Please check your Wi-Fi or mobile data and try again.';
-      } else if (raw) {
-        message = raw;
-      }
+      const message = formatAuthErrorMessage(error, 'Google sign-in failed. Please try again.');
       set({ error: message });
       throw new Error(message);
     } finally {
@@ -230,9 +220,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().setSession(tokens, response.data?.user ?? null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to log in';
+      const message = formatAuthErrorMessage(
+        error,
+        'Unable to sign in. Please check your credentials and try again.'
+      );
       set({ error: message });
-      throw error;
+      throw new Error(message);
     } finally {
       set({ isLoading: false });
     }
@@ -252,9 +245,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().setSession(tokens, response.data?.user ?? null);
       return 'authenticated';
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to sign up';
+      const message = formatAuthErrorMessage(
+        error,
+        'Unable to create account. Please try again.'
+      );
       set({ error: message });
-      throw error;
+      throw new Error(message);
     } finally {
       set({ isLoading: false });
     }

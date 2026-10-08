@@ -10,12 +10,12 @@ import { parseToEpoch } from '../utils/philippineTime';
 // Configure notification behavior when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: false, // Prevents duplicate native OS heads-up banner while InAppNotificationBanner is active
     shouldPlaySound: true,
     shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.MAX,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    priority: Notifications.AndroidNotificationPriority.DEFAULT,
+    shouldShowBanner: false, // Prevents duplicate native OS banner in foreground
+    shouldShowList: true, // Notification is still kept in the OS notification tray/center
   }),
 });
 
@@ -149,6 +149,7 @@ export const NotificationService = {
    * Helper to cancel all scheduled notifications for a given task.
    */
   cancelTaskNotifications: async (taskId: string) => {
+    await NotificationService.cancelNotification(`task_${taskId}_lead`);
     await NotificationService.cancelNotification(`task_${taskId}_day`);
     await NotificationService.cancelNotification(`task_${taskId}_hour`);
     await NotificationService.cancelNotification(`task_${taskId}_due`);
@@ -250,6 +251,7 @@ export const NotificationService = {
         : `Task Due in ${leadLabel}`;
 
       try {
+        await NotificationService.cancelNotification(idLead);
         await Notifications.scheduleNotificationAsync({
           identifier: idLead,
           content: {
@@ -285,6 +287,7 @@ export const NotificationService = {
       if (hourBeforeTime > now) {
         const idHour = `task_${id}_hour`;
         try {
+          await NotificationService.cancelNotification(idHour);
           await Notifications.scheduleNotificationAsync({
             identifier: idHour,
             content: {
@@ -319,6 +322,7 @@ export const NotificationService = {
     if (hourCutoff <= now && dueTime > now + 60 * 1000) {
       const idDue = `task_${id}_due`;
       try {
+        await NotificationService.cancelNotification(idDue);
         await Notifications.scheduleNotificationAsync({
           identifier: idDue,
           content: {

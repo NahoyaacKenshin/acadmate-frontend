@@ -47,7 +47,9 @@ export function useActionMenu() {
     }).start(({ finished }) => {
       if (finished) {
         setIsMounted(false);
-        onFinished?.();
+        if (typeof onFinished === 'function') {
+          onFinished();
+        }
       }
     });
   }, [anim]);
@@ -190,7 +192,7 @@ export function ActionMenuDropdown({
       >
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={onClose}
+          onPress={() => onClose()}
           accessibilityLabel="Dismiss menu"
           accessibilityRole="button"
         />
@@ -295,14 +297,14 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    zIndex: 90,
+    zIndex: 999,
   },
   menuCard: {
     position: 'absolute',
     borderRadius: 16,
     borderWidth: 1,
-    zIndex: 120,
-    elevation: 16,
+    zIndex: 1000,
+    elevation: 20,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
 import { ArrowLeft, Save, FileText } from 'lucide-react-native';
 import { Source } from './SourceListItem';
+import { useTheme } from '@/src/theme/useTheme';
 
 interface EditSourceModalProps {
   visible: boolean;
@@ -24,6 +25,7 @@ interface EditSourceModalProps {
 }
 
 export function EditSourceModal({ visible, source, onClose, onSave }: EditSourceModalProps) {
+  const { colors, isDark } = useTheme();
   const [fileName, setFileName] = useState('');
   const [rawText, setRawText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -59,20 +61,44 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
         >
           {/* ── Header ── */}
-          <View style={styles.header}>
-            <Pressable style={styles.backBtn} onPress={onClose} hitSlop={8}>
-              <ArrowLeft size={20} color="#6C8EFF" />
+          <View
+            style={[
+              styles.header,
+              {
+                borderBottomColor: colors.border,
+                backgroundColor: colors.background,
+              },
+            ]}
+          >
+            <Pressable
+              style={[
+                styles.backBtn,
+                { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' },
+              ]}
+              onPress={onClose}
+              hitSlop={8}
+            >
+              <ArrowLeft size={20} color="#6366F1" />
             </Pressable>
             <View style={styles.headerCenter}>
-              <FileText size={16} color="#A78BFA" />
-              <Text style={styles.headerTitle} numberOfLines={1}>Edit Source</Text>
+              <View
+                style={[
+                  styles.headerIconWrap,
+                  { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' },
+                ]}
+              >
+                <FileText size={15} color="#6366F1" />
+              </View>
+              <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+                Edit Source
+              </Text>
             </View>
             <Pressable
               style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.75 }]}
@@ -98,14 +124,21 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
           >
             {/* File name */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>File Name</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>FILE NAME</Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={fileName}
                 onChangeText={setFileName}
                 placeholder="e.g. Lecture 3 - Polymorphism"
-                placeholderTextColor="#3A4455"
-                selectionColor="#6C8EFF"
+                placeholderTextColor={colors.mutedForeground}
+                selectionColor="#6366F1"
                 returnKeyType="next"
                 autoCapitalize="words"
               />
@@ -113,17 +146,25 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
 
             {/* Raw text */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Extracted Text</Text>
-              <Text style={styles.hint}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>EXTRACTED TEXT</Text>
+              <Text style={[styles.hint, { color: colors.mutedForeground }]}>
                 Edit the AI-extracted text. Changes will update the AI's understanding of this source automatically.
               </Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={rawText}
                 onChangeText={setRawText}
                 placeholder="No extracted text available for this source."
-                placeholderTextColor="#3A4455"
-                selectionColor="#6C8EFF"
+                placeholderTextColor={colors.mutedForeground}
+                selectionColor="#6366F1"
                 multiline
                 textAlignVertical="top"
                 autoCapitalize="sentences"
@@ -139,7 +180,6 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#10131C',
   },
   header: {
     flexDirection: 'row',
@@ -147,16 +187,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1F2E',
     gap: 12,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   headerCenter: {
     flex: 1,
@@ -164,25 +203,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  headerIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
     flex: 1,
+    includeFontPadding: false,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#6C8EFF',
+    backgroundColor: '#6366F1',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
+    flexShrink: 0,
   },
   saveBtnLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: '#ffffff',
+    includeFontPadding: false,
   },
   body: {
     padding: 20,
@@ -193,27 +242,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
+    includeFontPadding: false,
   },
   hint: {
     fontSize: 12,
-    color: '#4A5568',
     lineHeight: 17,
+    includeFontPadding: false,
   },
   input: {
-    backgroundColor: '#161A26',
     borderWidth: 1,
-    borderColor: '#2A3143',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#ffffff',
     fontSize: 14,
     lineHeight: 20,
+    includeFontPadding: false,
   },
   textArea: {
     minHeight: 280,

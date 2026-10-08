@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Vibration } from 'react-native';
 import { Text } from '../ui/text';
-import { Check, Trash, AlertTriangle, Clock, Calendar, FileText, ListChecks, ChevronDown } from 'lucide-react-native';
+import { Check, Trash, AlertTriangle, Clock, Calendar, FileText } from 'lucide-react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { isOverduePHT, isTodayPHT, isTomorrowPHT, formatTimePHT } from '@/src/utils/philippineTime';
-import { SubtaskItem } from '@/src/hooks/useTasks';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 export interface Task {
   id: string;
@@ -18,28 +19,16 @@ export interface Task {
   subtasks?: string | null;
 }
 
-interface TaskListItemProps {
+export interface TaskListItemProps {
   task: Task;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   onPress: () => void;
-  onToggleSubtask?: (taskId: string, subtaskId: string) => void;
 }
 
-export function TaskListItem({ task, onComplete, onDelete, onPress, onToggleSubtask }: TaskListItemProps) {
-  const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
-
-  const subtaskList: SubtaskItem[] = useMemo(() => {
-    if (!task.subtasks) return [];
-    try {
-      const parsed = JSON.parse(task.subtasks);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }, [task.subtasks]);
-
-  const completedSubtasksCount = subtaskList.filter((s) => s.completed).length;
+export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListItemProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const handleToggleComplete = (e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -114,7 +103,7 @@ export function TaskListItem({ task, onComplete, onDelete, onPress, onToggleSubt
 
     return (
       <View style={styles.badgeUpcoming}>
-        <Calendar size={11} color="#94A3B8" />
+        <Calendar size={11} color={colors.mutedForeground} />
         <Text style={styles.badgeTextUpcoming}>{task.dueDate}</Text>
       </View>
     );
@@ -164,62 +153,13 @@ export function TaskListItem({ task, onComplete, onDelete, onPress, onToggleSubt
           {/* Description Preview if present */}
           {!!task.description && (
             <View style={styles.descRow}>
-              <FileText size={11} color="#64748B" />
+              <FileText size={11} color={colors.mutedForeground} />
               <Text
                 style={[styles.descText, task.completed && styles.descTextCompleted]}
                 numberOfLines={1}
               >
                 {task.description}
               </Text>
-            </View>
-          )}
-
-          {/* Subtasks Progress Pill */}
-          {subtaskList.length > 0 && (
-            <Pressable
-              style={styles.subtasksPill}
-              onPress={(e) => {
-                e.stopPropagation();
-                setIsSubtasksExpanded((prev) => !prev);
-              }}
-              hitSlop={6}
-            >
-              <ListChecks size={12} color="#6C8EFF" />
-              <Text style={styles.subtasksPillText}>
-                {completedSubtasksCount}/{subtaskList.length} subtasks
-              </Text>
-              <ChevronDown
-                size={12}
-                color="#6C8EFF"
-                style={isSubtasksExpanded ? { transform: [{ rotate: '180deg' }] } : undefined}
-              />
-            </Pressable>
-          )}
-
-          {/* Subtasks Expanded List */}
-          {isSubtasksExpanded && subtaskList.length > 0 && (
-            <View style={styles.subtasksContainer}>
-              {subtaskList.map((st) => (
-                <Pressable
-                  key={st.id}
-                  style={styles.subtaskRow}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    onToggleSubtask?.(task.id, st.id);
-                  }}
-                  hitSlop={6}
-                >
-                  <View style={[styles.subtaskCheckbox, st.completed && styles.subtaskCheckboxDone]}>
-                    {st.completed && <Check size={10} color="#ffffff" strokeWidth={3} />}
-                  </View>
-                  <Text
-                    style={[styles.subtaskTitle, st.completed && styles.subtaskTitleDone]}
-                    numberOfLines={2}
-                  >
-                    {st.title}
-                  </Text>
-                </Pressable>
-              ))}
             </View>
           )}
 
@@ -231,239 +171,212 @@ export function TaskListItem({ task, onComplete, onDelete, onPress, onToggleSubt
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#161A26',
-    padding: 14,
-    marginVertical: 5,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    gap: 12,
-  },
-  containerCompleted: {
-    backgroundColor: '#12151F',
-    borderColor: '#1E2330',
-    opacity: 0.75,
-  },
-  containerPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.99 }],
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#3A4455',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  checkboxCompleted: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  content: {
-    flex: 1,
-    gap: 6,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#ffffff',
-    flex: 1,
-    lineHeight: 20,
-  },
-  completedTitle: {
-    textDecorationLine: 'line-through',
-    color: '#64748B',
-  },
-  subjectTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    maxWidth: 130,
-    backgroundColor: 'rgba(113, 113, 122, 0.16)',
-  },
-  subjectText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  descRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  descText: {
-    fontSize: 12,
-    color: '#64748B',
-    flex: 1,
-  },
-  descTextCompleted: {
-    color: '#475569',
-    textDecorationLine: 'line-through',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  dueDateNone: {
-    fontSize: 11,
-    color: '#4A5568',
-    fontStyle: 'italic',
-  },
-  badgeCompleted: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeTextCompleted: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-  badgeOverdue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeTextOverdue: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-  badgeToday: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeTextToday: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#F59E0B',
-  },
-  badgeTomorrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeTextTomorrow: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FCD34D',
-  },
-  badgeUpcoming: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(148, 163, 184, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeTextUpcoming: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#94A3B8',
-  },
-  actionButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 60,
-    marginVertical: 5,
-    borderRadius: 14,
-  },
-  deleteButton: {
-    backgroundColor: '#EF4444',
-    marginRight: 16,
-    marginLeft: -8,
-  },
-  completeButton: {
-    backgroundColor: '#10B981',
-    marginLeft: 16,
-    marginRight: -8,
-  },
-  subtasksPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 5,
-    backgroundColor: 'rgba(108, 142, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.25)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginVertical: 4,
-  },
-  subtasksPillText: {
-    fontSize: 11,
-    color: '#6C8EFF',
-    fontWeight: '600',
-  },
-  subtasksContainer: {
-    backgroundColor: '#10131C',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1E2330',
-    padding: 8,
-    gap: 6,
-    marginVertical: 4,
-  },
-  subtaskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 2,
-  },
-  subtaskCheckbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#4A5568',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subtaskCheckboxDone: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  subtaskTitle: {
-    fontSize: 12,
-    color: '#CBD5E1',
-    flex: 1,
-  },
-  subtaskTitleDone: {
-    color: '#64748B',
-    textDecorationLine: 'line-through',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: colors.card,
+      padding: 14,
+      marginVertical: 5,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 12,
+    },
+    containerCompleted: {
+      backgroundColor: isDark ? 'rgba(18, 21, 31, 0.7)' : 'rgba(244, 244, 245, 0.8)',
+      borderColor: colors.border,
+      opacity: 0.75,
+    },
+    containerPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.99 }],
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: isDark ? '#3A4455' : '#D1D5DB',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
+    },
+    checkboxCompleted: {
+      backgroundColor: '#10B981',
+      borderColor: '#10B981',
+    },
+    content: {
+      flex: 1,
+      gap: 6,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    title: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.foreground,
+      flex: 1,
+      lineHeight: 20,
+      includeFontPadding: false,
+    },
+    completedTitle: {
+      textDecorationLine: 'line-through',
+      color: colors.mutedForeground,
+    },
+    subjectTag: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      maxWidth: 130,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexShrink: 0,
+    },
+    subjectText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+    },
+    descRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    descText: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    descTextCompleted: {
+      color: isDark ? '#475569' : '#A1A1AA',
+      textDecorationLine: 'line-through',
+    },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 2,
+    },
+    dueDateNone: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontStyle: 'italic',
+      includeFontPadding: false,
+    },
+    badgeCompleted: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    badgeTextCompleted: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#10B981',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
+    },
+    badgeOverdue: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    badgeTextOverdue: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#EF4444',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 6,
+    },
+    badgeToday: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    badgeTextToday: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#F59E0B',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
+    },
+    badgeTomorrow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    badgeTextTomorrow: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#F59E0B',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
+    },
+    badgeUpcoming: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    badgeTextUpcoming: {
+      fontSize: 11,
+      fontWeight: '500',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
+    },
+    actionButton: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: 60,
+      marginVertical: 5,
+      borderRadius: 14,
+    },
+    deleteButton: {
+      backgroundColor: '#EF4444',
+      marginRight: 0,
+      marginLeft: 8,
+    },
+    completeButton: {
+      backgroundColor: '#10B981',
+      marginLeft: 0,
+      marginRight: 8,
+    },
+  });
+}

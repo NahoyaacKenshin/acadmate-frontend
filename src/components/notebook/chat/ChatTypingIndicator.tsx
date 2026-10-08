@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet, Image } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { Sparkles } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 export function ChatTypingIndicator() {
+  const { colors, isDark } = useTheme();
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -54,13 +55,33 @@ export function ChatTypingIndicator() {
   return (
     <View style={styles.wrapper}>
       {/* AI avatar */}
-      <View style={styles.avatar}>
-        <Sparkles size={14} color="#6C8EFF" />
+      <View
+        style={[
+          styles.avatar,
+          {
+            backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+            borderColor: isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE',
+          },
+        ]}
+      >
+        <Image
+          source={require('../../../../assets/images/new-splash-favicon-icon.png')}
+          style={styles.avatarLogo}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Bubble */}
-      <View style={styles.bubble}>
-        <Text style={styles.label}>Thinking…</Text>
+      <View
+        style={[
+          styles.bubble,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>Thinking…</Text>
         <View style={styles.dots}>
           <Animated.View style={[styles.dot, dotStyle(dot1)]} />
           <Animated.View style={[styles.dot, dotStyle(dot2)]} />
@@ -83,19 +104,20 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+    flexShrink: 0,
+  },
+  avatarLogo: {
+    width: 16,
+    height: 16,
   },
   bubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
     borderWidth: 1,
-    borderColor: '#2A3143',
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 14,
@@ -104,8 +126,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#64748B',
     fontStyle: 'italic',
+    includeFontPadding: false,
   },
   dots: {
     flexDirection: 'row',
@@ -116,6 +138,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#6C8EFF',
+    backgroundColor: '#6366F1',
   },
 });

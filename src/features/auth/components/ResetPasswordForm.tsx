@@ -12,6 +12,7 @@ import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff, CheckCircle2, ArrowLeft } from 'lucide-react-native';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
+import { formatAuthErrorMessage } from '../auth.error';
 
 type FieldErrors = {
   token?: string;
@@ -74,7 +75,7 @@ export function ResetPasswordForm() {
       setIsSuccess(true);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Unable to reset password. Please try again.'
+        formatAuthErrorMessage(err, 'Unable to reset password. Please try again.')
       );
     } finally {
       setIsLoading(false);
@@ -141,6 +142,12 @@ export function ResetPasswordForm() {
           <View style={styles.inputGroup}>
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Reset Token</Text>
             <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              spellCheck={false}
               placeholder="Paste the reset token from your email"
               placeholderTextColor={colors.mutedForeground}
               value={token}
@@ -170,6 +177,12 @@ export function ResetPasswordForm() {
           <Text style={[styles.fieldLabel, { color: colors.foreground }]}>New Password</Text>
           <View style={styles.passwordWrap}>
             <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              spellCheck={false}
               placeholder="Enter new password"
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPassword}
@@ -224,6 +237,12 @@ export function ResetPasswordForm() {
           </Text>
           <View style={styles.passwordWrap}>
             <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              spellCheck={false}
               placeholder="Re-enter new password"
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showConfirmPassword}

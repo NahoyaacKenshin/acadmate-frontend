@@ -418,7 +418,11 @@ export function AddExamSheet({
                 </View>
               ) : (
                 <Pressable
-                  style={[styles.picker, showTermPicker && styles.pickerActive]}
+                  style={[
+                    styles.picker,
+                    showTermPicker && styles.pickerActive,
+                    error && !selectedTermId && styles.pickerError,
+                  ]}
                   onPress={() => {
                     setShowTermPicker((v) => !v);
                     setShowSubjectPicker(false);
@@ -469,7 +473,11 @@ export function AddExamSheet({
             <View style={styles.formGroup}>
               <Text style={styles.label}>Subject *</Text>
               <Pressable
-                style={[styles.picker, showSubjectPicker && styles.pickerActive]}
+                style={[
+                  styles.picker,
+                  showSubjectPicker && styles.pickerActive,
+                  error && !selectedSubjectId && styles.pickerError,
+                ]}
                 onPress={() => {
                   setShowSubjectPicker((v) => !v);
                   setShowTermPicker(false);
@@ -680,10 +688,10 @@ export function AddExamSheet({
             <Pressable
               style={[
                 styles.submitBtn,
-                (isLoading || !selectedSubjectId || !selectedTermId) && styles.submitBtnDisabled,
+                isLoading && styles.submitBtnDisabled,
               ]}
               onPress={handleAddExam}
-              disabled={isLoading || !selectedSubjectId || !selectedTermId}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#ffffff" size="small" />
@@ -828,6 +836,9 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     pickerActive: {
       borderColor: '#6366F1',
+    },
+    pickerError: {
+      borderColor: '#EF4444',
     },
     pickerLeft: {
       flexDirection: 'row',

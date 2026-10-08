@@ -43,12 +43,47 @@ const STAGES: ProgressStage[] = [
   },
 ];
 
+export const TASK_STAGES: ProgressStage[] = [
+  {
+    step: 1,
+    label: 'Uploading document',
+    detail: 'Transferring file to AcadMate AI…',
+    targetProgress: 0.25,
+    durationMs: 2000,
+  },
+  {
+    step: 2,
+    label: 'Scanning assignment & syllabus',
+    detail: 'Detecting deadlines, instructions, and milestones…',
+    targetProgress: 0.55,
+    durationMs: 3500,
+  },
+  {
+    step: 3,
+    label: 'Extracting task details',
+    detail: 'Identifying subjects, due dates, and priorities…',
+    targetProgress: 0.82,
+    durationMs: 4500,
+  },
+  {
+    step: 4,
+    label: 'Organizing your tasks',
+    detail: 'Formatting task checklist and deadlines…',
+    targetProgress: 0.95,
+    durationMs: 6000,
+  },
+];
+
 interface AILoadingOverlayProps {
   visible: boolean;
   onCancel?: () => void;
+  stages?: ProgressStage[];
+  title?: string;
 }
 
-export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
+export function AILoadingOverlay({ visible, onCancel, stages, title }: AILoadingOverlayProps) {
+  const activeStages = stages || STAGES;
+  const resolvedTitle = title || (stages === TASK_STAGES ? 'Scanning Tasks' : 'Analyzing Schedule');
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
@@ -133,19 +168,19 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
 
     // Initial progress animation to stage 0 target
     Animated.timing(progressAnim, {
-      toValue: STAGES[0].targetProgress,
-      duration: STAGES[0].durationMs,
+      toValue: activeStages[0].targetProgress,
+      duration: activeStages[0].durationMs,
       easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     }).start();
 
     // Chain stages chronologically without repeating
     const timers: ReturnType<typeof setTimeout>[] = [];
-    let accumulatedTime = STAGES[0].durationMs;
+    let accumulatedTime = activeStages[0].durationMs;
 
-    for (let i = 1; i < STAGES.length; i++) {
+    for (let i = 1; i < activeStages.length; i++) {
       const nextStageIndex = i;
-      const stage = STAGES[i];
+      const stage = activeStages[i];
 
       const t = setTimeout(() => {
         // Crossfade stage text
@@ -192,7 +227,7 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
       spinCounterLoop.stop();
       timers.forEach((t) => clearTimeout(t));
     };
-  }, [visible]);
+  }, [visible, activeStages]);
 
   const spin = spinClockwise.interpolate({
     inputRange: [0, 1],
@@ -204,7 +239,7 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
     outputRange: ['360deg', '0deg'],
   });
 
-  const currentStage = STAGES[currentStageIndex];
+  const currentStage = activeStages[currentStageIndex] || activeStages[0];
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
@@ -234,7 +269,7 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Analyzing Schedule</Text>
+          <Text style={styles.title}>{resolvedTitle}</Text>
 
           {/* Dynamic Stage Text (cross-faded) */}
           <Animated.View style={[styles.stageTextContainer, { opacity: textFadeAnim }]}>
@@ -244,7 +279,7 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
 
           {/* Multi-segment Step Indicators */}
           <View style={styles.segmentsRow}>
-            {STAGES.map((s, idx) => {
+            {activeStages.map((s, idx) => {
               const isDone = idx < currentStageIndex;
               const isActive = idx === currentStageIndex;
               return (
@@ -278,7 +313,7 @@ export function AILoadingOverlay({ visible, onCancel }: AILoadingOverlayProps) {
           {/* Footnote / Stage Counter */}
           <View style={styles.footerRow}>
             <Text style={styles.stepCounterText}>
-              Step {currentStage.step} of {STAGES.length}
+              Step {currentStage.step} of {activeStages.length}
             </Text>
             <View style={styles.liveIndicator}>
               <View style={styles.liveDot} />

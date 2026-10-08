@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { UploadPickerCard } from "@/src/components/schedule/UploadPickerCard";
 import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
@@ -41,13 +41,35 @@ export default function ScheduleUploadScreen() {
     pickFromGallery,
     pickFromCamera,
     clearFile,
+    clearError,
     cancelUpload,
     uploadAndParse,
   } = useScheduleScanner();
 
+  // Clear any failed attempt error messages whenever the user leaves this screen
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        clearError();
+      };
+    }, [clearError])
+  );
+
+  useEffect(() => {
+    return () => {
+      clearError();
+    };
+  }, [clearError]);
+
+  const handleBack = () => {
+    clearError();
+    router.back();
+  };
+
   const handleReadSchedule = async () => {
     const data = await uploadAndParse();
     if (!data) return;
+    clearError();
     router.push({
       pathname: "/(app)/schedule-confirm" as any,
       params: { payload: JSON.stringify(data) },
@@ -57,7 +79,7 @@ export default function ScheduleUploadScreen() {
 
   return (
     <>
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -65,7 +87,7 @@ export default function ScheduleUploadScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
+            <Pressable style={styles.backBtn} onPress={handleBack} hitSlop={8}>
               <ChevronLeft size={22} color={colors.foreground} />
             </Pressable>
             <Text style={styles.headerTitle}>Scan Schedule</Text>

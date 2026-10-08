@@ -7,25 +7,47 @@ import {
   Pressable,
   ScrollView,
   Platform,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text } from '@/src/components/ui/text';
-import { Button } from '@/src/components/ui/button';
-import { Plus, CheckCircle2, Sparkles, ChevronDown } from 'lucide-react-native';
+import {
+  CheckSquare,
+  CheckCircle2,
+  Sparkles,
+  ChevronDown,
+  Inbox,
+  Clock,
+  CalendarCheck2,
+} from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { usePowerSync } from '@powersync/react';
+
+import { router } from 'expo-router';
 
 import { TaskListItem } from '@/src/components/tasks/TaskListItem';
 import { AddTaskSheet } from '@/src/components/tasks/AddTaskSheet';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
-import { TaskScanModal } from '@/src/components/tasks/TaskScanModal';
-import { useTasks, TaskRow, SubtaskItem } from '@/src/hooks/useTasks';
+import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
+import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useSubjects } from '@/src/hooks/useSubjects';
 
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { NotificationService } from '@/src/services/notificationService';
-import { formatDateTimePHT, isOverduePHT, parseToEpoch } from '@/src/utils/philippineTime';
+import {
+  formatDateTimePHT,
+  isOverduePHT,
+  parseToEpoch,
+  toPhilippineISO,
+} from '@/src/utils/philippineTime';
 import { groupTasksByTimeline, TaskSection } from '@/src/utils/taskGrouping';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
+import {
+  ActionMenuButton,
+  ActionMenuDropdown,
+  ActionMenuItem,
+  useActionMenu,
+} from '@/src/components/common/ActionMenuDropdown';
 
 type TaskFilter = 'all' | 'pending' | 'overdue' | 'done';
 
@@ -33,14 +55,47 @@ export default function TasksScreen() {
   const { tasks, isLoading } = useTasks();
   const { subjects } = useSubjects();
   const powerSync = usePowerSync();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [activeFilter, setActiveFilter] = useState<TaskFilter>('all');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [isAddSheetVisible, setIsAddSheetVisible] = useState(false);
-  const [isScanModalVisible, setIsScanModalVisible] = useState(false);
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
+  const [viewingTask, setViewingTask] = useState<TaskRow | null>(null);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
+
+  // Action Menu state & layout
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const {
+    isOpen: isActionMenuOpen,
+    isMounted: isActionMenuMounted,
+    anim: menuAnim,
+    toggleMenu: toggleActionMenu,
+    closeMenu: closeActionMenu,
+  } = useActionMenu();
+
+  const taskMenuItems = useMemo<ActionMenuItem[]>(() => [
+    {
+      id: 'manual',
+      label: 'New Task',
+      subtitle: 'Create a task manually',
+      icon: CheckSquare,
+      iconColor: '#6366F1',
+      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      onPress: () => setIsAddSheetVisible(true),
+    },
+    {
+      id: 'scan',
+      label: 'Scan Tasks',
+      subtitle: 'Auto-detect from syllabus or photo',
+      icon: Sparkles,
+      iconColor: '#6366F1',
+      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      onPress: () => router.push('/(app)/task-upload'),
+    },
+  ], [isDark]);
 
   // Overall statistics for progress card
   const totalTasks = tasks.length;
@@ -64,6 +119,12 @@ export default function TasksScreen() {
       return true; // 'all'
     });
   }, [tasks, activeFilter, selectedSubjectId]);
+
+  // Keep viewingTask in sync with reactive SQLite updates
+  const activeViewingTask = useMemo(() => {
+    if (!viewingTask) return null;
+    return tasks.find((t) => t.id === viewingTask.id) ?? viewingTask;
+  }, [tasks, viewingTask]);
 
   // Grouped Timeline Sections
   const timelineSections = useMemo<TaskSection[]>(() => {
@@ -114,7 +175,7 @@ export default function TasksScreen() {
     if (!task) return;
 
     const newCompleted = task.completed === 0 ? 1 : 0;
-    const now = new Date().toISOString();
+    const now = toPhilippineISO(new Date());
 
     try {
       await powerSync.execute(
@@ -136,30 +197,6 @@ export default function TasksScreen() {
     }
   };
 
-  const handleToggleSubtask = async (taskId: string, subtaskId: string) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    let subtaskList: SubtaskItem[] = [];
-    try {
-      subtaskList = task.subtasks ? JSON.parse(task.subtasks) : [];
-    } catch {}
-
-    const updatedSubtasks = subtaskList.map((st) =>
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
-
-    const now = new Date().toISOString();
-    try {
-      await powerSync.execute(
-        `UPDATE Task SET subtasks = ?, updatedAt = ? WHERE id = ?`,
-        [JSON.stringify(updatedSubtasks), now, taskId]
-      );
-    } catch (err) {
-      console.error('[Tasks] Toggle subtask failed:', err);
-    }
-  };
-
   const handleDeleteTask = (id: string) => {
     setTaskToDeleteId(id);
   };
@@ -178,7 +215,7 @@ export default function TasksScreen() {
   };
 
   const handlePressTask = (task: TaskRow) => {
-    setEditingTask(task);
+    setViewingTask(task);
   };
 
   const formatDueDate = (iso: string | null): string => {
@@ -191,8 +228,8 @@ export default function TasksScreen() {
     id: task.id,
     title: task.title,
     description: task.description,
-    subject: task.subject_name ?? 'No Subject',
-    subjectColor: task.subject_color ?? '#6C8EFF',
+    subject: task.subject_name ?? 'General',
+    subjectColor: task.subject_color ?? task.color ?? colors.primary,
     dueDate: formatDueDate(task.due_date),
     dueDateIso: task.due_date,
     completed: task.completed === 1,
@@ -210,22 +247,29 @@ export default function TasksScreen() {
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={styles.header}
+          onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+        >
           <Text style={styles.headerTitle}>Tasks</Text>
-          <View style={styles.headerActions}>
-            <Pressable
-              style={styles.scanHeaderBtn}
-              onPress={() => setIsScanModalVisible(true)}
-              hitSlop={8}
-            >
-              <Sparkles size={16} color="#6C8EFF" />
-              <Text style={styles.scanHeaderBtnText}>Scan</Text>
-            </Pressable>
-            <Button size="icon" variant="ghost" onPress={() => setIsAddSheetVisible(true)}>
-              <Plus size={24} color="#6C8EFF" />
-            </Button>
-          </View>
+          <ActionMenuButton
+            isOpen={isActionMenuOpen}
+            onPress={toggleActionMenu}
+            anim={menuAnim}
+            accessibilityLabel="Add task options"
+          />
         </View>
+
+        {/* Action Menu Dropdown */}
+        <ActionMenuDropdown
+          isMounted={isActionMenuMounted}
+          isOpen={isActionMenuOpen}
+          anim={menuAnim}
+          onClose={closeActionMenu}
+          items={taskMenuItems}
+          top={headerHeight + 56}
+          right={16}
+        />
 
         {/* Progress Card */}
         {totalTasks > 0 && (
@@ -283,6 +327,7 @@ export default function TasksScreen() {
                     styles.subjectPillText,
                     selectedSubjectId === null && styles.subjectPillTextActive,
                   ]}
+                  numberOfLines={1}
                 >
                   All Subjects
                 </Text>
@@ -298,6 +343,12 @@ export default function TasksScreen() {
                     ]}
                     onPress={() => setSelectedSubjectId(isSubActive ? null : sub.id)}
                   >
+                    <View
+                      style={[
+                        styles.subjectDot,
+                        { backgroundColor: sub.color || '#6366F1' },
+                      ]}
+                    />
                     <Text
                       style={[
                         styles.subjectPillText,
@@ -317,22 +368,31 @@ export default function TasksScreen() {
         {/* Task List / Loading / Empty State */}
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#6C8EFF" size="large" />
+            <ActivityIndicator color="#6366F1" size="large" />
           </View>
         ) : filteredTasks.length === 0 ? (
           <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              {activeFilter === 'done' ? (
+                <CalendarCheck2 size={28} color={colors.mutedForeground} />
+              ) : activeFilter === 'overdue' ? (
+                <Clock size={28} color="#10B981" />
+              ) : (
+                <Inbox size={28} color={colors.mutedForeground} />
+              )}
+            </View>
             <Text style={styles.emptyText}>
               {activeFilter === 'pending'
-                ? 'No pending tasks!'
+                ? 'No pending tasks'
                 : activeFilter === 'overdue'
-                ? 'No overdue tasks 🎉'
+                ? 'No overdue tasks'
                 : activeFilter === 'done'
-                ? 'No completed tasks yet.'
-                : 'No tasks found.'}
+                ? 'No completed tasks yet'
+                : 'No tasks found'}
             </Text>
             <Text style={styles.emptySubText}>
               {activeFilter === 'pending' || activeFilter === 'all'
-                ? 'Tap + to add your first task!'
+                ? 'Tap + above to create a task or scan a document.'
                 : 'Keep up the good work!'}
             </Text>
           </View>
@@ -347,7 +407,6 @@ export default function TasksScreen() {
                 onComplete={handleCompleteTask}
                 onDelete={handleDeleteTask}
                 onPress={() => handlePressTask(item)}
-                onToggleSubtask={handleToggleSubtask}
               />
             )}
             renderSectionHeader={({ section }) => (
@@ -372,7 +431,7 @@ export default function TasksScreen() {
                     </Text>
                     <ChevronDown
                       size={14}
-                      color="#94A3B8"
+                      color={colors.mutedForeground}
                       style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
                     />
                   </Pressable>
@@ -388,22 +447,29 @@ export default function TasksScreen() {
           />
         )}
 
+        {/* Read-Only Task Detail Modal */}
+        <TaskDetailModal
+          visible={activeViewingTask !== null}
+          task={activeViewingTask}
+          onClose={() => setViewingTask(null)}
+          onEdit={(t) => {
+            setViewingTask(null);
+            setEditingTask(t);
+          }}
+        />
+
+        {/* Add Task Sheet */}
         <AddTaskSheet
           visible={isAddSheetVisible}
           subjects={subjects}
           onClose={() => setIsAddSheetVisible(false)}
           onOpenScanner={() => {
             setIsAddSheetVisible(false);
-            setIsScanModalVisible(true);
+            router.push('/(app)/task-upload');
           }}
         />
 
-        <TaskScanModal
-          visible={isScanModalVisible}
-          subjects={subjects}
-          onClose={() => setIsScanModalVisible(false)}
-        />
-
+        {/* Edit Task Sheet */}
         <EditTaskSheet
           visible={editingTask !== null}
           task={editingTask}
@@ -411,6 +477,7 @@ export default function TasksScreen() {
           onClose={() => setEditingTask(null)}
         />
 
+        {/* Delete Confirmation Modal */}
         <ConfirmModal
           visible={taskToDeleteId !== null}
           title="Delete Task?"
@@ -425,224 +492,243 @@ export default function TasksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#10131C',
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  progressCard: {
-    backgroundColor: '#161A26',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 12,
-    gap: 8,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  progressTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  progressStats: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  progressBarBg: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2A3143',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 3,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 10,
-  },
-  filterPill: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#161A26',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterPillActive: {
-    backgroundColor: 'rgba(108, 142, 255, 0.15)',
-    borderColor: '#6C8EFF',
-  },
-  filterPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  filterPillTextActive: {
-    color: '#6C8EFF',
-    fontWeight: '700',
-  },
-  subjectFilterWrapper: {
-    marginBottom: 8,
-  },
-  subjectFilterScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  subjectPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: '#161A26',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-  },
-  subjectPillActive: {
-    backgroundColor: 'rgba(108, 142, 255, 0.15)',
-    borderColor: '#6C8EFF',
-  },
-  subjectPillDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  subjectPillText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#94A3B8',
-  },
-  subjectPillTextActive: {
-    color: '#6C8EFF',
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 24,
-  },
-  emptyText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  emptySubText: {
-    fontSize: 13,
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  scanHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(108, 142, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.25)',
-  },
-  scanHeaderBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6C8EFF',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    backgroundColor: '#10131C',
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#E2E8F0',
-    letterSpacing: 0.2,
-  },
-  sectionBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  sectionBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  collapseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  collapseBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-});
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 8,
+    },
+    headerTitle: {
+      fontSize: 28,
+      lineHeight: 34,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    progressCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginHorizontal: 16,
+      marginBottom: 12,
+      padding: 14,
+      gap: 10,
+    },
+    progressHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    progressTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    progressTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    progressStats: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    progressBarBg: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    progressBarFill: {
+      height: '100%',
+      backgroundColor: '#10B981',
+      borderRadius: 3,
+    },
+    filterRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      gap: 8,
+      marginBottom: 10,
+    },
+    filterPill: {
+      flex: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 2,
+      borderRadius: 9,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterPillActive: {
+      backgroundColor: '#6366F1',
+      borderColor: '#6366F1',
+    },
+    filterPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingHorizontal: 2,
+      textAlign: 'center',
+    },
+    filterPillTextActive: {
+      color: '#ffffff',
+      fontWeight: '700',
+    },
+    subjectFilterWrapper: {
+      marginBottom: 12,
+    },
+    subjectFilterScroll: {
+      paddingHorizontal: 16,
+      gap: 8,
+    },
+    subjectPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexShrink: 0,
+    },
+    subjectPillActive: {
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.12)',
+      borderColor: '#6366F1',
+    },
+    subjectDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    subjectPillText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.mutedForeground,
+      includeFontPadding: false,
+      flexShrink: 0,
+    },
+    subjectPillTextActive: {
+      color: '#6366F1',
+      fontWeight: '700',
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 130,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 16,
+      paddingBottom: 8,
+    },
+    sectionHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    sectionIndicator: {
+      width: 4,
+      height: 14,
+      borderRadius: 2,
+      marginRight: 8,
+      flexShrink: 0,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+      flexShrink: 0,
+      marginRight: 8,
+      paddingRight: 6,
+    },
+    sectionBadge: {
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 10,
+      flexShrink: 0,
+    },
+    sectionBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+    },
+    collapseBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      flexShrink: 0,
+      paddingLeft: 8,
+    },
+    collapseBtnText: {
+      fontSize: 12,
+      color: colors.mutedForeground,
+      fontWeight: '600',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 6,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 32,
+      marginTop: 40,
+    },
+    emptyIconCircle: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.foreground,
+      marginBottom: 6,
+      textAlign: 'center',
+      includeFontPadding: false,
+      paddingHorizontal: 4,
+    },
+    emptySubText: {
+      fontSize: 13,
+      color: colors.mutedForeground,
+      textAlign: 'center',
+      lineHeight: 18,
+      includeFontPadding: false,
+    },
+  });
+}

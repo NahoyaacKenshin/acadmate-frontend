@@ -29,12 +29,21 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers.set('Authorization', `Bearer ${options.token}`);
   }
 
-  const response = await fetch(buildUrl(path), {
-    ...options,
-    headers,
-    credentials: 'include',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      ...options,
+      headers,
+      credentials: 'include',
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+  } catch (networkError) {
+    throw new ApiError(
+      0,
+      'No internet connection. Please check your Wi-Fi or mobile data and try again.',
+      networkError
+    );
+  }
 
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;

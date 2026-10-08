@@ -9,6 +9,9 @@ import {
   BackHandler,
   Animated,
   Platform,
+  Image,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -16,7 +19,6 @@ import { Text } from '@/src/components/ui/text';
 import {
   ArrowLeft,
   History,
-  Sparkles,
   BookOpen,
   Zap,
   ChevronDown,
@@ -29,6 +31,7 @@ import { ChatInputBar } from '@/src/components/notebook/chat/ChatInputBar';
 import { ChatHistoryDrawer } from '@/src/components/notebook/chat/ChatHistoryDrawer';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useChatStore } from '@/src/store/chatStore';
+import { useTheme } from '@/src/theme/useTheme';
 
 // ── Prompt chip suggestion data ─────────────────────────────────────────────
 const SUGGESTION_CHIPS = [
@@ -42,6 +45,7 @@ export default function NotebookChatScreen() {
   const router = useRouter();
   const { id: notebookId, title: notebookTitle } =
     useLocalSearchParams<{ id: string; title: string }>();
+  const { colors, isDark } = useTheme();
   const { isOnline } = useSystemStore();
 
   const {
@@ -59,9 +63,39 @@ export default function NotebookChatScreen() {
   } = useChatStore();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollBtnOpacity = useRef(new Animated.Value(0)).current;
+
+  // ── Keyboard height & visibility tracking (fixes Android input covering) ──
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setIsKeyboardVisible(true);
+      if (Platform.OS === 'android') {
+        setAndroidKeyboardHeight(e.endCoordinates.height);
+      }
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 60);
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+      if (Platform.OS === 'android') {
+        setAndroidKeyboardHeight(0);
+      }
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // ── Init per notebook (clears stale state) ────────────────────────────────
   useEffect(() => {
@@ -69,7 +103,7 @@ export default function NotebookChatScreen() {
       initForNotebook(notebookId);
       fetchSessions(notebookId);
     }
-  }, [notebookId]); // intentionally only run on notebookId change
+  }, [notebookId]);
 
   // ── Scroll-to-bottom button fade ──────────────────────────────────────────
   useEffect(() => {
@@ -109,7 +143,6 @@ export default function NotebookChatScreen() {
   );
 
   // Format sessions for drawer
-  // Backend returns SessionSummary: { id, title, messageCount, createdAt, updatedAt }
   const formattedSessions = sessions.map((s: any) => ({
     id: s.id,
     preview: s.title || 'Chat Session',
@@ -193,12 +226,24 @@ export default function NotebookChatScreen() {
   // ── Render helpers ────────────────────────────────────────────────────────
   const EmptyState = () => (
     <View style={styles.emptyState}>
-      {/* Hero icon */}
-      <View style={styles.emptyIconWrap}>
-        <Sparkles size={36} color="#6C8EFF" />
+      {/* AcadMate Logo */}
+      <View
+        style={[
+          styles.emptyLogoWrap,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Image
+          source={require('../../assets/images/new-splash-favicon-icon.png')}
+          style={styles.emptyLogoImage}
+          resizeMode="contain"
+        />
       </View>
-      <Text style={styles.emptyTitle}>AI Study Assistant</Text>
-      <Text style={styles.emptySub}>
+      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>AI Study Assistant</Text>
+      <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
         Ask anything about your uploaded sources. The AI will search your notebook and answer with
         citations pointing to exact document chunks.
       </Text>
@@ -210,19 +255,31 @@ export default function NotebookChatScreen() {
             key={chip}
             style={({ pressed }) => [
               styles.chip,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
               pressed && styles.chipPressed,
             ]}
             onPress={() => handleChipPress(chip)}
             disabled={!isOnline}
           >
-            <Zap size={12} color="#6C8EFF" />
-            <Text style={styles.chipText}>{chip}</Text>
+            <Zap size={12} color="#6366F1" />
+            <Text style={[styles.chipText, { color: colors.foreground }]}>{chip}</Text>
           </Pressable>
         ))}
       </View>
 
       {!isOnline && (
-        <View style={styles.offlineHint}>
+        <View
+          style={[
+            styles.offlineHint,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FECACA',
+            },
+          ]}
+        >
           <Text style={styles.offlineHintText}>
             Connect to the internet to use AI Chat.
           </Text>
@@ -246,94 +303,147 @@ export default function NotebookChatScreen() {
     ) : null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {/* ── Header ── */}
-      <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={handleBack} hitSlop={8}>
-          <ArrowLeft size={20} color="#6C8EFF" />
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.background,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Pressable
+          style={[
+            styles.backBtn,
+            { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' },
+          ]}
+          onPress={handleBack}
+          hitSlop={8}
+        >
+          <ArrowLeft size={20} color="#6366F1" />
         </Pressable>
 
         <View style={styles.headerCenter}>
           <View style={styles.headerTitleRow}>
-            <BookOpen size={14} color="#4A5568" />
-            <Text style={styles.headerSub} numberOfLines={1}>
+            <BookOpen size={14} color={colors.mutedForeground} />
+            <Text style={[styles.headerSub, { color: colors.foreground }]} numberOfLines={1}>
               {notebookTitle ?? 'Notebook'}
             </Text>
           </View>
-          <View style={styles.aiBadgeRow}>
-            <View style={styles.aiBadge}>
-              <Sparkles size={10} color="#6C8EFF" />
-              <Text style={styles.aiBadgeText}>AI Chat · RAG</Text>
-            </View>
+          <View style={styles.statusRow}>
             {/* Online indicator */}
-            <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#22C55E' : '#EF4444' }]} />
-            <Text style={styles.onlineLabel}>{isOnline ? 'Online' : 'Offline'}</Text>
+            <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#10B981' : '#EF4444' }]} />
+            <Text style={[styles.onlineLabel, { color: colors.mutedForeground }]}>
+              {isOnline ? 'Online' : 'Offline'}
+            </Text>
           </View>
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.historyBtn, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [
+            styles.historyBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+            pressed && { opacity: 0.7 },
+          ]}
           onPress={handleOpenHistory}
           hitSlop={8}
         >
-          <History size={18} color="#6C8EFF" />
+          <History size={18} color="#6366F1" />
         </Pressable>
       </View>
 
       {/* ── Offline Notice Bar ── */}
       {!isOnline && (
-        <View style={styles.offlineNoticeBar}>
-          <WifiOff size={13} color="#F59E0B" />
-          <Text style={styles.offlineNoticeText}>
+        <View
+          style={[
+            styles.offlineNoticeBar,
+            {
+              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FEF3C7',
+              borderBottomColor: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FDE68A',
+            },
+          ]}
+        >
+          <WifiOff size={13} color={isDark ? '#F59E0B' : '#D97706'} />
+          <Text
+            style={[
+              styles.offlineNoticeText,
+              { color: isDark ? '#F59E0B' : '#D97706' },
+            ]}
+          >
             Offline Mode — Viewing saved conversation history.
           </Text>
         </View>
       )}
 
-      {/* ── Message list ── */}
-      <View style={styles.listContainer}>
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          ListEmptyComponent={<EmptyState />}
-          ListFooterComponent={<ListFooter />}
-          contentContainerStyle={[
-            styles.listContent,
-            messages.length === 0 && styles.listContentEmpty,
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          windowSize={7}
-          maxToRenderPerBatch={10}
-          initialNumToRender={8}
-          removeClippedSubviews={Platform.OS === 'android'}
-          onScroll={handleScroll}
-          scrollEventThrottle={100}
-          onContentSizeChange={() =>
-            messages.length > 0 &&
-            flatListRef.current?.scrollToEnd({ animated: false })
-          }
+      {/* ── Chat Body (Header remains firmly fixed on top) ── */}
+      <KeyboardAvoidingView
+        style={[
+          styles.chatBody,
+          Platform.OS === 'android' && {
+            paddingBottom: androidKeyboardHeight > 0 ? androidKeyboardHeight + 24 : 0,
+          },
+        ]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+      >
+        {/* ── Message list ── */}
+        <View style={styles.listContainer}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            renderItem={renderItem}
+            ListEmptyComponent={<EmptyState />}
+            ListFooterComponent={<ListFooter />}
+            contentContainerStyle={[
+              styles.listContent,
+              messages.length === 0 && styles.listContentEmpty,
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            windowSize={7}
+            maxToRenderPerBatch={10}
+            initialNumToRender={8}
+            removeClippedSubviews={Platform.OS === 'android'}
+            onScroll={handleScroll}
+            scrollEventThrottle={100}
+            onContentSizeChange={() =>
+              messages.length > 0 &&
+              flatListRef.current?.scrollToEnd({ animated: false })
+            }
+          />
+
+          {/* Scroll-to-bottom floating button */}
+          <Animated.View style={[styles.scrollBtnWrap, { opacity: scrollBtnOpacity }]}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.scrollBtn,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={scrollToBottom}
+            >
+              <ChevronDown size={18} color="#6366F1" />
+            </Pressable>
+          </Animated.View>
+        </View>
+
+        {/* ── Input bar ── */}
+        <ChatInputBar
+          onSend={handleSend}
+          isLoading={isLoading}
+          isOnline={isOnline}
+          isKeyboardVisible={isKeyboardVisible}
         />
-
-        {/* Scroll-to-bottom floating button */}
-        <Animated.View style={[styles.scrollBtnWrap, { opacity: scrollBtnOpacity }]}>
-          <Pressable
-            style={({ pressed }) => [styles.scrollBtn, pressed && { opacity: 0.8 }]}
-            onPress={scrollToBottom}
-          >
-            <ChevronDown size={18} color="#6C8EFF" />
-          </Pressable>
-        </Animated.View>
-      </View>
-
-      {/* ── Input bar ── */}
-      <ChatInputBar
-        onSend={handleSend}
-        isLoading={isLoading}
-        isOnline={isOnline}
-      />
+      </KeyboardAvoidingView>
 
       {/* ── History drawer ── */}
       <ChatHistoryDrawer
@@ -353,7 +463,6 @@ export default function NotebookChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#10131C',
   },
   // ── Header ────────────────────────────────────────────────────────────────
   header: {
@@ -362,14 +471,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1F2E',
     gap: 12,
+    zIndex: 100,
+    flexShrink: 0,
+  },
+  chatBody: {
+    flex: 1,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -380,34 +492,18 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   headerSub: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
-    flex: 1,
-  },
-  aiBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  aiBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(108,142,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.25)',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  aiBadgeText: {
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#6C8EFF',
+    flex: 1,
+    includeFontPadding: false,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   onlineDot: {
     width: 6,
@@ -416,16 +512,14 @@ const styles = StyleSheet.create({
   },
   onlineLabel: {
     fontSize: 10,
-    color: '#4A5568',
     fontWeight: '600',
+    includeFontPadding: false,
   },
   historyBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#161A26',
     borderWidth: 1,
-    borderColor: '#2A3143',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -460,16 +554,14 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#161A26',
     borderWidth: 1,
-    borderColor: '#2A3143',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
   // ── Empty state ───────────────────────────────────────────────────────────
   emptyState: {
@@ -478,29 +570,36 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     gap: 12,
   },
-  emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: 'rgba(108,142,255,0.1)',
+  emptyLogoWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  emptyLogoImage: {
+    width: 44,
+    height: 44,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
     textAlign: 'center',
+    includeFontPadding: false,
   },
   emptySub: {
     fontSize: 13,
-    color: '#4A5568',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 6,
+    includeFontPadding: false,
   },
   chips: {
     flexDirection: 'row',
@@ -512,10 +611,8 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#161A26',
+    gap: 6,
     borderWidth: 1,
-    borderColor: '#2A3143',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -526,13 +623,11 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    color: '#94A3B8',
     fontWeight: '500',
+    includeFontPadding: false,
   },
   offlineHint: {
-    backgroundColor: 'rgba(239,68,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -543,21 +638,19 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     fontWeight: '500',
+    includeFontPadding: false,
   },
   offlineNoticeBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(245,158,11,0.08)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(245,158,11,0.2)',
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   offlineNoticeText: {
     fontSize: 12,
-    color: '#F59E0B',
-    fontFamily: 'Inter_500Medium',
+    includeFontPadding: false,
   },
 });

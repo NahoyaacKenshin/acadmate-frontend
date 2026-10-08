@@ -52,6 +52,7 @@ import { ClassDetailModal } from '@/src/components/calendar/ClassDetailModal';
 import { EditClassSheet } from '@/src/components/calendar/EditClassSheet';
 import { EventDetailModal } from '@/src/components/calendar/EventDetailModal';
 import { EditEventSheet } from '@/src/components/calendar/EditEventSheet';
+import { EditStudySessionSheet } from '@/src/components/calendar/EditStudySessionSheet';
 import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { isExamEvent } from '@/src/services/notificationService';
@@ -519,6 +520,20 @@ function StudentHomeScreen() {
   const [editingClass, setEditingClass] = useState<ClassScheduleRow | null>(null);
   const [viewingEvent, setViewingEvent] = useState<CalendarEventRow | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
+  const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
+
+  const handleEditEventPress = (e: CalendarEventRow) => {
+    const isStudySession =
+      Boolean(e.location?.startsWith('study_session')) ||
+      Boolean(e.title?.toLowerCase().startsWith('study session:')) ||
+      Boolean(e.title?.toLowerCase().startsWith('study:'));
+
+    if (isStudySession) {
+      setEditingStudySession(e);
+    } else {
+      setEditingEvent(e);
+    }
+  };
 
   const handleCompleteTask = async (task: TaskRow) => {
     try {
@@ -948,7 +963,7 @@ function StudentHomeScreen() {
                   event={e}
                   index={i}
                   onPress={() => setViewingEvent(e)}
-                  onEditPress={() => setEditingEvent(e)}
+                  onEditPress={() => handleEditEventPress(e)}
                 />
               ))}
             </ScrollView>
@@ -1034,7 +1049,7 @@ function StudentHomeScreen() {
         onClose={() => setViewingEvent(null)}
         onEdit={(e) => {
           setViewingEvent(null);
-          setEditingEvent(e);
+          handleEditEventPress(e);
         }}
       />
 
@@ -1043,6 +1058,13 @@ function StudentHomeScreen() {
         visible={editingEvent !== null}
         event={editingEvent}
         onClose={() => setEditingEvent(null)}
+      />
+
+      {/* Edit Study Session Sheet */}
+      <EditStudySessionSheet
+        visible={editingStudySession !== null}
+        session={editingStudySession}
+        onClose={() => setEditingStudySession(null)}
       />
     </SafeAreaView>
   );
@@ -1064,6 +1086,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
+    paddingBottom: 130,
   },
 
   // Hero
@@ -1223,7 +1246,8 @@ const styles = StyleSheet.create({
   urgentMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   urgentSubjectTag: {
     flexDirection: 'row',
@@ -1232,7 +1256,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
-    maxWidth: 130,
+    maxWidth: 110,
+    flexShrink: 1,
   },
   urgentSubjectDot: {
     width: 5,
@@ -1243,18 +1268,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
+    includeFontPadding: false,
   },
   urgentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    flexShrink: 0,
   },
   urgentBadgeText: {
     fontSize: 10.5,
     fontWeight: '600',
+    includeFontPadding: false,
+    flexShrink: 0,
+    paddingRight: 4,
   },
   urgentActions: {
     flexDirection: 'row',
@@ -1351,7 +1381,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     flexShrink: 0,
     includeFontPadding: false,
-    paddingRight: 2,
+    paddingRight: 4,
   },
   timelineText: {
     gap: 3,

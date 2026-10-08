@@ -15,10 +15,8 @@ import {
   BookOpen,
   Pencil,
   FileText,
-  ListChecks,
-  Check,
 } from 'lucide-react-native';
-import { TaskRow, SubtaskItem } from '@/src/hooks/useTasks';
+import { TaskRow } from '@/src/hooks/useTasks';
 import {
   isTodayPHT,
   isOverduePHT,
@@ -71,19 +69,6 @@ export function TaskDetailModal({
     const timeFormatted = formatTimePHT(task.due_date);
     dueString = `${dateFormatted} · ${timeFormatted}`;
   }
-
-  // Parse subtasks if available
-  let subtaskList: SubtaskItem[] = [];
-  if (task.subtasks) {
-    try {
-      const parsed = JSON.parse(task.subtasks);
-      if (Array.isArray(parsed)) subtaskList = parsed;
-    } catch {
-      subtaskList = [];
-    }
-  }
-
-  const completedSubtasksCount = subtaskList.filter((s) => s.completed).length;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -214,44 +199,6 @@ export function TaskDetailModal({
                 )}
               </View>
             </View>
-
-            {/* Subtasks if any */}
-            {subtaskList.length > 0 ? (
-              <>
-                <View style={styles.divider} />
-                <View style={styles.subtasksBlock}>
-                  <View style={styles.subtasksHeaderRow}>
-                    <ListChecks size={14} color={colors.mutedForeground} />
-                    <Text style={styles.infoLabel}>
-                      Subtasks ({completedSubtasksCount}/{subtaskList.length})
-                    </Text>
-                  </View>
-                  <ScrollView style={styles.subtasksScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
-                    {subtaskList.map((sub) => (
-                      <View key={sub.id} style={styles.subtaskRow}>
-                        <View
-                          style={[
-                            styles.subtaskCheck,
-                            sub.completed && styles.subtaskCheckDone,
-                          ]}
-                        >
-                          {sub.completed && <Check size={10} color="#FFFFFF" strokeWidth={3} />}
-                        </View>
-                        <Text
-                          style={[
-                            styles.subtaskTitle,
-                            sub.completed && styles.subtaskTitleDone,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {sub.title}
-                        </Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              </>
-            ) : null}
           </View>
 
           {/* Footer action buttons */}
@@ -375,9 +322,10 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     statusBadgeText: {
       fontSize: 11,
       fontWeight: '700',
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
       includeFontPadding: false,
       flexShrink: 0,
+      paddingRight: 6,
     },
     subjectTag: {
       flexDirection: 'row',
@@ -448,47 +396,6 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     divider: {
       height: 1,
       backgroundColor: colors.border,
-    },
-    subtasksBlock: {
-      paddingVertical: 8,
-    },
-    subtasksHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginBottom: 8,
-    },
-    subtasksScroll: {
-      maxHeight: 100,
-    },
-    subtaskRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingVertical: 4,
-    },
-    subtaskCheck: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    subtaskCheckDone: {
-      backgroundColor: '#10B981',
-      borderColor: '#10B981',
-    },
-    subtaskTitle: {
-      fontSize: 13,
-      color: colors.foreground,
-      flex: 1,
-      includeFontPadding: false,
-    },
-    subtaskTitleDone: {
-      textDecorationLine: 'line-through',
-      color: colors.mutedForeground,
     },
     footerRow: {
       flexDirection: 'row',

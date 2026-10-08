@@ -44,7 +44,7 @@
         "USE_EXACT_ALARM",
         "VIBRATE"
       ],
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.acadmate.app",
       "versionCode": 1

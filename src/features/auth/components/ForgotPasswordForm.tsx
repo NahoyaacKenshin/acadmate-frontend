@@ -6,6 +6,7 @@ import { Text } from '@/src/components/ui/text';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
 import { ArrowLeft } from 'lucide-react-native';
+import { formatAuthErrorMessage } from '../auth.error';
 
 function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -49,9 +50,7 @@ export function ForgotPasswordForm() {
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Unable to send password reset email. Please try again.'
+        formatAuthErrorMessage(err, 'Unable to send password reset email. Please try again.')
       );
     } finally {
       setIsLoading(false);
@@ -80,6 +79,10 @@ export function ForgotPasswordForm() {
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="off"
+            importantForAutofill="no"
+            textContentType="none"
+            spellCheck={false}
             keyboardType="email-address"
             placeholder="name@university.edu"
             placeholderTextColor={colors.mutedForeground}

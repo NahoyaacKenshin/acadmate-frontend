@@ -97,7 +97,7 @@ export function groupTasksByTimeline(tasks: TaskRow[]): TaskSection[] {
   const sections: TaskSection[] = [
     {
       key: 'overdue',
-      title: 'Overdue',
+      title: 'Overdue Tasks',
       badgeColor: '#EF4444',
       data: overdue,
     },
@@ -127,7 +127,7 @@ export function groupTasksByTimeline(tasks: TaskRow[]): TaskSection[] {
     },
     {
       key: 'completed',
-      title: 'Completed',
+      title: 'Completed Tasks',
       badgeColor: '#10B981',
       data: completed,
       collapsible: true,

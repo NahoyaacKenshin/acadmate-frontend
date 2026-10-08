@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,10 +9,9 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Text,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
 import {
   X,
   ChevronDown,
@@ -20,18 +19,14 @@ import {
   CheckSquare,
   AlertCircle,
   Sparkles,
-  Plus,
-  Trash2,
-  ListChecks,
-  Check,
 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { SubjectRow, useSubjects } from '@/src/hooks/useSubjects';
 import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
-import { TaskRow, SubtaskItem } from '@/src/hooks/useTasks';
+import { TaskRow } from '@/src/hooks/useTasks';
 import { NotificationService } from '@/src/services/notificationService';
-import { ApiService } from '@/src/services/api';
-import { assertOnline, classifyError } from '@/src/lib/aiRequest';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface EditTaskSheetProps {
   visible: boolean;
@@ -43,7 +38,7 @@ interface EditTaskSheetProps {
 type DatePickerStep = 'date' | 'time' | null;
 
 const PRESET_COLORS = [
-  '#6C8EFF', // blue
+  '#6366F1', // indigo (AcadMate brand)
   '#10B981', // emerald
   '#F59E0B', // amber
   '#EF4444', // red
@@ -51,7 +46,7 @@ const PRESET_COLORS = [
   '#06B6D4', // cyan
   '#EC4899', // pink
   '#14B8A6', // teal
-  '#6366F1', // indigo
+  '#3B82F6', // blue
   '#F97316', // orange
 ];
 
@@ -68,15 +63,14 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
   const powerSync = usePowerSync();
   const { subjects: dbSubjects } = useSubjects();
   const subjects = propSubjects ?? dbSubjects;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
-  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
-  const [isGeneratingSubtasks, setIsGeneratingSubtasks] = useState(false);
-  const [newSubtaskText, setNewSubtaskText] = useState('');
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,19 +84,6 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
       setDueDate(task.due_date ? (parseToPHTDate(task.due_date) ?? new Date(task.due_date)) : null);
       setSelectedColor(task.color ?? PRESET_COLORS[0]);
       setSelectedSubjectId(task.subject_id);
-
-      if (task.subtasks) {
-        try {
-          const parsed = JSON.parse(task.subtasks);
-          setSubtasks(Array.isArray(parsed) ? parsed : []);
-        } catch {
-          setSubtasks([]);
-        }
-      } else {
-        setSubtasks([]);
-      }
-
-      setNewSubtaskText('');
       setShowSubjectPicker(false);
       setDatePickerStep(null);
       setError(null);
@@ -112,9 +93,9 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
   const handleClose = () => {
+    setError(null);
     setShowSubjectPicker(false);
     setDatePickerStep(null);
-    setError(null);
     onClose();
   };
 
@@ -133,7 +114,6 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
           if (event.type === 'dismissed' || !selectedDate) return;
           const merged = new Date(selectedDate);
           merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-          // Chain to time picker on Android
           DateTimePickerAndroid.open({
             value: merged,
             mode: 'time',
@@ -151,7 +131,6 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
         },
       });
     } else {
-      // iOS uses a single datetime spinner inside the sheet
       setDatePickerStep('date');
     }
   };
@@ -164,53 +143,6 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
 
   const handleIOSDone = () => {
     setDatePickerStep(null);
-  };
-
-  const handleAIBreakdown = async () => {
-    if (!title.trim()) {
-      setError('Please provide a task title first.');
-      return;
-    }
-    setIsGeneratingSubtasks(true);
-    setError(null);
-    try {
-      assertOnline();
-      const res = await ApiService.tasks.breakdown({
-        title: title.trim(),
-        description: description.trim() || null,
-        dueDate: dueDate ? toPhilippineISO(dueDate) : null,
-      });
-      const generated = res?.data?.subtasks ?? [];
-      if (generated.length > 0) {
-        setSubtasks(generated);
-      }
-    } catch (err: any) {
-      const classified = classifyError(err);
-      setError(classified.message);
-    } finally {
-      setIsGeneratingSubtasks(false);
-    }
-  };
-
-  const handleToggleSubtask = (id: string) => {
-    setSubtasks((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
-    );
-  };
-
-  const handleDeleteSubtask = (id: string) => {
-    setSubtasks((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const handleAddSubtask = () => {
-    if (!newSubtaskText.trim()) return;
-    const newItem: SubtaskItem = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      title: newSubtaskText.trim(),
-      completed: false,
-    };
-    setSubtasks((prev) => [...prev, newItem]);
-    setNewSubtaskText('');
   };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -228,9 +160,9 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
     try {
       const now = toPhilippineISO(new Date());
       const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
-      const subtasksJson = JSON.stringify(subtasks);
+      const subtasksJson = task.subtasks ?? '[]';
 
-      const finalColor = task.color ?? selectedSubject?.color ?? '#6C8EFF';
+      const finalColor = task.color ?? selectedSubject?.color ?? '#6366F1';
 
       await powerSync.execute(
         `UPDATE Task SET title = ?, description = ?, dueDate = ?, color = ?, subtasks = ?, subjectId = ?, updatedAt = ?
@@ -269,13 +201,9 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      {/* Backdrop tap-to-dismiss */}
       <Pressable style={styles.backdrop} onPress={handleClose} />
-
       <KeyboardAvoidingView
         behavior="padding"
         style={styles.keyboardAvoid}
@@ -285,15 +213,16 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <CheckSquare size={16} color="#6C8EFF" />
+                <CheckSquare size={16} color={colors.primary} />
               </View>
               <Text style={styles.headerTitle}>Edit Task</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
+          {/* Error Banner */}
           {error && (
             <View style={styles.errorBanner}>
               <AlertCircle size={15} color="#EF4444" />
@@ -301,20 +230,19 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
             </View>
           )}
 
-          {/* Scrollable form */}
           <ScrollView
-            keyboardShouldPersistTaps="handled"
+            style={styles.formContainer}
+            contentContainerStyle={{ paddingBottom: 24 }}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.formContainer}
+            keyboardShouldPersistTaps="handled"
           >
-
             {/* Title */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Task Title *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="What needs to be done?"
-                placeholderTextColor="#94A3B8"
+                placeholder="e.g. Finish Math Homework"
+                placeholderTextColor={colors.mutedForeground}
                 value={title}
                 onChangeText={setTitle}
                 onFocus={() => setShowSubjectPicker(false)}
@@ -326,86 +254,14 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
               <Text style={styles.label}>Description</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
-                placeholder="Optional details..."
-                placeholderTextColor="#94A3B8"
+                placeholder="Optional notes or details..."
+                placeholderTextColor={colors.mutedForeground}
                 value={description}
                 onChangeText={setDescription}
                 multiline
                 numberOfLines={3}
                 onFocus={() => setShowSubjectPicker(false)}
               />
-            </View>
-
-            {/* Subtasks Section with AI Breakdown */}
-            <View style={styles.formGroup}>
-              <View style={styles.subtasksHeaderRow}>
-                <View style={styles.subtasksTitleRow}>
-                  <ListChecks size={14} color="#6C8EFF" />
-                  <Text style={styles.label}>
-                    Subtasks ({subtasks.filter((s) => s.completed).length}/{subtasks.length})
-                  </Text>
-                </View>
-                <Pressable
-                  style={[styles.aiBreakdownBtn, (!title.trim() || isGeneratingSubtasks) && { opacity: 0.5 }]}
-                  onPress={handleAIBreakdown}
-                  disabled={!title.trim() || isGeneratingSubtasks}
-                >
-                  {isGeneratingSubtasks ? (
-                    <ActivityIndicator size="small" color="#6C8EFF" />
-                  ) : (
-                    <>
-                      <Sparkles size={12} color="#6C8EFF" />
-                      <Text style={styles.aiBreakdownBtnText}>Break it down</Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
-
-              {/* Subtask items list */}
-              {subtasks.length > 0 && (
-                <View style={styles.subtaskList}>
-                  {subtasks.map((st) => (
-                    <View key={st.id} style={styles.subtaskEditRow}>
-                      <Pressable
-                        style={[styles.subtaskCheck, st.completed && styles.subtaskCheckDone]}
-                        onPress={() => handleToggleSubtask(st.id)}
-                        hitSlop={6}
-                      >
-                        {st.completed && <Check size={10} color="#fff" strokeWidth={3} />}
-                      </Pressable>
-                      <Text
-                        style={[styles.subtaskEditText, st.completed && styles.subtaskEditTextDone]}
-                        numberOfLines={2}
-                      >
-                        {st.title}
-                      </Text>
-                      <Pressable onPress={() => handleDeleteSubtask(st.id)} hitSlop={6}>
-                        <Trash2 size={14} color="#64748B" />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Add subtask input */}
-              <View style={styles.addSubtaskRow}>
-                <TextInput
-                  style={styles.addSubtaskInput}
-                  value={newSubtaskText}
-                  onChangeText={setNewSubtaskText}
-                  placeholder="Add a milestone step..."
-                  placeholderTextColor="#475569"
-                  onSubmitEditing={handleAddSubtask}
-                  returnKeyType="done"
-                />
-                <Pressable
-                  style={[styles.addSubtaskBtn, !newSubtaskText.trim() && { opacity: 0.5 }]}
-                  onPress={handleAddSubtask}
-                  disabled={!newSubtaskText.trim()}
-                >
-                  <Plus size={16} color="#ffffff" />
-                </Pressable>
-              </View>
             </View>
 
             {/* Due Date & Time */}
@@ -427,7 +283,7 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
                 <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
                   {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
                 </Text>
-                <Calendar size={16} color="#94A3B8" />
+                <Calendar size={16} color={colors.mutedForeground} />
               </Pressable>
 
               {/* iOS inline datetime spinner */}
@@ -439,8 +295,8 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
                     minimumDate={new Date()}
                     display="spinner"
                     onChange={handleDateChange}
-                    textColor="#ffffff"
-                    themeVariant="dark"
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
                     style={styles.iosPicker}
                   />
                   <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
@@ -449,7 +305,6 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
                 </View>
               )}
             </View>
-
 
             {/* Subject */}
             <View style={styles.formGroup}>
@@ -461,14 +316,17 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
                 <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
                   {selectedSubject ? selectedSubject.name : 'Select a subject...'}
                 </Text>
-                <ChevronDown size={16} color="#94A3B8" />
+                <ChevronDown size={16} color={colors.mutedForeground} />
               </Pressable>
               {showSubjectPicker && (
                 <View style={styles.pickerList}>
                   <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
                     <Pressable
                       style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                      onPress={() => {
+                        setSelectedSubjectId(null);
+                        setShowSubjectPicker(false);
+                      }}
                     >
                       <Text style={styles.pickerItemText}>None</Text>
                     </Pressable>
@@ -476,8 +334,12 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
                       <Pressable
                         key={s.id}
                         style={styles.pickerItem}
-                        onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                        onPress={() => {
+                          setSelectedSubjectId(s.id);
+                          setShowSubjectPicker(false);
+                        }}
                       >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color || colors.primary }]} />
                         <Text style={styles.pickerItemText}>{s.name}</Text>
                       </Pressable>
                     ))}
@@ -486,9 +348,19 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
               )}
             </View>
 
-            <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
-            </Button>
+            <Pressable
+              style={[styles.saveButton, isLoading && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText} numberOfLines={1}>
+                  Save Changes
+                </Text>
+              )}
+            </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -496,293 +368,215 @@ export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-  },
-  keyboardAvoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#161B26',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: 'rgba(108, 142, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: { padding: 6 },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    flex: 1,
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: '#1E2433',
-  },
-  resetBtnText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  formGroup: { marginBottom: 16 },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#ffffff',
-    fontSize: 14,
-  },
-  multiline: { minHeight: 68, textAlignVertical: 'top' },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 14 },
-  pickerPlaceholder: { color: '#64748B', fontSize: 14 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    marginTop: 6,
-    overflow: 'hidden',
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E2433',
-    gap: 10,
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 14, fontWeight: '500' },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  // Color Picker
-  colorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  colorSwatch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  colorSwatchSelected: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    transform: [{ scale: 1.15 }],
-  },
-  // iOS inline picker
-  iosPickerWrapper: {
-    marginTop: 8,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  iosPicker: {
-    height: 150,
-  },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: {
-    color: '#6C8EFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  saveButton: {
-    backgroundColor: '#6C8EFF',
-    marginTop: 8,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  subtasksHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  subtasksTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  aiBreakdownBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(108, 142, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(108, 142, 255, 0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  aiBreakdownBtnText: {
-    fontSize: 11,
-    color: '#6C8EFF',
-    fontWeight: '600',
-  },
-  subtaskList: {
-    backgroundColor: '#10131C',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    padding: 10,
-    gap: 8,
-    marginBottom: 8,
-  },
-  subtaskEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  subtaskCheck: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: '#4A5568',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subtaskCheckDone: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  subtaskEditText: {
-    fontSize: 13,
-    color: '#CBD5E1',
-    flex: 1,
-  },
-  subtaskEditTextDone: {
-    color: '#64748B',
-    textDecorationLine: 'line-through',
-  },
-  addSubtaskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  addSubtaskInput: {
-    flex: 1,
-    backgroundColor: '#10131C',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#ffffff',
-  },
-  addSubtaskBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#6C8EFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.primary + '18',
+      borderWidth: 1,
+      borderColor: colors.primary + '35',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    closeBtn: { padding: 6 },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    resetBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.foreground,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 15,
+    },
+    multiline: {
+      minHeight: 70,
+      textAlignVertical: 'top',
+    },
+    picker: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 14,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    pickerList: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 8,
+    },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    subjectDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    iosPickerWrapper: {
+      marginTop: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 8,
+    },
+    iosPicker: {
+      height: 140,
+    },
+    iosDoneBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      paddingVertical: 8,
+      alignItems: 'center',
+      marginTop: 6,
+    },
+    iosDoneBtnText: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    saveButton: {
+      backgroundColor: '#6366F1',
+      marginTop: 18,
+      height: 48,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+    },
+    saveBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+      textAlign: 'center',
+    },
+  });
+}

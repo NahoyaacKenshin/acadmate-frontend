@@ -5,12 +5,12 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
-  Platform,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
 import { Source } from '@/src/components/notebook/SourceListItem';
+import { useTheme } from '@/src/theme/useTheme';
 import {
   X,
   Copy,
@@ -28,6 +28,7 @@ interface SourceViewerModalProps {
 }
 
 export function SourceViewerModal({ visible, source, onClose }: SourceViewerModalProps) {
+  const { colors, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
 
   if (!source) return null;
@@ -39,8 +40,6 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
   const handleCopy = async () => {
     if (!rawText) return;
     try {
-      // In Expo, Clipboard is available from react-native or expo-clipboard if installed
-      // Try navigator.clipboard for web/fallback
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(rawText);
       }
@@ -60,33 +59,76 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
-            <X size={20} color="#94A3B8" />
+        <View
+          style={[
+            styles.header,
+            {
+              borderBottomColor: colors.border,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <Pressable
+            style={[
+              styles.closeBtn,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={onClose}
+            hitSlop={8}
+          >
+            <X size={18} color={colors.mutedForeground} />
           </Pressable>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
               {source.fileName}
             </Text>
             <View style={styles.metaRow}>
-              <Text style={styles.metaBadge}>{source.fileType}</Text>
+              <Text
+                style={[
+                  styles.metaBadge,
+                  {
+                    color: '#6366F1',
+                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+                  },
+                ]}
+              >
+                {source.fileType}
+              </Text>
               {source.chunkCount != null && (
-                <Text style={styles.metaText}>{source.chunkCount} sections indexed</Text>
+                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+                  {source.chunkCount} sections indexed
+                </Text>
               )}
             </View>
           </View>
 
           {rawText.length > 0 && (
             <Pressable
-              style={({ pressed }) => [styles.copyBtn, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [
+                styles.copyBtn,
+                {
+                  backgroundColor: copied
+                    ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5')
+                    : (isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF'),
+                },
+                pressed && { opacity: 0.7 },
+              ]}
               onPress={handleCopy}
               hitSlop={8}
             >
-              {copied ? <Check size={16} color="#22C55E" /> : <Copy size={16} color="#6C8EFF" />}
-              <Text style={[styles.copyLabel, copied && { color: '#22C55E' }]}>
+              {copied ? <Check size={15} color="#10B981" /> : <Copy size={15} color="#6366F1" />}
+              <Text
+                style={[
+                  styles.copyLabel,
+                  { color: copied ? '#10B981' : '#6366F1' },
+                ]}
+              >
                 {copied ? 'Copied' : 'Copy'}
               </Text>
             </Pressable>
@@ -95,20 +137,34 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
 
         {/* Content Info Bar */}
         {rawText.length > 0 && (
-          <View style={styles.statsBar}>
+          <View
+            style={[
+              styles.statsBar,
+              {
+                backgroundColor: colors.card,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
             <View style={styles.statItem}>
-              <BookOpen size={13} color="#6C8EFF" />
-              <Text style={styles.statText}>{wordCount.toLocaleString()} words</Text>
+              <BookOpen size={13} color="#6366F1" />
+              <Text style={[styles.statText, { color: colors.mutedForeground }]}>
+                {wordCount.toLocaleString()} words
+              </Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Layers size={13} color="#A78BFA" />
-              <Text style={styles.statText}>{charCount.toLocaleString()} characters</Text>
+              <Layers size={13} color={isDark ? '#A78BFA' : '#7C3AED'} />
+              <Text style={[styles.statText, { color: colors.mutedForeground }]}>
+                {charCount.toLocaleString()} characters
+              </Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Sparkles size={13} color="#22C55E" />
-              <Text style={styles.statText}>Available Offline</Text>
+              <Sparkles size={13} color="#10B981" />
+              <Text style={[styles.statText, { color: colors.mutedForeground }]}>
+                Offline Ready
+              </Text>
             </View>
           </View>
         )}
@@ -120,16 +176,36 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
           showsVerticalScrollIndicator={true}
         >
           {rawText.length > 0 ? (
-            <View style={styles.textCard}>
-              <Text style={styles.bodyText} selectable={true}>
+            <View
+              style={[
+                styles.textCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.bodyText, { color: colors.foreground }]} selectable={true}>
                 {rawText}
               </Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <FileText size={44} color="#2A3143" />
-              <Text style={styles.emptyTitle}>Extracted Text Unavailable</Text>
-              <Text style={styles.emptySubtitle}>
+              <View
+                style={[
+                  styles.emptyIconWrap,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <FileText size={36} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                Extracted Text Unavailable
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
                 {source.status === 'PROCESSING' || source.status === 'PENDING'
                   ? 'This source is currently being indexed by Acadmate. Once ready, the extracted content will appear here.'
                   : 'No text was extracted from this file, or the source failed to process.'}
@@ -145,7 +221,6 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0E1118',
   },
   header: {
     flexDirection: 'row',
@@ -153,16 +228,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#111520',
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#161A26',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   headerCenter: {
     flex: 1,
@@ -170,8 +244,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#F1F5F9',
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    includeFontPadding: false,
   },
   metaRow: {
     flexDirection: 'row',
@@ -181,31 +256,31 @@ const styles = StyleSheet.create({
   },
   metaBadge: {
     fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#6C8EFF',
-    backgroundColor: 'rgba(108,142,255,0.12)',
+    fontWeight: '700',
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 2,
     borderRadius: 4,
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   metaText: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    color: '#64748B',
+    fontWeight: '500',
+    includeFontPadding: false,
   },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(108,142,255,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
+    flexShrink: 0,
   },
   copyLabel: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: '#6C8EFF',
+    fontWeight: '600',
+    includeFontPadding: false,
   },
   statsBar: {
     flexDirection: 'row',
@@ -213,24 +288,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#141824',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   statText: {
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: '#94A3B8',
+    fontWeight: '600',
+    includeFontPadding: false,
   },
   statDivider: {
     width: 1,
     height: 12,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   scroll: {
     flex: 1,
@@ -240,17 +312,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   textCard: {
-    backgroundColor: '#161A26',
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   bodyText: {
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: '#E2E8F0',
     lineHeight: 24,
+    includeFontPadding: false,
   },
   emptyState: {
     alignItems: 'center',
@@ -259,16 +328,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 12,
   },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   emptyTitle: {
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#94A3B8',
+    fontWeight: '700',
+    includeFontPadding: false,
   },
   emptySubtitle: {
     fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: '#475569',
     textAlign: 'center',
     lineHeight: 20,
+    includeFontPadding: false,
   },
 });

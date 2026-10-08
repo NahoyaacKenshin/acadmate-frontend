@@ -94,7 +94,7 @@ export function getPeriodCategory(item: { title: string }): PeriodCategory {
 }
 
 export const CALENDAR_THEME = {
-  CLASS: '#6C8EFF',
+  CLASS: '#6366F1',
   EVENT: '#8B5CF6',
   TASK: '#10B981',
   EXAM: '#F59E0B',

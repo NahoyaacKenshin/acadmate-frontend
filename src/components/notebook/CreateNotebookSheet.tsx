@@ -9,9 +9,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Text,
 } from 'react-native';
-import { Text } from '@/src/components/ui/text';
-import { BookOpen, X } from 'lucide-react-native';
+import { BookOpen, X, AlertCircle } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 interface CreateNotebookSheetProps {
   visible: boolean;
@@ -20,10 +21,13 @@ interface CreateNotebookSheetProps {
 }
 
 export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebookSheetProps) {
+  const { colors, isDark } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [descFocused, setDescFocused] = useState(false);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -38,7 +42,7 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
       setDescription('');
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Failed to create notebook. Please try again.');
+      setError(err?.message ?? 'Failed to create notebook. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -65,20 +69,46 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
         style={styles.keyboardAvoid}
         pointerEvents="box-none"
       >
-        <View style={styles.sheet}>
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           {/* Handle */}
-          <View style={styles.handle} />
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <View style={styles.iconWrap}>
-                <BookOpen size={20} color="#6C8EFF" />
+              <View
+                style={[
+                  styles.iconWrap,
+                  {
+                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                    borderColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.2)',
+                  },
+                ]}
+              >
+                <BookOpen size={18} color="#6366F1" />
               </View>
-              <Text style={styles.headerTitle}>New Notebook</Text>
+              <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Notebook</Text>
             </View>
-            <Pressable style={styles.closeBtn} onPress={handleClose}>
-              <X size={20} color="#64748B" />
+            <Pressable
+              style={[
+                styles.closeBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                },
+              ]}
+              onPress={handleClose}
+              hitSlop={8}
+              accessibilityLabel="Close"
+            >
+              <X size={18} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -91,13 +121,26 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
           >
             {/* Title */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Title *</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>Title *</Text>
               <TextInput
-                style={[styles.input, error && !title.trim() ? styles.inputError : null]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.input,
+                    borderColor: error && !title.trim()
+                      ? colors.destructive
+                      : titleFocused
+                      ? colors.ring
+                      : colors.inputBorder,
+                    color: colors.foreground,
+                  },
+                ]}
                 placeholder="e.g. Physics — Chapter 5"
-                placeholderTextColor="#3A4455"
+                placeholderTextColor={colors.mutedForeground}
                 value={title}
                 onChangeText={(t) => { setTitle(t); setError(null); }}
+                onFocus={() => setTitleFocused(true)}
+                onBlur={() => setTitleFocused(false)}
                 maxLength={80}
                 returnKeyType="next"
               />
@@ -105,38 +148,73 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
 
             {/* Description */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Description <Text style={styles.optional}>(optional)</Text></Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Description{' '}
+                <Text style={[styles.optional, { color: colors.mutedForeground }]}>
+                  (optional)
+                </Text>
+              </Text>
               <TextInput
-                style={[styles.input, styles.inputMultiline]}
+                style={[
+                  styles.input,
+                  styles.inputMultiline,
+                  {
+                    backgroundColor: colors.input,
+                    borderColor: descFocused ? colors.ring : colors.inputBorder,
+                    color: colors.foreground,
+                  },
+                ]}
                 placeholder="What will you put in this notebook?"
-                placeholderTextColor="#3A4455"
+                placeholderTextColor={colors.mutedForeground}
                 value={description}
                 onChangeText={setDescription}
+                onFocus={() => setDescFocused(true)}
+                onBlur={() => setDescFocused(false)}
                 multiline
                 numberOfLines={3}
                 maxLength={300}
                 textAlignVertical="top"
               />
-              <Text style={styles.charCount}>{description.length}/300</Text>
+              <Text style={[styles.charCount, { color: colors.mutedForeground }]}>
+                {description.length}/300
+              </Text>
             </View>
 
             {error && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error}</Text>
+              <View
+                style={[
+                  styles.errorBanner,
+                  {
+                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+                  },
+                ]}
+              >
+                <AlertCircle size={15} color={colors.destructive} />
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
               </View>
             )}
           </ScrollView>
 
           {/* CTA */}
           <Pressable
-            style={[styles.saveBtn, (isLoading || !title.trim()) && styles.saveBtnDisabled]}
+            style={({ pressed }) => [
+              styles.saveBtn,
+              {
+                backgroundColor: colors.primary,
+                opacity: isLoading ? 0.6 : pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.985 : 1 }],
+              },
+            ]}
             onPress={handleSave}
-            disabled={isLoading || !title.trim()}
+            disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#ffffff" size="small" />
+              <ActivityIndicator color={colors.primaryForeground} size="small" />
             ) : (
-              <Text style={styles.saveBtnText}>Create Notebook</Text>
+              <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+                Create Notebook
+              </Text>
             )}
           </Pressable>
         </View>
@@ -147,28 +225,29 @@ export function CreateNotebookSheet({ visible, onClose, onSave }: CreateNotebook
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
   },
   keyboardAvoid: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#161A26',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderColor: '#2A3143',
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
     maxHeight: '85%',
   },
   handle: {
     alignSelf: 'center',
-    width: 40,
+    width: 36,
     height: 4,
-    backgroundColor: '#2A3143',
     borderRadius: 2,
     marginTop: 12,
     marginBottom: 16,
@@ -185,23 +264,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   iconWrap: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.15)',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
+    letterSpacing: -0.3,
+    includeFontPadding: false,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E2330',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -218,68 +297,53 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    includeFontPadding: false,
   },
   optional: {
     fontWeight: '400',
-    color: '#4A5568',
+    fontSize: 12,
   },
   input: {
-    backgroundColor: '#10131C',
     borderWidth: 1,
-    borderColor: '#2A3143',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
-    color: '#ffffff',
+    fontSize: 14.5,
   },
   inputMultiline: {
-    minHeight: 90,
+    minHeight: 88,
     paddingTop: 12,
-  },
-  inputError: {
-    borderColor: '#EF4444',
   },
   charCount: {
     fontSize: 11,
-    color: '#3A4455',
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: 3,
+    includeFontPadding: false,
   },
   errorBanner: {
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
     borderRadius: 10,
     padding: 12,
   },
   errorText: {
     fontSize: 13,
-    color: '#EF4444',
+    flex: 1,
+    includeFontPadding: false,
   },
   saveBtn: {
-    backgroundColor: '#6C8EFF',
     borderRadius: 14,
-    height: 52,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    marginHorizontal: 0,
-    shadowColor: '#6C8EFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  saveBtnDisabled: {
-    opacity: 0.5,
-    shadowOpacity: 0,
-    elevation: 0,
   },
   saveBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+    includeFontPadding: false,
   },
 });

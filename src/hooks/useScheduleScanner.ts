@@ -9,7 +9,7 @@
  * the new file so that Gemini can intelligently merge/update existing items.
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -76,11 +76,11 @@ export function useScheduleScanner(): UseScheduleScannerResult {
 
   const isCancelledRef = useRef(false);
 
-  const clearFile = () => setSelectedFile(null);
-  const clearError = () => {
+  const clearFile = useCallback(() => setSelectedFile(null), []);
+  const clearError = useCallback(() => {
     setError(null);
     setIsRetryable(false);
-  };
+  }, []);
 
   const cancelUpload = () => {
     isCancelledRef.current = true;
