@@ -109,13 +109,19 @@ export function EditQuizQuestionModal({
   const isEditing = !!question;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+        pointerEvents="box-none"
       >
-        <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
-
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEditing ? 'Edit Question' : 'Add Quiz Question'}</Text>
@@ -135,7 +141,12 @@ export function EditQuizQuestionModal({
             </View>
           </View>
 
-          <ScrollView style={styles.scrollBody} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scrollBody}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
             <Text style={styles.fieldLabel}>QUESTION</Text>
             <TextInput
               value={questionText}
@@ -212,23 +223,23 @@ export function EditQuizQuestionModal({
 
 const createStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      justifyContent: 'flex-end',
-      backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    },
     backdrop: {
       position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
     },
     sheet: {
       backgroundColor: colors.card,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      maxHeight: '90%',
+      maxHeight: '88%',
       padding: 20,
       paddingBottom: Platform.OS === 'ios' ? 36 : 24,
       borderWidth: 1,

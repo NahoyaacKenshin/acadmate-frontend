@@ -54,7 +54,7 @@ export function FlashcardStudyModal({
 }: FlashcardStudyModalProps) {
   const { colors, isDark } = useTheme();
 
-  const [cards, setCards] = useState<Flashcard[]>([]);
+  const [cards, setCards] = useState<Flashcard[]>(() => (deck?.cards ? [...deck.cards] : []));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -63,10 +63,30 @@ export function FlashcardStudyModal({
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
 
+  const prevDeckIdRef = useRef<string | null>(deck?.id ?? null);
+  const prevVisibleRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (deck?.cards) {
-      setCards([...deck.cards]);
-      setCurrentIndex(0);
+    const isOpening = visible && !prevVisibleRef.current;
+    const isNewDeck = !!deck?.id && deck.id !== prevDeckIdRef.current;
+
+    prevVisibleRef.current = visible;
+    if (deck?.id) {
+      prevDeckIdRef.current = deck.id;
+    }
+
+    if (visible && deck?.cards) {
+      if (isOpening || isNewDeck) {
+        setCards([...deck.cards]);
+        setCurrentIndex(0);
+        setIsFlipped(false);
+        setIsCompleted(false);
+      } else {
+        // Sync cards data without resetting user's study position!
+        setCards([...deck.cards]);
+        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, deck.cards.length - 1)));
+      }
+    } else if (!visible) {
       setIsFlipped(false);
       setIsCompleted(false);
     }
@@ -79,56 +99,9 @@ export function FlashcardStudyModal({
   );
   const styles = createStyles(colors, isDark, topInset);
 
-  if (!deck || cards.length === 0) {
-    return (
-      <Modal
-        visible={visible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        statusBarTranslucent
-        onRequestClose={onClose}
-      >
-        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-          <View style={styles.topHeader}>
-            <Pressable onPress={onClose} style={styles.backBtn}>
-              <ArrowLeft size={20} color="#6366F1" />
-            </Pressable>
-            <Text style={styles.headerTitle}>{deck?.title ?? 'Flashcards'}</Text>
-          </View>
-          <View style={styles.emptyContainer}>
-            <HelpCircle size={40} color={colors.mutedForeground} />
-            <Text style={styles.emptyTitle}>No cards in this deck yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Tap the button below to add your first flashcard.
-            </Text>
-            <Pressable
-              onPress={() => {
-                setEditingCard(null);
-                setIsEditModalVisible(true);
-              }}
-              style={styles.addFirstBtn}
-            >
-              <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.addFirstBtnText}>Add Flashcard</Text>
-            </Pressable>
-          </View>
-
-          <EditFlashcardModal
-            visible={isEditModalVisible}
-            onClose={() => setIsEditModalVisible(false)}
-            card={null}
-            onSave={async (data) => {
-              await onAddCard(deck!.id, data);
-            }}
-          />
-        </SafeAreaView>
-      </Modal>
-    );
-  }
-
-  const currentCard = cards[currentIndex];
   const total = cards.length;
-  const progressRatio = (currentIndex + 1) / total;
+  const currentCard = cards[currentIndex] ?? null;
+  const progressRatio = total > 0 ? (currentIndex + 1) / total : 0;
   const masteredCount = cards.filter((c) => c.isMastered).length;
 
   // Swipe animation & tracking refs
@@ -159,7 +132,7 @@ export function FlashcardStudyModal({
           useNativeDriver: true,
         }).start();
       });
-    } else {
+    } else if (tot > 0) {
       Animated.timing(translateX, {
         toValue: -SCREEN_WIDTH * 0.75,
         duration: 160,
@@ -284,6 +257,7 @@ export function FlashcardStudyModal({
 
   // Mark only — does NOT advance to next card
   const handleMarkStillLearning = () => {
+    if (!currentCard || !deck) return;
     if (currentCard.isMastered) {
       onUpdateCard(deck.id, currentCard.id, { isMastered: false });
       setCards((prev) =>
@@ -294,6 +268,7 @@ export function FlashcardStudyModal({
 
   // Mark only — does NOT advance to next card
   const handleMarkMastered = () => {
+    if (!currentCard || !deck) return;
     if (!currentCard.isMastered) {
       onUpdateCard(deck.id, currentCard.id, { isMastered: true });
       setCards((prev) =>
@@ -312,6 +287,7 @@ export function FlashcardStudyModal({
   };
 
   const handleRestart = (onlyUnmastered = false) => {
+    if (!deck) return;
     if (onlyUnmastered) {
       const unmastered = deck.cards.filter((c) => !c.isMastered);
       if (unmastered.length === 0) {
@@ -327,6 +303,53 @@ export function FlashcardStudyModal({
     setIsCompleted(false);
     translateX.setValue(0);
   };
+
+  if (!deck || cards.length === 0) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent
+        onRequestClose={onClose}
+      >
+        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+          <View style={styles.topHeader}>
+            <Pressable onPress={onClose} style={styles.backBtn}>
+              <ArrowLeft size={20} color="#6366F1" />
+            </Pressable>
+            <Text style={styles.headerTitle}>{deck?.title ?? 'Flashcards'}</Text>
+          </View>
+          <View style={styles.emptyContainer}>
+            <HelpCircle size={40} color={colors.mutedForeground} />
+            <Text style={styles.emptyTitle}>No cards in this deck yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Tap the button below to add your first flashcard.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setEditingCard(null);
+                setIsEditModalVisible(true);
+              }}
+              style={styles.addFirstBtn}
+            >
+              <Plus size={16} color="#FFFFFF" />
+              <Text style={styles.addFirstBtnText}>Add Flashcard</Text>
+            </Pressable>
+          </View>
+
+          <EditFlashcardModal
+            visible={isEditModalVisible}
+            onClose={() => setIsEditModalVisible(false)}
+            card={null}
+            onSave={async (data) => {
+              await onAddCard(deck!.id, data);
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -348,52 +371,56 @@ export function FlashcardStudyModal({
               {deck.title}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {currentIndex + 1} of {total} Cards
+              {isCompleted ? 'Session Complete' : `${currentIndex + 1} of ${total} Cards`}
             </Text>
           </View>
 
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={handleShuffle}
-              style={({ pressed }) => [
-                styles.shuffleBtn,
-                pressed && { opacity: 0.75 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Randomize flashcards order"
-            >
-              <Shuffle size={14} color="#6366F1" strokeWidth={2.3} />
-              <Text style={styles.shuffleBtnText}>Shuffle</Text>
-            </Pressable>
+          {!isCompleted && (
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={handleShuffle}
+                style={({ pressed }) => [
+                  styles.shuffleBtn,
+                  pressed && { opacity: 0.75 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Randomize flashcards order"
+              >
+                <Shuffle size={14} color="#6366F1" strokeWidth={2.3} />
+                <Text style={styles.shuffleBtnText}>Shuffle</Text>
+              </Pressable>
 
-            <Pressable
-              onPress={() => {
-                setEditingCard(currentCard);
-                setIsEditModalVisible(true);
-              }}
-              style={styles.iconBtn}
-              accessibilityLabel="Edit current flashcard"
-            >
-              <PenLine size={17} color={colors.foreground} />
-            </Pressable>
+              <Pressable
+                onPress={() => {
+                  setEditingCard(currentCard);
+                  setIsEditModalVisible(true);
+                }}
+                style={styles.iconBtn}
+                accessibilityLabel="Edit current flashcard"
+              >
+                <PenLine size={17} color={colors.foreground} />
+              </Pressable>
 
-            <Pressable
-              onPress={() => {
-                setEditingCard(null);
-                setIsEditModalVisible(true);
-              }}
-              style={styles.iconBtn}
-              accessibilityLabel="Add new flashcard"
-            >
-              <Plus size={18} color="#6366F1" />
-            </Pressable>
-          </View>
+              <Pressable
+                onPress={() => {
+                  setEditingCard(null);
+                  setIsEditModalVisible(true);
+                }}
+                style={styles.iconBtn}
+                accessibilityLabel="Add new flashcard"
+              >
+                <Plus size={18} color="#6366F1" />
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* Progress Bar */}
-        <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${progressRatio * 100}%` }]} />
-        </View>
+        {!isCompleted && (
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${progressRatio * 100}%` }]} />
+          </View>
+        )}
 
         {!isCompleted ? (
           <View style={styles.studyBody}>

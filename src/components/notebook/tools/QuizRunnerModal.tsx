@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Modal,
@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  Text as RNText,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
@@ -60,14 +61,37 @@ export function QuizRunnerModal({
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
 
+  const prevQuizIdRef = useRef<string | null>(quiz?.id ?? null);
+  const prevVisibleRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (quiz?.questions) {
-      setQuestions([...quiz.questions]);
-      setCurrentIndex(0);
+    // If currently submitting or results are already displayed, do not touch index or state
+    if (isSubmitting || result) return;
+
+    const isOpening = visible && !prevVisibleRef.current;
+    const isNewQuiz = !!quiz?.id && quiz.id !== prevQuizIdRef.current;
+
+    prevVisibleRef.current = visible;
+    if (quiz?.id) {
+      prevQuizIdRef.current = quiz.id;
+    }
+
+    if (visible && quiz?.questions) {
+      if (isOpening || isNewQuiz) {
+        setQuestions([...quiz.questions]);
+        setCurrentIndex(0);
+        setSelectedAnswers({});
+        setResult(null);
+      } else {
+        // Sync questions without resetting current question position!
+        setQuestions([...quiz.questions]);
+        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, quiz.questions.length - 1)));
+      }
+    } else if (!visible) {
       setSelectedAnswers({});
       setResult(null);
     }
-  }, [quiz, visible]);
+  }, [quiz, visible, isSubmitting, result]);
 
   const insets = useSafeAreaInsets();
   const topInset = Math.max(
@@ -230,11 +254,15 @@ export function QuizRunnerModal({
               {quiz.title}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {result ? 'Quiz Results Review' : `Question ${currentIndex + 1} of ${total}`}
+              {result
+                ? 'Quiz Results Review'
+                : isSubmitting
+                ? 'Grading Quiz...'
+                : `Question ${currentIndex + 1} of ${total}`}
             </Text>
           </View>
 
-          {!result && (
+          {!result && !isSubmitting && (
             <View style={styles.headerActions}>
               <Pressable
                 onPress={() => {
@@ -258,13 +286,20 @@ export function QuizRunnerModal({
           )}
         </View>
 
-        {!result ? (
-          <>
-            {/* Progress Bar */}
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${progressRatio * 100}%` }]} />
-            </View>
+        {!result && !isSubmitting && (
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${progressRatio * 100}%` }]} />
+          </View>
+        )}
 
+        {isSubmitting ? (
+          <View style={styles.submittingContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text style={styles.submittingTitle}>Grading Quiz</Text>
+            <Text style={styles.submittingSubtitle}>Calculating your score and review breakdown…</Text>
+          </View>
+        ) : !result ? (
+          <>
             {/* Quiz Body */}
             <ScrollView
               style={styles.scrollBody}
@@ -361,7 +396,7 @@ export function QuizRunnerModal({
                 <Trophy size={40} color="#6366F1" />
               </View>
               <Text style={styles.resultsTitle}>Quiz Completed</Text>
-              <Text style={styles.scorePercentageText}>{result.percentage}%</Text>
+              <RNText style={styles.scorePercentageText}>{result.percentage}%</RNText>
               <Text style={styles.scoreDetailsText}>
                 {result.score} out of {result.total} questions correct
               </Text>
@@ -668,6 +703,29 @@ const createStyles = (colors: any, isDark: boolean, topInset: number = 0) =>
       padding: 20,
       paddingBottom: 40,
     },
+    submittingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    submittingTitle: {
+      fontFamily: 'Inter-Bold',
+      fontSize: 18,
+      lineHeight: 24,
+      color: colors.foreground,
+      marginTop: 16,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    submittingSubtitle: {
+      fontFamily: 'Inter',
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.mutedForeground,
+      textAlign: 'center',
+      includeFontPadding: false,
+    },
     resultsSummaryCard: {
       backgroundColor: colors.card,
       borderRadius: 20,
@@ -689,21 +747,30 @@ const createStyles = (colors: any, isDark: boolean, topInset: number = 0) =>
     resultsTitle: {
       fontFamily: 'Inter-Bold',
       fontSize: 19,
+      lineHeight: 26,
       color: colors.foreground,
       marginBottom: 4,
+      includeFontPadding: false,
     },
     scorePercentageText: {
       fontFamily: 'Inter-Bold',
-      fontSize: 40,
+      fontSize: 44,
+      lineHeight: 56,
       color: '#6366F1',
       letterSpacing: -1,
+      textAlign: 'center',
+      includeFontPadding: false,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
       marginVertical: 4,
     },
     scoreDetailsText: {
       fontFamily: 'Inter',
       fontSize: 13.5,
+      lineHeight: 20,
       color: colors.mutedForeground,
       marginBottom: 18,
+      includeFontPadding: false,
     },
     retakeBtn: {
       backgroundColor: '#6366F1',

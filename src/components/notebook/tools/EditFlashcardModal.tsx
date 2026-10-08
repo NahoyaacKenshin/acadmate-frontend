@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
@@ -93,13 +94,19 @@ export function EditFlashcardModal({
   const isEditing = !!card;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+        pointerEvents="box-none"
       >
-        <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
-
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEditing ? 'Edit Flashcard' : 'Add New Flashcard'}</Text>
@@ -119,7 +126,12 @@ export function EditFlashcardModal({
             </View>
           </View>
 
-          <View style={styles.body}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={styles.body}>
             <Text style={styles.fieldLabel}>FRONT (TERM / QUESTION)</Text>
             <TextInput
               value={front}
@@ -156,7 +168,8 @@ export function EditFlashcardModal({
                 </>
               )}
             </Pressable>
-          </View>
+            </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -165,17 +178,17 @@ export function EditFlashcardModal({
 
 const createStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      justifyContent: 'flex-end',
-      backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    },
     backdrop: {
       position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
     },
     sheet: {
       backgroundColor: colors.card,
@@ -186,6 +199,7 @@ const createStyles = (colors: any, isDark: boolean) =>
       borderWidth: 1,
       borderBottomWidth: 0,
       borderColor: colors.border,
+      maxHeight: '88%',
     },
     header: {
       flexDirection: 'row',
