@@ -14,6 +14,7 @@ export interface Flashcard {
 
 export interface FlashcardDeckSummary {
   id: string;
+  notebookId?: string;
   title: string;
   description?: string | null;
   totalCards: number;
@@ -36,6 +37,7 @@ export interface QuizQuestion {
 
 export interface QuizSummary {
   id: string;
+  notebookId?: string;
   title: string;
   description?: string | null;
   totalQuestions: number;
@@ -286,19 +288,39 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     set((state) => {
       const detail = state.deckDetails[deckId];
       if (!detail) return state;
-      const updatedCards = [...detail.cards, newCard];
+      const exists = detail.cards.some((c) => c.id === newCard.id);
+      const updatedCards = exists
+        ? detail.cards.map((c) => (c.id === newCard.id ? newCard : c))
+        : [...detail.cards, newCard];
       const updatedDetail: FlashcardDeckDetail = {
         ...detail,
         cards: updatedCards,
         totalCards: updatedCards.length,
       };
+
+      const notebookId = detail.notebookId;
+      const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
+      const updatedDecks = list
+        ? list.map((d) =>
+            d.id === deckId ? { ...d, totalCards: updatedCards.length } : d
+          )
+        : undefined;
+
       return {
         deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
+        ...(notebookId && updatedDecks
+          ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
+          : {}),
       };
     });
 
     const updated = get().deckDetails[deckId];
-    if (updated) await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+    if (updated) {
+      await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+      if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
+        await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+      }
+    }
     return newCard;
   },
 
@@ -316,13 +338,32 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
         cards: updatedCards,
         masteredCards: mastered,
       };
+
+      const notebookId = detail.notebookId;
+      const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
+      const updatedDecks = list
+        ? list.map((d) =>
+            d.id === deckId
+              ? { ...d, masteredCards: mastered }
+              : d
+          )
+        : undefined;
+
       return {
         deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
+        ...(notebookId && updatedDecks
+          ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
+          : {}),
       };
     });
 
     const updated = get().deckDetails[deckId];
-    if (updated) await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+    if (updated) {
+      await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+      if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
+        await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+      }
+    }
 
     const { isOnline } = useSystemStore.getState();
     if (isOnline) {
@@ -349,21 +390,38 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       if (!detail) return state;
       const updatedCards = detail.cards.filter((c) => c.id !== cardId);
       const mastered = updatedCards.filter((c) => c.isMastered).length;
+      const updatedDetail: FlashcardDeckDetail = {
+        ...detail,
+        cards: updatedCards,
+        totalCards: updatedCards.length,
+        masteredCards: mastered,
+      };
+
+      const notebookId = detail.notebookId;
+      const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
+      const updatedDecks = list
+        ? list.map((d) =>
+            d.id === deckId
+              ? { ...d, totalCards: updatedCards.length, masteredCards: mastered }
+              : d
+          )
+        : undefined;
+
       return {
-        deckDetails: {
-          ...state.deckDetails,
-          [deckId]: {
-            ...detail,
-            cards: updatedCards,
-            totalCards: updatedCards.length,
-            masteredCards: mastered,
-          },
-        },
+        deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
+        ...(notebookId && updatedDecks
+          ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
+          : {}),
       };
     });
 
     const updated = get().deckDetails[deckId];
-    if (updated) await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+    if (updated) {
+      await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+      if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
+        await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+      }
+    }
 
     const { isOnline } = useSystemStore.getState();
     if (isOnline) {
@@ -537,17 +595,42 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     set((state) => {
       const detail = state.quizDetails[quizId];
       if (!detail) return state;
-      const updatedQuestions = [...detail.questions, newQ];
+      const exists = detail.questions.some((q) => q.id === newQ.id);
+      const updatedQuestions = exists
+        ? detail.questions.map((q) => (q.id === newQ.id ? newQ : q))
+        : [...detail.questions, newQ];
+      const updatedDetail: QuizDetail = {
+        ...detail,
+        questions: updatedQuestions,
+        totalQuestions: updatedQuestions.length,
+      };
+
+      const notebookId = detail.notebookId;
+      const list = notebookId ? state.quizzesByNotebook[notebookId] : undefined;
+      const updatedQuizzes = list
+        ? list.map((q) =>
+            q.id === quizId ? { ...q, totalQuestions: updatedQuestions.length } : q
+          )
+        : undefined;
+
       return {
         quizDetails: {
           ...state.quizDetails,
-          [quizId]: { ...detail, questions: updatedQuestions, totalQuestions: updatedQuestions.length },
+          [quizId]: updatedDetail,
         },
+        ...(notebookId && updatedQuizzes
+          ? { quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: updatedQuizzes } }
+          : {}),
       };
     });
 
     const updated = get().quizDetails[quizId];
-    if (updated) await NotebookStorage.saveQuizDetail(quizId, updated);
+    if (updated) {
+      await NotebookStorage.saveQuizDetail(quizId, updated);
+      if (updated.notebookId && get().quizzesByNotebook[updated.notebookId]) {
+        await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
+      }
+    }
     return newQ;
   },
 
@@ -584,16 +667,38 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       const detail = state.quizDetails[quizId];
       if (!detail) return state;
       const updatedQuestions = detail.questions.filter((q) => q.id !== questionId);
+      const updatedDetail: QuizDetail = {
+        ...detail,
+        questions: updatedQuestions,
+        totalQuestions: updatedQuestions.length,
+      };
+
+      const notebookId = detail.notebookId;
+      const list = notebookId ? state.quizzesByNotebook[notebookId] : undefined;
+      const updatedQuizzes = list
+        ? list.map((q) =>
+            q.id === quizId ? { ...q, totalQuestions: updatedQuestions.length } : q
+          )
+        : undefined;
+
       return {
         quizDetails: {
           ...state.quizDetails,
-          [quizId]: { ...detail, questions: updatedQuestions, totalQuestions: updatedQuestions.length },
+          [quizId]: updatedDetail,
         },
+        ...(notebookId && updatedQuizzes
+          ? { quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: updatedQuizzes } }
+          : {}),
       };
     });
 
     const updated = get().quizDetails[quizId];
-    if (updated) await NotebookStorage.saveQuizDetail(quizId, updated);
+    if (updated) {
+      await NotebookStorage.saveQuizDetail(quizId, updated);
+      if (updated.notebookId && get().quizzesByNotebook[updated.notebookId]) {
+        await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
+      }
+    }
 
     const { isOnline } = useSystemStore.getState();
     if (isOnline) {

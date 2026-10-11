@@ -9,12 +9,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Text,
+  Alert,
 } from 'react-native';
 import { X, Calendar as CalendarIcon, RotateCcw, GraduationCap, AlertCircle } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { parseDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import { parseDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle, cleanupOrphanedExamSchedules } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
@@ -150,6 +151,7 @@ export function AddExamWeekModal({
           `UPDATE ExamWeek SET title = ?, startDate = ?, endDate = ?, updatedAt = ? WHERE id = ?`,
           [formattedTitle, sd, ed, now, initialData.id]
         );
+        await cleanupOrphanedExamSchedules(powerSync);
       } else {
         const id = generateId();
         await powerSync.execute(
@@ -169,17 +171,33 @@ export function AddExamWeekModal({
 
   const handleDelete = async () => {
     if (!initialData?.id) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await powerSync.execute(`DELETE FROM ExamWeek WHERE id = ?`, [initialData.id]);
-      setTitle('');
-      onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to delete period.');
-    } finally {
-      setIsLoading(false);
-    }
+    Alert.alert(
+      category === 'EXAM' ? 'Delete Exam Period' : 'Delete Period',
+      category === 'EXAM'
+        ? 'Are you sure you want to delete this exam period? All exam schedules within this period will also be deleted.'
+        : 'Are you sure you want to delete this period?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+              await powerSync.execute(`DELETE FROM ExamWeek WHERE id = ?`, [initialData.id]);
+              await cleanupOrphanedExamSchedules(powerSync);
+              setTitle('');
+              onClose();
+            } catch (err: any) {
+              setError(err?.message || 'Failed to delete period.');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getHeaderTitle = () => {

@@ -17,8 +17,8 @@ import {
   Users,
   Radio,
 } from 'lucide-react-native';
-import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { parseDateLocal, parseToPHTDate, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
@@ -74,27 +74,49 @@ export function ClassDetailModal({
 }: ClassDetailModalProps) {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const { schedules } = useClassSchedules();
+
+  // Resolve days of week across all matching sibling schedules
+  const days = useMemo(() => {
+    if (!schedule) return [];
+    const daysSet = new Set<number>();
+    if (schedule.days_of_week) {
+      try {
+        const parsed = JSON.parse(schedule.days_of_week);
+        if (Array.isArray(parsed) && parsed.length > 0) parsed.forEach((d) => daysSet.add(Number(d)));
+      } catch {
+        const parts = schedule.days_of_week
+          .split(',')
+          .map((s: string) => Number(s.trim()))
+          .filter((n: number) => !isNaN(n));
+        parts.forEach((d) => daysSet.add(d));
+      }
+    }
+    const siblings = schedules.filter(
+      (s) =>
+        s.subject_id === schedule.subject_id &&
+        s.start_time === schedule.start_time &&
+        s.end_time === schedule.end_time &&
+        (s.set_type === schedule.set_type || (!s.set_type && !schedule.set_type))
+    );
+    for (const s of siblings) {
+      if (s.days_of_week) {
+        try {
+          const parsed = JSON.parse(s.days_of_week);
+          if (Array.isArray(parsed)) parsed.forEach((d) => daysSet.add(Number(d)));
+        } catch {}
+      }
+      if (s.day_of_week != null) {
+        daysSet.add(s.day_of_week);
+      }
+    }
+    if (daysSet.size === 0 && schedule.day_of_week != null) {
+      daysSet.add(schedule.day_of_week);
+    }
+    return Array.from(daysSet).sort((a, b) => a - b);
+  }, [schedule, schedules]);
 
   if (!schedule) return null;
-
-  // Resolve days of week
-  let days: number[] = [];
-  if (schedule.days_of_week) {
-    try {
-      const parsed = JSON.parse(schedule.days_of_week);
-      if (Array.isArray(parsed) && parsed.length > 0) days = parsed.map(Number);
-    } catch {
-      const parts = schedule.days_of_week
-        .split(',')
-        .map((s: string) => Number(s.trim()))
-        .filter((n: number) => !isNaN(n));
-      if (parts.length > 0) days = parts;
-    }
-  }
-  if (days.length === 0) {
-    days = [schedule.day_of_week];
-  }
-  days.sort((a, b) => a - b);
 
   const daysText =
     days.length === 7
@@ -117,6 +139,10 @@ export function ClassDetailModal({
     ? `From ${formatDate(schedule.start_date)}`
     : null;
 
+  const classColor = (!schedule.subject_color || schedule.subject_color === '#6366F1' || schedule.subject_color === '#8B5CF6')
+    ? CALENDAR_THEME.CLASS
+    : schedule.subject_color;
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -125,8 +151,16 @@ export function ClassDetailModal({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
-              <View style={styles.headerBadge}>
-                <BookOpen size={16} color="#6366F1" />
+              <View
+                style={[
+                  styles.headerBadge,
+                  {
+                    backgroundColor: isDark ? `${classColor}25` : `${classColor}18`,
+                    borderColor: isDark ? `${classColor}50` : `${classColor}35`,
+                  },
+                ]}
+              >
+                <BookOpen size={16} color={classColor} />
               </View>
               <Text style={styles.headerTitle}>Class Details</Text>
             </View>
@@ -147,18 +181,18 @@ export function ClassDetailModal({
                   styles.modalityBadge,
                   isF2F
                     ? { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.25)' }
-                    : { backgroundColor: 'rgba(99, 102, 241, 0.12)', borderColor: 'rgba(99, 102, 241, 0.25)' },
+                    : { backgroundColor: `${classColor}18`, borderColor: `${classColor}35` },
                 ]}
               >
                 {isF2F ? (
                   <Users size={11} color="#10B981" />
                 ) : (
-                  <Radio size={11} color="#6366F1" />
+                  <Radio size={11} color={classColor} />
                 )}
                 <Text
                   style={[
                     styles.modalityBadgeText,
-                    { color: isF2F ? '#10B981' : '#6366F1' },
+                    { color: isF2F ? '#10B981' : classColor },
                   ]}
                 >
                   {isF2F ? 'F2F' : isOnline ? 'Online' : schedule.modality}
@@ -243,7 +277,7 @@ export function ClassDetailModal({
 
             {onEdit ? (
               <Pressable
-                style={styles.editButton}
+                style={[styles.editButton, { backgroundColor: classColor }]}
                 onPress={() => onEdit(schedule)}
                 accessibilityLabel="Edit class schedule"
               >
@@ -439,7 +473,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flex: 1.3,
       height: 44,
       borderRadius: 10,
-      backgroundColor: '#6366F1',
+      backgroundColor: CALENDAR_THEME.CLASS,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',

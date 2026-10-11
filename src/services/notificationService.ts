@@ -398,6 +398,25 @@ export const NotificationService = {
   },
 
   /**
+   * Helper to cancel all scheduled study reminders for a deleted notebook.
+   */
+  cancelStudyRemindersForNotebook: async (notebookId: string): Promise<void> => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const prefix = `study_${notebookId}_`;
+      for (const notif of allNotifications) {
+        const matchesId = notif.identifier.startsWith(prefix);
+        const matchesData = notif.content?.data?.notebookId === notebookId;
+        if (matchesId || matchesData) {
+          await NotificationService.cancelNotification(notif.identifier);
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to cancel study notifications for notebook: ${notebookId}`, e);
+    }
+  },
+
+  /**
    * Schedules a quick test notification for immediate on-device verification.
    */
   sendTestNotification: async (delaySeconds = 3): Promise<string> => {

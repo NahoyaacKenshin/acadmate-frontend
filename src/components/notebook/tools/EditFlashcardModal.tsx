@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
@@ -50,6 +51,7 @@ export function EditFlashcardModal({
   const styles = createStyles(colors, isDark);
 
   const handleSave = async () => {
+    Keyboard.dismiss();
     if (!front.trim() || !back.trim()) {
       Alert.alert('Required Fields', 'Both Front (Term/Question) and Back (Definition/Answer) are required.');
       return;
@@ -66,6 +68,7 @@ export function EditFlashcardModal({
   };
 
   const handleDelete = () => {
+    Keyboard.dismiss();
     if (!card || !onDelete) return;
     Alert.alert('Delete Card', 'Are you sure you want to delete this flashcard?', [
       { text: 'Cancel', style: 'cancel' },
@@ -99,11 +102,16 @@ export function EditFlashcardModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
+      <Pressable
+        style={styles.backdrop}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (!isSaving) onClose();
+        }}
+      />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
         pointerEvents="box-none"
       >
@@ -120,7 +128,13 @@ export function EditFlashcardModal({
                   )}
                 </Pressable>
               )}
-              <Pressable onPress={onClose} style={styles.closeBtn}>
+              <Pressable
+                onPress={() => {
+                  Keyboard.dismiss();
+                  onClose();
+                }}
+                style={styles.closeBtn}
+              >
                 <X size={20} color={colors.mutedForeground} />
               </Pressable>
             </View>

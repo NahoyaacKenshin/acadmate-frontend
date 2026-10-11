@@ -57,7 +57,7 @@ import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { isExamEvent } from '@/src/services/notificationService';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getCleanPeriodTitle, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import {
   getPhilippineToday,
   formatTime12,
@@ -135,7 +135,7 @@ function UrgentTaskCard({
   const { colors, isDark } = useTheme();
   const isOverdue = task.due_date ? isOverduePHT(task.due_date) : false;
   const isTodayDue = task.due_date ? isTodayPHT(task.due_date) : false;
-  const accentColor = isOverdue ? '#EF4444' : '#10B981';
+  const accentColor = CALENDAR_THEME.TASK;
   const dueTime = task.due_date ? formatTime12(task.due_date) : null;
 
   return (
@@ -278,6 +278,8 @@ function ClassTimelineItem({
           {
             backgroundColor: colors.card,
             borderColor: colors.border,
+            borderLeftWidth: 3.5,
+            borderLeftColor: color,
           },
         ]}
         activeOpacity={0.75}
@@ -318,7 +320,7 @@ function ClassTimelineItem({
           <Text style={[styles.timelineLabel, { color: colors.foreground }]} numberOfLines={1}>
             {label}
           </Text>
-          <Text style={[styles.timelineTime, { color: '#6366F1' }]}>{time}</Text>
+          <Text style={[styles.timelineTime, { color }]}>{time}</Text>
           {room ? (
             <View style={styles.timelineMetaRow}>
               <MapPin size={10} color={colors.mutedForeground} />
@@ -332,9 +334,9 @@ function ClassTimelineItem({
               style={[
                 styles.timelineSetLabel,
                 {
-                  color: '#6366F1',
-                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                  borderColor: 'rgba(99, 102, 241, 0.2)',
+                  color: color,
+                  backgroundColor: `${color}18`,
+                  borderColor: `${color}35`,
                 },
               ]}
             >
@@ -368,7 +370,11 @@ function EventTimelineItem({
     Boolean(event.description?.toLowerCase().includes('exam')) ||
     Boolean(event.title?.toLowerCase().includes('exam')) ||
     isExamEvent(event);
-  const accentColor = isExam ? '#F59E0B' : '#6366F1';
+  const accentColor = isExam
+    ? '#F59E0B'
+    : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
+        ? CALENDAR_THEME.EVENT
+        : event.color);
 
   let timeDisplay = 'All day';
   if (event.all_day !== 1 && event.start_date) {
@@ -388,6 +394,8 @@ function EventTimelineItem({
           {
             backgroundColor: colors.card,
             borderColor: colors.border,
+            borderLeftWidth: 3.5,
+            borderLeftColor: accentColor,
           },
         ]}
         activeOpacity={0.75}
@@ -613,6 +621,17 @@ function StudentHomeScreen() {
 
   // Today's exams and events
   const { todayExams, todayGeneralEvents } = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isTodayInExamWeek = examWeeks.some((ew) => {
+      if (getPeriodCategory(ew) !== 'EXAM') return false;
+      const s = parseDateLocal(ew.startDate);
+      const e = parseDateLocal(ew.endDate) ?? s;
+      if (!s || !e) return false;
+      return today >= s && today <= e;
+    });
+
     const list = events
       .filter((e) => isToday(e.start_date))
       .sort((a, b) => {
@@ -621,10 +640,10 @@ function StudentHomeScreen() {
         return ta.localeCompare(tb);
       });
     return {
-      todayExams: list.filter(isExamEvent),
+      todayExams: isTodayInExamWeek ? list.filter(isExamEvent) : [],
       todayGeneralEvents: list.filter((e) => !isExamEvent(e)),
     };
-  }, [events]);
+  }, [events, examWeeks]);
 
   const todayEvents = useMemo<CalendarEventRow[]>(() => {
     return [...todayExams, ...todayGeneralEvents];
@@ -896,7 +915,7 @@ function StudentHomeScreen() {
                   key={s.id}
                   label={s.subject_name ?? 'Class'}
                   time={`${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`}
-                  color={s.subject_color ?? '#6366F1'}
+                  color={(!s.subject_color || s.subject_color === '#6366F1' || s.subject_color === '#8B5CF6') ? CALENDAR_THEME.CLASS : s.subject_color}
                   room={resolution.effectiveRoom ?? undefined}
                   modality={s.modality}
                   setLabel={resolution.reason !== 'Every Week' ? resolution.reason : undefined}

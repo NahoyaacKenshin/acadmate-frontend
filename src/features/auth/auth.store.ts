@@ -265,6 +265,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Local logout should still succeed if the backend is unreachable.
     } finally {
+      try {
+        const { useUserStore } = await import('@/src/store/userStore');
+        await useUserStore.getState().clearUserPreferences();
+      } catch (err) {
+        console.warn('Failed to clear user preferences on logout:', err);
+      }
       await Promise.allSettled([clearSessionStorage(), signOutFromGoogle()]);
       set({ user: null, accessToken: null, refreshToken: null, isLoading: false });
     }

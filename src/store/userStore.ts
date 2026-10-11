@@ -90,6 +90,7 @@ type UserState = {
   setStudentSet: (studentSet: StudentSet) => Promise<void>;
   setNickname: (nickname: string) => Promise<void>;
   completeOnboarding: (studentSet?: StudentSet) => Promise<void>;
+  clearUserPreferences: () => Promise<void>;
 };
 
 export const useUserStore = create<UserState>((set, get) => ({
@@ -142,13 +143,17 @@ export const useUserStore = create<UserState>((set, get) => ({
    * Syncs user preferences from the backend AuthUser profile.
    * Called after login and session restore. If the backend indicates
    * onboarding was completed, we persist it locally so reinstalls
-   * don't re-prompt the user for onboarding.
+   * don't re-prompt the user for onboarding. If the backend indicates
+   * onboarding is NOT completed, we clear local onboarding flags so
+   * newly created accounts are prompted for onboarding even if a
+   * previous account had been used on the same device.
    */
   syncFromAuthUser: async (user: AuthUser) => {
     try {
+      const localCompleted = get().hasCompletedOnboarding;
       const backendCompleted = user.hasCompletedOnboarding === true;
 
-      if (backendCompleted) {
+      if (backendCompleted || localCompleted) {
         // Persist backend state locally
         await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
         let currentAnchorMonday = get().anchorMonday;
@@ -168,12 +173,51 @@ export const useUserStore = create<UserState>((set, get) => ({
         if (user.programName) {
           await SecureStore.setItemAsync(USER_PROGRAM_KEY, user.programName);
         }
+
+        let resolvedNickname = get().nickname;
+        if (!resolvedNickname && user.name) {
+          resolvedNickname = user.name;
+          await SecureStore.setItemAsync(NICKNAME_KEY, resolvedNickname);
+        }
+
         set({
           hasCompletedOnboarding: true,
+          nickname: resolvedNickname,
           studentSet: (user.studentSet as StudentSet) ?? get().studentSet,
           anchorMonday: currentAnchorMonday,
           anchorSet: currentAnchorSet,
           programName: user.programName ?? get().programName,
+          isLoaded: true,
+        });
+
+        // If completed locally but backend is still false, sync completion to backend in background
+        if (localCompleted && !backendCompleted) {
+          const { useAuthStore } = await import('@/src/features/auth/auth.store');
+          const token = useAuthStore.getState().accessToken;
+          authApi.updateMe({ hasCompletedOnboarding: true }, token).then((res) => {
+            if (res.data?.user) {
+              useAuthStore.getState().setUser(res.data.user);
+            }
+          }).catch((err) => {
+            console.warn('[userStore] Background onboarding sync error:', err);
+          });
+        }
+      } else {
+        // Neither backend nor local completed -> genuinely a fresh new account
+        await SecureStore.deleteItemAsync(ONBOARDING_KEY);
+        await SecureStore.deleteItemAsync(NICKNAME_KEY);
+        await SecureStore.deleteItemAsync(STUDENT_SET_KEY);
+        await SecureStore.deleteItemAsync(ANCHOR_MONDAY_KEY);
+        await SecureStore.deleteItemAsync(ANCHOR_SET_KEY);
+        await SecureStore.deleteItemAsync(USER_PROGRAM_KEY);
+
+        set({
+          hasCompletedOnboarding: false,
+          nickname: user.name ?? null,
+          studentSet: (user.studentSet as StudentSet) ?? null,
+          anchorMonday: null,
+          anchorSet: null,
+          programName: user.programName ?? null,
           isLoaded: true,
         });
       }
@@ -221,14 +265,51 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (studentSet) body.studentSet = studentSet;
       const currentProgram = get().programName;
       if (currentProgram) body.programName = currentProgram;
-      const res = await authApi.updateMe(body);
+      const currentNickname = get().nickname;
+      if (currentNickname) body.name = currentNickname;
+
+      // Optimistically update AuthStore so AuthGate and the UI reflect completion immediately
+      const { useAuthStore } = await import('@/src/features/auth/auth.store');
+      const currentUser = useAuthStore.getState().user;
+      const token = useAuthStore.getState().accessToken;
+      if (currentUser) {
+        await useAuthStore.getState().setUser({
+          ...currentUser,
+          hasCompletedOnboarding: true,
+          studentSet: studentSet ?? currentUser.studentSet,
+          name: currentNickname ?? currentUser.name,
+        });
+      }
+
+      const res = await authApi.updateMe(body, token);
       if (res.data?.user) {
-        const { useAuthStore } = await import('@/src/features/auth/auth.store');
         await useAuthStore.getState().setUser(res.data.user);
       }
     } catch (e) {
       // Non-fatal: local storage has it covered; backend sync is best-effort
       console.warn('Failed to sync onboarding completion to backend:', e);
+    }
+  },
+
+  clearUserPreferences: async () => {
+    try {
+      await SecureStore.deleteItemAsync(USER_PROGRAM_KEY);
+      await SecureStore.deleteItemAsync(STUDENT_SET_KEY);
+      await SecureStore.deleteItemAsync(ANCHOR_MONDAY_KEY);
+      await SecureStore.deleteItemAsync(ANCHOR_SET_KEY);
+      await SecureStore.deleteItemAsync(ONBOARDING_KEY);
+      await SecureStore.deleteItemAsync(NICKNAME_KEY);
+    } catch (e) {
+      console.warn('Failed to clear user preferences from storage:', e);
+    } finally {
+      set({
+        programName: null,
+        studentSet: null,
+        anchorMonday: null,
+        anchorSet: null,
+        nickname: null,
+        hasCompletedOnboarding: false,
+      });
     }
   },
 }));

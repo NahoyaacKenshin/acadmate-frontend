@@ -34,7 +34,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --color-background: #090A0F;
     --color-foreground: #F8FAFC;
 
@@ -63,6 +63,37 @@
     --color-destructive: #EF4444;
     --color-destructive-foreground: #FFFFFF;
   }
+}
+
+/* Explicit light theme — registered so Uniwind.setTheme('light') works correctly */
+.light {
+  --color-background: #FAFAFA;
+  --color-foreground: #09090B;
+
+  --color-card: #FFFFFF;
+  --color-card-foreground: #09090B;
+
+  --color-muted: #F4F4F5;
+  --color-muted-foreground: #71717A;
+
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #09090B;
+
+  --color-border: #E4E4E7;
+  --color-input: #FFFFFF;
+  --color-ring: #2563EB;
+
+  --color-primary: #0F172A;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-secondary: #F4F4F5;
+  --color-secondary-foreground: #18181B;
+
+  --color-accent: #F4F4F5;
+  --color-accent-foreground: #0F172A;
+
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
 }
 
 .dark {

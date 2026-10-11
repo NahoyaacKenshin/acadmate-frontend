@@ -25,8 +25,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers.set('Content-Type', 'application/json');
   }
 
-  if (options.token) {
-    headers.set('Authorization', `Bearer ${options.token}`);
+  let token = options.token;
+  if (token === undefined) {
+    try {
+      const { useAuthStore } = await import('@/src/features/auth/auth.store');
+      token = useAuthStore.getState().accessToken;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   let response: Response;

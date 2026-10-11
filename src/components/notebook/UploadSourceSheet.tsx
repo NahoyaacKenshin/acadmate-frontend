@@ -489,7 +489,7 @@ export function UploadSourceSheet({
               <>
                 <Upload size={18} color="#ffffff" />
                 <Text style={styles.uploadBtnText}>
-                  {!isOnline ? 'Offline — Connect to Upload' : 'Upload & Index'}
+                  {!isOnline ? 'Offline — Connect to Upload' : 'Upload'}
                 </Text>
               </>
             )}

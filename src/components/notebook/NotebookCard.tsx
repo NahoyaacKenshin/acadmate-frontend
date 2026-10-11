@@ -35,7 +35,7 @@ export function NotebookCard({
   const handleLongPress = () => {
     Alert.alert(
       'Delete Notebook',
-      `Are you sure you want to delete "${notebook.title}"? This will also remove all sources and AI data inside it.`,
+      `Are you sure you want to delete "${notebook.title}"? This will also remove all sources, booked study sessions, and AI data inside it.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

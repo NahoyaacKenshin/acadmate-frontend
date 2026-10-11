@@ -76,15 +76,16 @@ export function FlashcardStudyModal({
     }
 
     if (visible && deck?.cards) {
+      const uniqueCards = Array.from(new Map(deck.cards.map((c) => [c.id, c])).values());
       if (isOpening || isNewDeck) {
-        setCards([...deck.cards]);
+        setCards(uniqueCards);
         setCurrentIndex(0);
         setIsFlipped(false);
         setIsCompleted(false);
       } else {
         // Sync cards data without resetting user's study position!
-        setCards([...deck.cards]);
-        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, deck.cards.length - 1)));
+        setCards(uniqueCards);
+        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, uniqueCards.length - 1)));
       }
     } else if (!visible) {
       setIsFlipped(false);
@@ -641,16 +642,21 @@ export function FlashcardStudyModal({
               );
             } else {
               const created = await onAddCard(deck.id, data);
-              setCards((prev) => [...prev, created]);
+              if (created) {
+                setCards((prev) => {
+                  if (prev.some((c) => c.id === created.id)) return prev;
+                  return [...prev, created];
+                });
+              }
             }
           }}
           onDelete={async (cardId) => {
             await onDeleteCard(deck.id, cardId);
-            const remaining = cards.filter((c) => c.id !== cardId);
-            setCards(remaining);
-            if (currentIndex >= remaining.length) {
-              setCurrentIndex(Math.max(0, remaining.length - 1));
-            }
+            setCards((prev) => prev.filter((c) => c.id !== cardId));
+            setCurrentIndex((prevIdx) => {
+              const remainingLen = cards.filter((c) => c.id !== cardId).length;
+              return Math.min(prevIdx, Math.max(0, remainingLen - 1));
+            });
           }}
         />
       </SafeAreaView>

@@ -17,7 +17,7 @@ import { Button } from '../ui/button';
 import { X, ChevronDown, Calendar, MapPin, Clock, RotateCcw, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { formatDateLocal, toPhilippineISO } from '@/src/utils/scheduleUtils';
+import { formatDateLocal, toPhilippineISO, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
@@ -196,7 +196,7 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
       const endISO = !allTime && endDate ? toPhilippineISO(endDate) : null;
       const isAllTimeVal = allTime ? 1 : 0;
 
-      const eventColor = isExamMode ? '#F59E0B' : '#6366F1';
+      const eventColor = isExamMode ? '#F59E0B' : CALENDAR_THEME.EVENT;
 
       await powerSync.execute(
         `INSERT INTO CalendarEvent
@@ -242,7 +242,7 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <Calendar size={16} color="#6C8EFF" />
+                <Calendar size={16} color={isExamMode ? '#F59E0B' : '#6366F1'} />
               </View>
               <Text style={styles.headerTitle}>{isExamMode ? 'New Exam' : 'New Event'}</Text>
             </View>
@@ -413,7 +413,11 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
             </View>
 
             <Pressable
-              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              style={[
+                styles.submitBtn,
+                isExamMode && { backgroundColor: '#F59E0B' },
+                isLoading && styles.submitBtnDisabled,
+              ]}
               onPress={handleAdd}
               disabled={isLoading}
             >

@@ -4,6 +4,10 @@ import { Notebook } from '@/src/components/notebook/NotebookCard';
 import { Source } from '@/src/components/notebook/SourceListItem';
 import { NotebookStorage } from '@/src/services/notebookStorage';
 import { useSystemStore } from '@/src/store/systemStore';
+import { getGlobalPowerSync } from '@/src/providers/PowerSyncProvider';
+import { NotificationService } from '@/src/services/notificationService';
+import { cleanupOrphanedStudySessions } from '@/src/utils/scheduleUtils';
+import { parseToEpoch, parseToPHTDate } from '@/src/utils/philippineTime';
 
 interface NotebookState {
   notebooks: Notebook[];
@@ -17,7 +21,7 @@ interface NotebookState {
   fetchNotebooks: (silent?: boolean) => Promise<void>;
   createNotebook: (title: string, description?: string) => Promise<Notebook>;
   updateNotebook: (id: string, data: { title?: string; description?: string | null }) => Promise<Notebook>;
-  deleteNotebook: (id: string) => Promise<void>;
+  deleteNotebook: (id: string, powerSync?: any) => Promise<void>;
 
   fetchSources: (notebookId: string, silent?: boolean) => Promise<void>;
   deleteSource: (notebookId: string, sourceId: string) => Promise<void>;
@@ -89,6 +93,12 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       set({ notebooks: mapped, isLoadingNotebooks: false, notebooksError: null });
       // Persist to local disk
       NotebookStorage.saveNotebooks(mapped);
+
+      // Self-heal: clean up any orphaned study sessions booked for deleted notebooks
+      const db = getGlobalPowerSync();
+      if (db && mapped.length > 0) {
+        cleanupOrphanedStudySessions(db, mapped.map((n) => n.id)).catch(() => {});
+      }
     } catch (err: any) {
       // If we have cached notebooks, keep them and do not break the screen
       if (get().notebooks.length > 0) {
@@ -169,13 +179,54 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     return mappedNotebook ?? get().notebooks.find((n) => n.id === id)!;
   },
 
-  deleteNotebook: async (id) => {
+  deleteNotebook: async (id, powerSync) => {
     const filtered = get().notebooks.filter((n) => n.id !== id);
     const updatedPinned = get().pinnedIds.filter((x) => x !== id);
-    set({ notebooks: filtered, pinnedIds: updatedPinned });
+    const updatedSources = { ...get().sourcesByNotebook };
+    delete updatedSources[id];
+
+    set({ notebooks: filtered, pinnedIds: updatedPinned, sourcesByNotebook: updatedSources });
     NotebookStorage.saveNotebooks(filtered);
     NotebookStorage.savePinnedIds(updatedPinned);
 
+    // 1. Delete associated booked study sessions from SQLite CalendarEvent table
+    const db = powerSync ?? getGlobalPowerSync();
+    if (db) {
+      try {
+        const studyEvents: Array<{ id: string; location: string | null; startDate: string }> = await db.getAll(
+          `SELECT id, location, startDate FROM CalendarEvent 
+           WHERE location = ? OR location LIKE ? OR id LIKE ?`,
+          [`study_session:${id}`, `study_session:${id}%`, `study_${id}_%`]
+        );
+
+        await db.execute(
+          `DELETE FROM CalendarEvent 
+           WHERE location = ? OR location LIKE ? OR id LIKE ?`,
+          [`study_session:${id}`, `study_session:${id}%`, `study_${id}_%`]
+        );
+
+        for (const ev of studyEvents) {
+          await NotificationService.cancelNotification(ev.id).catch(() => {});
+          await NotificationService.cancelNotification(`event_${ev.id}_lead`).catch(() => {});
+          await NotificationService.cancelNotification(`event_${ev.id}_allday`).catch(() => {});
+          const startEpoch = parseToPHTDate(ev.startDate)?.getTime() ?? parseToEpoch(ev.startDate);
+          if (startEpoch) {
+            await NotificationService.cancelNotification(`study_${id}_${startEpoch}`).catch(() => {});
+          }
+        }
+      } catch (dbErr) {
+        console.warn('[notebookStore] Failed to delete CalendarEvents in SQLite:', dbErr);
+      }
+    }
+
+    // 2. Cancel all scheduled study notifications in native OS daemon
+    try {
+      await NotificationService.cancelStudyRemindersForNotebook(id);
+    } catch (notifErr) {
+      console.warn('[notebookStore] Failed to cancel study reminders for notebook:', notifErr);
+    }
+
+    // 3. Sync deletion upstream to backend API
     const { isOnline } = useSystemStore.getState();
     if (isOnline) {
       try {

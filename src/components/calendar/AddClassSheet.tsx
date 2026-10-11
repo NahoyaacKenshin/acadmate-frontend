@@ -114,7 +114,7 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
   // Inline Subject Creation state
   const [isCreatingSubject, setIsCreatingSubject] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
-  const [newSubjectColor, setNewSubjectColor] = useState('#6C8EFF');
+  const [newSubjectColor, setNewSubjectColor] = useState('#2563EB');
   const [isSavingSubject, setIsSavingSubject] = useState(false);
 
   // UI state
@@ -275,75 +275,81 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
       const isBySet = scheduleMode === 'bySet';
 
       if (isBySet) {
-        // For By Set: insert ONE record for Set A and ONE for Set B, both containing all selectedDays
-        await Promise.all([
-          // Set A record
-          powerSync.execute(
-            `INSERT INTO ClassSchedule
-              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              generateId(),
-              selectedDays[0] ?? 0,
-              JSON.stringify(selectedDays),
-              startTime,
-              endTime,
-              formatDateLocal(startDate),
-              endDate ? formatDateLocal(endDate) : null,
-              roomSetA.trim() || null,
-              modalitySetA,
-              'A',
-              selectedSubjectId,
-              userId,
-              now,
-              now,
-            ]
-          ),
-          // Set B record
-          powerSync.execute(
-            `INSERT INTO ClassSchedule
-              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              generateId(),
-              selectedDays[0] ?? 0,
-              JSON.stringify(selectedDays),
-              startTime,
-              endTime,
-              formatDateLocal(startDate),
-              endDate ? formatDateLocal(endDate) : null,
-              roomSetB.trim() || null,
-              modalitySetB,
-              'B',
-              selectedSubjectId,
-              userId,
-              now,
-              now,
-            ]
-          ),
-        ]);
+        // For By Set: for each selected day, insert a Set A record and a Set B record
+        await Promise.all(
+          selectedDays.flatMap((day) => [
+            // Set A record
+            powerSync.execute(
+              `INSERT INTO ClassSchedule
+                (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                generateId(),
+                day,
+                null,
+                startTime,
+                endTime,
+                formatDateLocal(startDate),
+                endDate ? formatDateLocal(endDate) : null,
+                roomSetA.trim() || null,
+                modalitySetA,
+                'A',
+                selectedSubjectId,
+                userId,
+                now,
+                now,
+              ]
+            ),
+            // Set B record
+            powerSync.execute(
+              `INSERT INTO ClassSchedule
+                (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                generateId(),
+                day,
+                null,
+                startTime,
+                endTime,
+                formatDateLocal(startDate),
+                endDate ? formatDateLocal(endDate) : null,
+                roomSetB.trim() || null,
+                modalitySetB,
+                'B',
+                selectedSubjectId,
+                userId,
+                now,
+                now,
+              ]
+            ),
+          ])
+        );
       } else {
-        // Every Week — ONE single record with all selectedDays
-        await powerSync.execute(
-          `INSERT INTO ClassSchedule
-            (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            generateId(),
-            selectedDays[0] ?? 0,
-            JSON.stringify(selectedDays),
-            startTime,
-            endTime,
-            formatDateLocal(startDate),
-            endDate ? formatDateLocal(endDate) : null,
-            room.trim() || null,
-            modality,
-            null,
-            selectedSubjectId,
-            userId,
-            now,
-            now,
-          ]
+        // Every Week — insert a record for EACH day in selectedDays
+        await Promise.all(
+          selectedDays.map((day) =>
+            powerSync.execute(
+              `INSERT INTO ClassSchedule
+                (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                generateId(),
+                day,
+                null,
+                startTime,
+                endTime,
+                formatDateLocal(startDate),
+                endDate ? formatDateLocal(endDate) : null,
+                room.trim() || null,
+                modality,
+                null,
+                selectedSubjectId,
+                userId,
+                now,
+                now,
+              ]
+            )
+          )
         );
       }
 

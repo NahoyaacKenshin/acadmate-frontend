@@ -14,7 +14,7 @@ import { ApiService } from '@/src/services/api';
 import { usePowerSync } from '@powersync/react';
 import { NotificationService } from '@/src/services/notificationService';
 import { parseToEpoch } from '@/src/utils/philippineTime';
-import { parseDateLocal } from '@/src/utils/scheduleUtils';
+import { parseDateLocal, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 
 import { MonthGrid, Holiday } from '@/src/components/calendar/MonthGrid';
@@ -229,8 +229,8 @@ export default function CalendarScreen() {
       label: 'Add Event',
       subtitle: 'One-off event or appointment',
       icon: CalendarDays,
-      iconColor: '#8B5CF6',
-      iconBg: isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(139, 92, 246, 0.1)',
+      iconColor: CALENDAR_THEME.EVENT,
+      iconBg: isDark ? 'rgba(14, 165, 233, 0.18)' : 'rgba(14, 165, 233, 0.1)',
       onPress: openAddEvent,
     },
     {
@@ -247,8 +247,8 @@ export default function CalendarScreen() {
       label: 'Add Class',
       subtitle: 'Recurring weekly class schedule',
       icon: BookOpen,
-      iconColor: '#6366F1',
-      iconBg: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      iconColor: CALENDAR_THEME.CLASS,
+      iconBg: isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.1)',
       onPress: openAddClass,
     },
     {

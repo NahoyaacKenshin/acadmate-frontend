@@ -94,12 +94,21 @@ export function getPeriodCategory(item: { title: string }): PeriodCategory {
 }
 
 export const CALENDAR_THEME = {
-  CLASS: '#6366F1',
-  EVENT: '#8B5CF6',
+  CLASS: '#2563EB',
+  EVENT: '#0EA5E9',
   TASK: '#10B981',
   EXAM: '#F59E0B',
   HOLIDAY_SUSPENSION: '#EF4444',
+  STUDY_SESSION: '#8B5CF6',
 } as const;
+
+export function isStudySessionEvent(e: { title?: string | null; location?: string | null }): boolean {
+  return (
+    Boolean(e.location?.startsWith('study_session')) ||
+    Boolean(e.title?.toLowerCase().startsWith('study session:')) ||
+    Boolean(e.title?.toLowerCase().startsWith('study:'))
+  );
+}
 
 /**
  * Returns the theme color for a period category:
@@ -232,5 +241,117 @@ export function isScheduleActiveOnDate(
   }
 
   return true;
+}
+
+/**
+ * Cleans up any exam schedules (CalendarEvent rows) that are not within any active EXAM-category ExamWeek.
+ * Automatically called when an ExamWeek is deleted or moved/resized.
+ */
+export async function cleanupOrphanedExamSchedules(powerSync: any): Promise<number> {
+  try {
+    const { isExamEvent, NotificationService } = await import('@/src/services/notificationService');
+
+    // 1. Fetch all ExamWeek rows
+    const examWeeksRes: any[] = await powerSync.getAll('SELECT * FROM ExamWeek');
+    const activeExamWeeks = (examWeeksRes || []).filter(
+      (ew: any) => getPeriodCategory(ew) === 'EXAM'
+    );
+
+    // 2. Fetch all CalendarEvent rows
+    const eventsRes: any[] = await powerSync.getAll('SELECT id, title, description, startDate, color FROM CalendarEvent');
+    const examEvents = (eventsRes || []).filter((e: any) =>
+      isExamEvent({
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        start_date: e.startDate,
+        end_date: null,
+        all_day: 0,
+        location: null,
+        color: e.color,
+        subject_id: null,
+        subject_name: null,
+        subject_color: null,
+        user_id: '',
+        created_at: '',
+        updated_at: '',
+      })
+    );
+
+    let deletedCount = 0;
+    for (const exam of examEvents) {
+      const examDate = parseDateLocal(exam.startDate);
+      if (!examDate) continue;
+
+      const isInsideActiveExamWeek = activeExamWeeks.some((ew: any) => {
+        const ewStart = parseDateLocal(ew.startDate);
+        const ewEnd = parseDateLocal(ew.endDate) ?? ewStart;
+        if (!ewStart || !ewEnd) return false;
+        return examDate >= ewStart && examDate <= ewEnd;
+      });
+
+      if (!isInsideActiveExamWeek) {
+        await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [exam.id]);
+        await NotificationService.cancelNotification(exam.id).catch(() => {});
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
+  } catch (err) {
+    console.error('[ScheduleUtils] cleanupOrphanedExamSchedules error:', err);
+    return 0;
+  }
+}
+
+/**
+ * Cleans up any booked study sessions (CalendarEvent rows) whose referenced notebook no longer exists.
+ * Returns the count of deleted orphaned study session rows.
+ */
+export async function cleanupOrphanedStudySessions(
+  powerSync: any,
+  validNotebookIds: string[]
+): Promise<number> {
+  if (!powerSync || !Array.isArray(validNotebookIds) || validNotebookIds.length === 0) {
+    return 0;
+  }
+
+  try {
+    const { NotificationService } = await import('@/src/services/notificationService');
+    const validIdSet = new Set(validNotebookIds);
+
+    // Fetch all study session rows from CalendarEvent
+    const eventsRes: any[] = await powerSync.getAll(
+      "SELECT id, location FROM CalendarEvent WHERE location LIKE 'study_session%' OR id LIKE 'study_%'"
+    );
+
+    let deletedCount = 0;
+    for (const ev of eventsRes || []) {
+      let notebookId: string | null = null;
+      if (typeof ev.location === 'string' && ev.location.startsWith('study_session:')) {
+        notebookId = ev.location.replace(/^study_session:/, '').trim();
+      } else if (typeof ev.id === 'string' && ev.id.startsWith('study_')) {
+        const parts = ev.id.split('_');
+        if (parts.length >= 2) {
+          notebookId = parts[1];
+        }
+      }
+
+      // If this session is linked to a specific notebookId that is not in the valid list
+      if (notebookId && notebookId !== 'general' && !validIdSet.has(notebookId)) {
+        await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [ev.id]);
+        await NotificationService.cancelNotification(ev.id).catch(() => {});
+        await NotificationService.cancelNotification(`event_${ev.id}_lead`).catch(() => {});
+        await NotificationService.cancelNotification(`event_${ev.id}_allday`).catch(() => {});
+        await NotificationService.cancelStudyRemindersForNotebook(notebookId).catch(() => {});
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
+  } catch (err) {
+    console.error('[ScheduleUtils] cleanupOrphanedStudySessions error:', err);
+    return 0;
+  }
 }
 

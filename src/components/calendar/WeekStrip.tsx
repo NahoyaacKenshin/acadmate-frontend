@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react-
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { Holiday } from './MonthGrid';
-import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getPeriodColor, CALENDAR_THEME, isStudySessionEvent } from '@/src/utils/scheduleUtils';
 import { isSameDayPHT } from '@/src/utils/philippineTime';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 import { TaskRow } from '@/src/hooks/useTasks';
@@ -120,13 +120,25 @@ function getDayDots(
     }
   }
 
-  // 3. Class schedule dot (Class Blue #6C8EFF or Emerald)
+  // 3. Class schedule dot (Blue #2563EB)
   const cls = schedules.find((s) => isScheduleActiveOnDate(s, date, examWeeks, holidays, studentSet));
-  if (cls && colors.length < 3 && !colors.includes(CALENDAR_THEME.CLASS)) {
-    colors.push(CALENDAR_THEME.CLASS);
+  if (cls && colors.length < 3) {
+    if (!colors.includes(CALENDAR_THEME.CLASS)) {
+      colors.push(CALENDAR_THEME.CLASS);
+    }
   }
 
-  // 4. Calendar events / subject exams (Amber for exams, Indigo for events)
+  // 4. Calendar events / subject exams (Amber for exams, Light Blue for events)
+  const isDateInExamWeek = examWeeks.some((ew) => {
+    if (getPeriodCategory(ew) !== 'EXAM') return false;
+    const s = parseDateLocal(ew.startDate);
+    const e = parseDateLocal(ew.endDate) ?? s;
+    if (!s || !e) return false;
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return target >= s && target <= e;
+  });
+
   const dayEvents = events.filter((e) => isEventActiveOnDate(e, date));
   for (const ev of dayEvents) {
     if (colors.length >= 3) break;
@@ -134,10 +146,21 @@ function getDayDots(
       Boolean(ev.description?.toLowerCase().includes('exam')) ||
       Boolean(ev.title?.toLowerCase().includes('exam')) ||
       Boolean(ev.description?.startsWith('🎓')) ||
-      Boolean(ev.title?.startsWith('🎓'));
-    const dotColor = isExam ? CALENDAR_THEME.EXAM : CALENDAR_THEME.EVENT;
-    if (!colors.includes(dotColor)) {
-      colors.push(dotColor);
+      Boolean(ev.title?.startsWith('🎓')) ||
+      ev.color === '#F59E0B';
+    const isStudy = isStudySessionEvent(ev);
+    if (isExam) {
+      if (isDateInExamWeek && !colors.includes(CALENDAR_THEME.EXAM)) {
+        colors.push(CALENDAR_THEME.EXAM);
+      }
+    } else if (isStudy) {
+      if (!colors.includes(CALENDAR_THEME.STUDY_SESSION)) {
+        colors.push(CALENDAR_THEME.STUDY_SESSION);
+      }
+    } else {
+      if (!colors.includes(CALENDAR_THEME.EVENT)) {
+        colors.push(CALENDAR_THEME.EVENT);
+      }
     }
   }
 

@@ -14,14 +14,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CheckCircle2, ScanLine, ArrowRight, Smile, Layers } from 'lucide-react-native';
 import { useUserStore, type StudentSet } from '@/src/store/userStore';
+import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useTheme } from '@/src/theme/useTheme';
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { user } = useAuthStore();
   const { setNickname, setStudentSet, completeOnboarding } = useUserStore();
 
-  const [nicknameInput, setNicknameInput] = useState('');
+  const [nicknameInput, setNicknameInput] = useState(
+    user?.name ? user.name.split(' ')[0] : ''
+  );
   const [selectedSet, setSelectedSet] = useState<StudentSet>('Standard');
   const [isSubmitting, setIsSubmitting] = useState(false);
 

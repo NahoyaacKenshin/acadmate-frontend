@@ -3,6 +3,7 @@ import { Slot } from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 import { Platform, Text as RNText, type Role } from 'react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 const textVariants = cva(
   cn(
@@ -62,12 +63,16 @@ const ARIA_LEVEL: Partial<Record<TextVariant, string>> = {
   h4: '4',
 };
 
+/** Variants that use mutedForeground color instead of foreground */
+const MUTED_VARIANTS: Set<TextVariant> = new Set(['muted', 'lead']);
+
 const TextClassContext = React.createContext<string | undefined>(undefined);
 
 function Text({
   className,
   asChild = false,
   variant = 'default',
+  style,
   ...props
 }: React.ComponentProps<typeof RNText> &
   React.RefAttributes<typeof RNText> &
@@ -75,12 +80,23 @@ function Text({
     asChild?: boolean;
   }) {
   const textClass = React.useContext(TextClassContext);
+  const { colors } = useTheme();
   const Component = asChild ? Slot : RNText;
+
+  // Determine the default color based on variant.
+  // This is the *fallback* color — any explicit `color` in `style` takes precedence
+  // because it comes later in the array.
+  const defaultColor =
+    variant && MUTED_VARIANTS.has(variant as TextVariant)
+      ? colors.mutedForeground
+      : colors.foreground;
+
   return (
     <Component
       className={cn(textVariants({ variant }), textClass, className)}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
+      style={[{ color: defaultColor }, style]}
       {...props}
     />
   );

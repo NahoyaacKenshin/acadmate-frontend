@@ -19,6 +19,7 @@ import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useTheme } from '@/src/theme/useTheme';
+import { usePowerSync } from '@powersync/react';
 import {
   Plus,
   BookOpen,
@@ -39,6 +40,7 @@ type FilterTab = 'all' | 'pinned';
 export default function NotebookScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const powerSync = usePowerSync();
 
   const {
     notebooks,
@@ -91,7 +93,7 @@ export default function NotebookScreen() {
 
   const handleDelete = async (notebook: Notebook) => {
     try {
-      await deleteNotebook(notebook.id);
+      await deleteNotebook(notebook.id, powerSync);
     } catch {
       Alert.alert('Error', 'Failed to delete notebook. Please try again.');
     }

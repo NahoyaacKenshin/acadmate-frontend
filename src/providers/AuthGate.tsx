@@ -37,8 +37,10 @@ export function AuthGate() {
 
     // 2. Authenticated users
     if (accessToken) {
-      // Check both local state AND backend user.hasCompletedOnboarding
-      const completedOnboarding = hasCompletedOnboarding || user?.hasCompletedOnboarding === true;
+      // If either local store or backend user profile confirms onboarding is done,
+      // the user has completed onboarding and must NEVER be kicked back to /onboarding!
+      const completedOnboarding =
+        user?.hasCompletedOnboarding === true || hasCompletedOnboarding === true;
       if (!completedOnboarding && !isOnboarding) {
         // Fresh student -> Redirect to Onboarding
         router.replace('/onboarding' as Href);

@@ -77,15 +77,16 @@ export function QuizRunnerModal({
     }
 
     if (visible && quiz?.questions) {
+      const uniqueQuestions = Array.from(new Map(quiz.questions.map((q) => [q.id, q])).values());
       if (isOpening || isNewQuiz) {
-        setQuestions([...quiz.questions]);
+        setQuestions(uniqueQuestions);
         setCurrentIndex(0);
         setSelectedAnswers({});
         setResult(null);
       } else {
         // Sync questions without resetting current question position!
-        setQuestions([...quiz.questions]);
-        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, quiz.questions.length - 1)));
+        setQuestions(uniqueQuestions);
+        setCurrentIndex((prevIdx) => Math.min(prevIdx, Math.max(0, uniqueQuestions.length - 1)));
       }
     } else if (!visible) {
       setSelectedAnswers({});
@@ -499,16 +500,21 @@ export function QuizRunnerModal({
               );
             } else {
               const created = await onAddQuestion(quiz.id, data);
-              setQuestions((prev) => [...prev, created]);
+              if (created) {
+                setQuestions((prev) => {
+                  if (prev.some((q) => q.id === created.id)) return prev;
+                  return [...prev, created];
+                });
+              }
             }
           }}
           onDelete={async (qId) => {
             await onDeleteQuestion(quiz.id, qId);
-            const remaining = questions.filter((q) => q.id !== qId);
-            setQuestions(remaining);
-            if (currentIndex >= remaining.length) {
-              setCurrentIndex(Math.max(0, remaining.length - 1));
-            }
+            setQuestions((prev) => prev.filter((q) => q.id !== qId));
+            setCurrentIndex((prevIdx) => {
+              const remainingLen = questions.filter((q) => q.id !== qId).length;
+              return Math.min(prevIdx, Math.max(0, remainingLen - 1));
+            });
           }}
         />
       </SafeAreaView>

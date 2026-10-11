@@ -53,10 +53,11 @@ import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
 import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
 import { useExamWeeks, type ExamWeekRow as DbExamWeekRow } from "@/src/hooks/useExamWeeks";
-import { toIsoDateString, toDateOnlyString } from "@/src/utils/scheduleUtils";
+import { toIsoDateString, toDateOnlyString, CALENDAR_THEME } from "@/src/utils/scheduleUtils";
 import {
   toPhilippineISO,
   toPhilippineDateOnly,
+  formatDatePHT,
   formatDateTimePHT,
 } from "@/src/utils/philippineTime";
 import { usePowerSync } from "@powersync/react";
@@ -552,9 +553,22 @@ export default function ScheduleConfirmScreen() {
         semesterInfo
       );
 
+      const startIso = semesterInfo?.startDate
+        ? toPhilippineISO(semesterInfo.startDate, "08:00")
+        : "";
+      const endIso = semesterInfo?.endDate
+        ? toPhilippineISO(semesterInfo.endDate, "17:00")
+        : "";
+
+      const normalizedClasses = partitioned.classes.map((c) => ({
+        ...c,
+        startDate: c.startDate || (startIso ? startIso : undefined),
+        endDate: c.endDate !== undefined && c.endDate !== null ? c.endDate : (endIso ? endIso : null),
+      }));
+
       return {
         semesterInfo,
-        classSchedules: partitioned.classes,
+        classSchedules: normalizedClasses,
         calendarEvents,
         examWeekBlockers,
         examEvents: partitioned.exams,
@@ -588,7 +602,29 @@ export default function ScheduleConfirmScreen() {
       : ""
   );
 
-  // Universal Semester Date & Time Picker state
+  // Directly applies the universal start date and overrides all current classes
+  const applyUniversalStartDate = (iso: string) => {
+    setUniversalStartDate(iso);
+    setClasses((prev) =>
+      prev.map((c) => ({
+        ...c,
+        startDate: iso ? iso : undefined,
+      }))
+    );
+  };
+
+  // Directly applies the universal end date and overrides all current classes
+  const applyUniversalEndDate = (iso: string) => {
+    setUniversalEndDate(iso);
+    setClasses((prev) =>
+      prev.map((c) => ({
+        ...c,
+        endDate: iso ? iso : null,
+      }))
+    );
+  };
+
+  // Universal Semester Date Picker state
   const [activeUniversalPicker, setActiveUniversalPicker] = useState<"start" | "end" | null>(null);
   const [pendingUniversalDate, setPendingUniversalDate] = useState<Date>(new Date());
 
@@ -600,7 +636,6 @@ export default function ScheduleConfirmScreen() {
       initialDate = isNaN(parsed.getTime()) ? new Date() : parsed;
     } else {
       initialDate = new Date();
-      initialDate.setHours(field === "start" ? 8 : 17, 0, 0, 0);
     }
     setPendingUniversalDate(initialDate);
 
@@ -608,29 +643,15 @@ export default function ScheduleConfirmScreen() {
       DateTimePickerAndroid.open({
         value: initialDate,
         mode: "date",
+        minimumDate: field === "end" && universalStartDate ? new Date(universalStartDate) : undefined,
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === "dismissed" || !selectedDate) return;
-          const merged = new Date(selectedDate);
-          merged.setHours(initialDate.getHours(), initialDate.getMinutes(), 0, 0);
-
-          DateTimePickerAndroid.open({
-            value: merged,
-            mode: "time",
-            is24Hour: false,
-            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
-              if (timeEvent.type === "dismissed" || !selectedTime) {
-                const iso = toPhilippineISO(merged);
-                if (field === "start") setUniversalStartDate(iso);
-                else setUniversalEndDate(iso);
-                return;
-              }
-              const finalDate = new Date(merged);
-              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-              const iso = toPhilippineISO(finalDate);
-              if (field === "start") setUniversalStartDate(iso);
-              else setUniversalEndDate(iso);
-            },
-          });
+          const iso = toPhilippineISO(selectedDate, field === "start" ? "00:00" : "23:59");
+          if (field === "start") {
+            applyUniversalStartDate(iso);
+          } else {
+            applyUniversalEndDate(iso);
+          }
         },
       });
     } else {
@@ -640,9 +661,15 @@ export default function ScheduleConfirmScreen() {
 
   const handleIOSUniversalDone = () => {
     if (activeUniversalPicker) {
-      const iso = toPhilippineISO(pendingUniversalDate);
-      if (activeUniversalPicker === "start") setUniversalStartDate(iso);
-      else setUniversalEndDate(iso);
+      const iso = toPhilippineISO(
+        pendingUniversalDate,
+        activeUniversalPicker === "start" ? "00:00" : "23:59"
+      );
+      if (activeUniversalPicker === "start") {
+        applyUniversalStartDate(iso);
+      } else {
+        applyUniversalEndDate(iso);
+      }
     }
     setActiveUniversalPicker(null);
   };
@@ -708,15 +735,33 @@ export default function ScheduleConfirmScreen() {
       merged.examEvents ?? [],
       merged.semesterInfo
     );
-    setClasses(partitioned.classes);
+    const effectiveStart =
+      universalStartDate ||
+      (merged.semesterInfo?.startDate
+        ? toPhilippineISO(merged.semesterInfo.startDate, "08:00")
+        : "");
+    const effectiveEnd =
+      universalEndDate ||
+      (merged.semesterInfo?.endDate
+        ? toPhilippineISO(merged.semesterInfo.endDate, "17:00")
+        : "");
+
+    const mergedClassesWithDates = partitioned.classes.map((c) => ({
+      ...c,
+      startDate: effectiveStart || c.startDate,
+      endDate: effectiveEnd !== undefined && effectiveEnd !== null ? effectiveEnd : c.endDate,
+    }));
+
+    setClasses(mergedClassesWithDates);
     setEvents(merged.calendarEvents ?? []);
     setExamBlockers(merged.examWeekBlockers ?? []);
     setExamEvents(partitioned.exams);
-    if (merged.semesterInfo?.startDate && !universalStartDate) {
-      setUniversalStartDate(toPhilippineISO(merged.semesterInfo.startDate, "08:00"));
+
+    if (effectiveStart && !universalStartDate) {
+      setUniversalStartDate(effectiveStart);
     }
-    if (merged.semesterInfo?.endDate && !universalEndDate) {
-      setUniversalEndDate(toPhilippineISO(merged.semesterInfo.endDate, "17:00"));
+    if (effectiveEnd && !universalEndDate) {
+      setUniversalEndDate(effectiveEnd);
     }
     scanner.clearFile();
     setShowScanSheet(false);
@@ -750,28 +795,30 @@ export default function ScheduleConfirmScreen() {
         const normalizedModality = c.modality === "ONLINE" ? "ONLINE" : "F2F";
         const effectiveDays =
           c.daysOfWeek && c.daysOfWeek.length > 0 ? c.daysOfWeek : [c.dayOfWeek];
-        queries.push(
-          powerSync.execute(
-            `INSERT INTO ClassSchedule (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              id,
-              effectiveDays[0] ?? c.dayOfWeek,
-              JSON.stringify(effectiveDays),
-              c.startTime,
-              c.endTime,
-              effectiveStartDate,
-              effectiveEndDate,
-              c.room ?? null,
-              normalizedModality,
-              normalizedSetType,
-              userId,
-              c.resolvedSubjectId,
-              now,
-              now,
-            ]
-          )
-        );
+        for (const day of effectiveDays) {
+          queries.push(
+            powerSync.execute(
+              `INSERT INTO ClassSchedule (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, userId, subjectId, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                generateId(),
+                day,
+                null,
+                c.startTime,
+                c.endTime,
+                effectiveStartDate,
+                effectiveEndDate,
+                c.room ?? null,
+                normalizedModality,
+                normalizedSetType,
+                userId,
+                c.resolvedSubjectId,
+                now,
+                now,
+              ]
+            )
+          );
+        }
       }
 
       for (const e of events) {
@@ -790,7 +837,7 @@ export default function ScheduleConfirmScreen() {
               validEndDate,
               e.allDay ? 1 : 0,
               e.location ?? null,
-              "#6366F1",
+              CALENDAR_THEME.EVENT,
               userId,
               null,
               now,
@@ -902,13 +949,13 @@ export default function ScheduleConfirmScreen() {
               them here if needed.
             </Text>
             <View style={styles.universalInputsRow}>
-              {/* Semester Start Date & Time */}
+              {/* Semester Start Date */}
               <View style={styles.universalInputGroup}>
                 <View style={styles.universalInputLabelRow}>
                   <Text style={styles.universalInputLabel}>Semester Start (PHT)</Text>
                   {universalStartDate ? (
                     <Pressable
-                      onPress={() => setUniversalStartDate("")}
+                      onPress={() => applyUniversalStartDate("")}
                       hitSlop={6}
                       style={styles.universalClearBtn}
                     >
@@ -937,19 +984,19 @@ export default function ScheduleConfirmScreen() {
                     ellipsizeMode="tail"
                   >
                     {universalStartDate
-                      ? formatDateTimePHT(universalStartDate)
-                      : "+ Set Start Date & Time"}
+                      ? formatDatePHT(universalStartDate)
+                      : "+ Set Start Date"}
                   </Text>
                 </Pressable>
               </View>
 
-              {/* Semester End Date & Time */}
+              {/* Semester End Date */}
               <View style={styles.universalInputGroup}>
                 <View style={styles.universalInputLabelRow}>
                   <Text style={styles.universalInputLabel}>Semester End (PHT)</Text>
                   {universalEndDate ? (
                     <Pressable
-                      onPress={() => setUniversalEndDate("")}
+                      onPress={() => applyUniversalEndDate("")}
                       hitSlop={6}
                       style={styles.universalClearBtn}
                     >
@@ -978,8 +1025,8 @@ export default function ScheduleConfirmScreen() {
                     ellipsizeMode="tail"
                   >
                     {universalEndDate
-                      ? formatDateTimePHT(universalEndDate)
-                      : "+ Set End Date & Time"}
+                      ? formatDatePHT(universalEndDate)
+                      : "+ Set End Date"}
                   </Text>
                 </Pressable>
               </View>
@@ -1239,7 +1286,7 @@ export default function ScheduleConfirmScreen() {
               </View>
               <DateTimePicker
                 value={pendingUniversalDate}
-                mode="datetime"
+                mode="date"
                 display="spinner"
                 onChange={(_e, date) => {
                   if (date) setPendingUniversalDate(date);

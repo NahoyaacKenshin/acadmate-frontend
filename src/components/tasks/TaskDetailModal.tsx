@@ -54,13 +54,7 @@ export function TaskDetailModal({
   const isOverdue = task.due_date ? isOverduePHT(task.due_date) && !isCompleted : false;
   const isTodayDue = task.due_date ? isTodayPHT(task.due_date) && !isCompleted : false;
 
-  const accentColor = isCompleted
-    ? '#10B981'
-    : isOverdue
-    ? '#EF4444'
-    : isTodayDue
-    ? '#F59E0B'
-    : '#6366F1';
+  const accentColor = '#10B981';
 
   let dueString = 'No due date set';
   if (task.due_date) {
@@ -422,7 +416,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flex: 1.3,
       height: 44,
       borderRadius: 10,
-      backgroundColor: '#6366F1',
+      backgroundColor: '#10B981',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',

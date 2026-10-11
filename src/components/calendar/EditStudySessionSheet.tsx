@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useTheme } from '@/src/theme/useTheme';
+import { CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import type { ThemeColors } from '@/src/theme/tokens';
 import { useNotificationStore } from '@/src/store/notificationStore';
 import { useNotebookStore } from '@/src/store/notebookStore';
@@ -382,7 +383,7 @@ export function EditStudySessionSheet({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <BookOpen size={16} color="#6366F1" />
+                <BookOpen size={16} color={CALENDAR_THEME.STUDY_SESSION} />
               </View>
               <Text style={styles.headerTitle}>Edit Study Session</Text>
             </View>
@@ -1030,13 +1031,13 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       includeFontPadding: false,
     },
     submitBtn: {
-      backgroundColor: '#6366F1',
+      backgroundColor: CALENDAR_THEME.STUDY_SESSION,
       borderRadius: 12,
       height: 48,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 8,
-      shadowColor: '#6366F1',
+      shadowColor: CALENDAR_THEME.STUDY_SESSION,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 8,

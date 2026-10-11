@@ -18,10 +18,11 @@ import { X, Clock, Calendar, Trash2, RotateCcw, BookOpen, AlertCircle } from 'lu
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
-import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
+
 
 interface EditClassSheetProps {
   visible: boolean;
@@ -89,6 +90,18 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
+  const { schedules } = useClassSchedules();
+
+  const siblingSchedules = useMemo(() => {
+    if (!schedule) return [];
+    return schedules.filter(
+      (s) =>
+        s.subject_id === schedule.subject_id &&
+        s.start_time === schedule.start_time &&
+        s.end_time === schedule.end_time &&
+        (s.set_type === schedule.set_type || (!s.set_type && !schedule.set_type))
+    );
+  }, [schedule, schedules]);
 
   const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [startTime, setStartTime] = useState('08:00');
@@ -105,7 +118,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   // Inline Subject Creation state
   const [isCreatingSubject, setIsCreatingSubject] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
-  const [newSubjectColor, setNewSubjectColor] = useState('#6C8EFF');
+  const [newSubjectColor, setNewSubjectColor] = useState('#2563EB');
   const [isSavingSubject, setIsSavingSubject] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -115,18 +128,37 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   // Populate form when schedule changes
   useEffect(() => {
     if (schedule) {
-      let days: number[] = [];
+      const daysSet = new Set<number>();
       if (schedule.days_of_week) {
         try {
           const parsed = JSON.parse(schedule.days_of_week);
-          if (Array.isArray(parsed) && parsed.length > 0) days = parsed.map(Number);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            parsed.forEach((d) => daysSet.add(Number(d)));
+          }
         } catch {
-          const parts = schedule.days_of_week.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n));
-          if (parts.length > 0) days = parts;
+          const parts = schedule.days_of_week
+            .split(',')
+            .map((s: string) => Number(s.trim()))
+            .filter((n: number) => !isNaN(n));
+          parts.forEach((d) => daysSet.add(d));
         }
       }
-      if (days.length === 0) days = [schedule.day_of_week];
-      setSelectedDays(days);
+      for (const s of siblingSchedules) {
+        if (s.days_of_week) {
+          try {
+            const parsed = JSON.parse(s.days_of_week);
+            if (Array.isArray(parsed)) parsed.forEach((d) => daysSet.add(Number(d)));
+          } catch {}
+        }
+        if (s.day_of_week != null) {
+          daysSet.add(s.day_of_week);
+        }
+      }
+      if (daysSet.size === 0 && schedule.day_of_week != null) {
+        daysSet.add(schedule.day_of_week);
+      }
+      const sortedDays = Array.from(daysSet).sort((a, b) => a - b);
+      setSelectedDays(sortedDays.length > 0 ? sortedDays : [schedule.day_of_week]);
       setStartTime(schedule.start_time);
       setEndTime(schedule.end_time);
       const mod = schedule.modality === 'ONLINE' ? 'ONLINE' : 'F2F';
@@ -143,8 +175,10 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
       setIsCreatingSubject(false);
       setNewSubjectName('');
       setError(null);
+      setIsDeleting(false);
+      setIsLoading(false);
     }
-  }, [schedule]);
+  }, [schedule, siblingSchedules]);
 
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
@@ -153,6 +187,8 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     setActivePickerField(null);
     setIsCreatingSubject(false);
     setError(null);
+    setIsDeleting(false);
+    setIsLoading(false);
     onClose();
   };
 
@@ -266,26 +302,118 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     try {
       const now = toPhilippineISO(new Date());
       const normalizedSetType = (setType === 'A' || setType === 'B') ? setType : null;
-      await powerSync.execute(
-        `UPDATE ClassSchedule SET
-          dayOfWeek = ?, daysOfWeek = ?, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
-          modality = ?, setType = ?, subjectId = ?, updatedAt = ?
-         WHERE id = ?`,
-        [
-          selectedDays[0] ?? 0,
-          JSON.stringify(selectedDays),
-          startTime,
-          endTime,
-          formatDateLocal(startDate),
-          endDate ? formatDateLocal(endDate) : null,
-          room.trim() || null,
-          modality,
-          normalizedSetType,
-          selectedSubjectId,
-          now,
-          schedule.id,
-        ]
-      );
+      const formattedStart = formatDateLocal(startDate);
+      const formattedEnd = endDate ? formatDateLocal(endDate) : null;
+      const safeRoom = room.trim() || null;
+
+      // Map existing sibling schedules by their day_of_week
+      const siblingsByDay = new Map<number, ClassScheduleRow>();
+      for (const s of siblingSchedules) {
+        if (s.day_of_week != null && !siblingsByDay.has(s.day_of_week)) {
+          siblingsByDay.set(s.day_of_week, s);
+        }
+      }
+      if (schedule.day_of_week != null && !siblingsByDay.has(schedule.day_of_week)) {
+        siblingsByDay.set(schedule.day_of_week, schedule);
+      }
+
+      const existingDays = Array.from(siblingsByDay.keys());
+      const daysToKeepOrUpdate = selectedDays.filter((d) => existingDays.includes(d));
+      const daysToAdd = selectedDays.filter((d) => !existingDays.includes(d));
+      const daysToDelete = existingDays.filter((d) => !selectedDays.includes(d));
+
+      const ops: Promise<any>[] = [];
+
+      // 1. Delete rows for days that user unchecked
+      for (const day of daysToDelete) {
+        const item = siblingsByDay.get(day);
+        if (item) {
+          ops.push(powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [item.id]));
+        }
+      }
+
+      // 2. Update retained days with new values (times, room, modality, dates, subject)
+      for (const day of daysToKeepOrUpdate) {
+        const item = siblingsByDay.get(day);
+        if (item) {
+          ops.push(
+            powerSync.execute(
+              `UPDATE ClassSchedule SET
+                dayOfWeek = ?, daysOfWeek = NULL, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
+                modality = ?, setType = ?, subjectId = ?, updatedAt = ?
+               WHERE id = ?`,
+              [
+                day,
+                startTime,
+                endTime,
+                formattedStart,
+                formattedEnd,
+                safeRoom,
+                modality,
+                normalizedSetType,
+                selectedSubjectId,
+                now,
+                item.id,
+              ]
+            )
+          );
+        }
+      }
+
+      // If user unchecked the original schedule's day and added new days, reuse the original schedule.id
+      if (daysToKeepOrUpdate.length === 0 && daysToAdd.length > 0) {
+        const firstNewDay = daysToAdd.shift()!;
+        ops.push(
+          powerSync.execute(
+            `UPDATE ClassSchedule SET
+              dayOfWeek = ?, daysOfWeek = NULL, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
+              modality = ?, setType = ?, subjectId = ?, updatedAt = ?
+             WHERE id = ?`,
+            [
+              firstNewDay,
+              startTime,
+              endTime,
+              formattedStart,
+              formattedEnd,
+              safeRoom,
+              modality,
+              normalizedSetType,
+              selectedSubjectId,
+              now,
+              schedule.id,
+            ]
+          )
+        );
+      }
+
+      // 3. Insert newly checked days as distinct rows
+      for (const day of daysToAdd) {
+        ops.push(
+          powerSync.execute(
+            `INSERT INTO ClassSchedule
+              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              generateId(),
+              day,
+              null,
+              startTime,
+              endTime,
+              formattedStart,
+              formattedEnd,
+              safeRoom,
+              modality,
+              normalizedSetType,
+              selectedSubjectId,
+              userId,
+              now,
+              now,
+            ]
+          )
+        );
+      }
+
+      await Promise.all(ops);
       handleClose();
     } catch (err) {
       console.error('[EditClass] update failed:', err);
@@ -308,11 +436,20 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
             if (!schedule) return;
             setIsDeleting(true);
             try {
-              await powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [schedule.id]);
+              const idsToDelete = new Set<string>([schedule.id]);
+              for (const s of siblingSchedules) {
+                idsToDelete.add(s.id);
+              }
+              await Promise.all(
+                Array.from(idsToDelete).map((id) =>
+                  powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
+                )
+              );
               handleClose();
             } catch (err) {
               console.error('[EditClass] delete failed:', err);
               setError('Failed to delete schedule.');
+            } finally {
               setIsDeleting(false);
             }
           },

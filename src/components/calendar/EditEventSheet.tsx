@@ -17,7 +17,7 @@ import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@rea
 import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { toPhilippineISO, parseDateLocal, parseToPHTDate, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { isExamEvent } from '@/src/services/notificationService';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
@@ -183,7 +183,11 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
       const startISO = toPhilippineISO(startDate);
       const endISO = !allTime && endDate ? toPhilippineISO(endDate) : null;
       const isAllTimeVal = allTime ? 1 : 0;
-      const finalColor = event.color ?? (isExam ? '#F59E0B' : '#6366F1');
+      const finalColor = isExam
+        ? '#F59E0B'
+        : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
+            ? CALENDAR_THEME.EVENT
+            : event.color);
 
       await powerSync.execute(
         `UPDATE CalendarEvent SET
@@ -252,7 +256,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <Calendar size={16} color="#6366F1" />
+                <Calendar size={16} color={isExam ? '#F59E0B' : '#6366F1'} />
               </View>
               <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
             </View>
@@ -431,7 +435,11 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
             </View>
 
             <Pressable
-              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              style={[
+                styles.submitBtn,
+                isExam && { backgroundColor: '#F59E0B' },
+                isLoading && styles.submitBtnDisabled,
+              ]}
               onPress={handleSave}
               disabled={isLoading}
             >

@@ -10,6 +10,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
@@ -56,6 +57,7 @@ export function EditQuizQuestionModal({
   const styles = createStyles(colors, isDark);
 
   const handleSave = async () => {
+    Keyboard.dismiss();
     if (!questionText.trim()) {
       Alert.alert('Required', 'Please enter a question.');
       return;
@@ -81,6 +83,7 @@ export function EditQuizQuestionModal({
   };
 
   const handleDelete = () => {
+    Keyboard.dismiss();
     if (!question || !onDelete) return;
     Alert.alert('Delete Question', 'Are you sure you want to delete this question?', [
       { text: 'Cancel', style: 'cancel' },
@@ -114,11 +117,16 @@ export function EditQuizQuestionModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={isSaving ? undefined : onClose} />
+      <Pressable
+        style={styles.backdrop}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (!isSaving) onClose();
+        }}
+      />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
         pointerEvents="box-none"
       >
@@ -135,7 +143,13 @@ export function EditQuizQuestionModal({
                   )}
                 </Pressable>
               )}
-              <Pressable onPress={onClose} style={styles.closeBtn}>
+              <Pressable
+                onPress={() => {
+                  Keyboard.dismiss();
+                  onClose();
+                }}
+                style={styles.closeBtn}
+              >
                 <X size={20} color={colors.mutedForeground} />
               </Pressable>
             </View>
@@ -165,7 +179,10 @@ export function EditQuizQuestionModal({
               return (
                 <View key={idx} style={[styles.optionRow, isSelected && styles.optionRowSelected]}>
                   <Pressable
-                    onPress={() => setCorrectAnswer(idx)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setCorrectAnswer(idx);
+                    }}
                     style={[styles.radioBtn, isSelected && styles.radioBtnSelected]}
                   >
                     {isSelected ? (

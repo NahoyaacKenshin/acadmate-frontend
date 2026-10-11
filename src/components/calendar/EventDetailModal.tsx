@@ -18,7 +18,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { parseDateLocal, parseToPHTDate, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { isExamEvent } from '@/src/services/notificationService';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
@@ -70,7 +70,11 @@ export function EventDetailModal({
     Boolean(event.title?.toLowerCase().includes('exam')) ||
     isExamEvent(event);
 
-  const accentColor = isExam ? '#F59E0B' : '#6366F1';
+  const accentColor = isExam
+    ? '#F59E0B'
+    : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
+        ? CALENDAR_THEME.EVENT
+        : event.color);
 
   const startDate = event.start_date
     ? (parseToPHTDate(event.start_date) ?? parseDateLocal(event.start_date) ?? new Date(event.start_date))
@@ -137,15 +141,15 @@ export function EventDetailModal({
                         ? 'rgba(245, 158, 11, 0.3)'
                         : 'rgba(245, 158, 11, 0.2)'
                       : isDark
-                      ? 'rgba(99, 102, 241, 0.3)'
-                      : 'rgba(99, 102, 241, 0.2)',
+                      ? 'rgba(14, 165, 233, 0.35)'
+                      : 'rgba(14, 165, 233, 0.25)',
                   },
                 ]}
               >
                 {isExam ? (
                   <GraduationCap size={16} color="#F59E0B" />
                 ) : (
-                  <CalendarDays size={16} color="#6366F1" />
+                  <CalendarDays size={16} color={CALENDAR_THEME.EVENT} />
                 )}
               </View>
               <Text style={styles.headerTitle}>{isExam ? 'Exam Details' : 'Event Details'}</Text>
@@ -168,17 +172,21 @@ export function EventDetailModal({
                   {
                     backgroundColor: isExam
                       ? 'rgba(245, 158, 11, 0.12)'
-                      : 'rgba(99, 102, 241, 0.12)',
+                      : isDark
+                      ? 'rgba(14, 165, 233, 0.18)'
+                      : 'rgba(14, 165, 233, 0.12)',
                     borderColor: isExam
                       ? 'rgba(245, 158, 11, 0.25)'
-                      : 'rgba(99, 102, 241, 0.25)',
+                      : isDark
+                      ? 'rgba(14, 165, 233, 0.35)'
+                      : 'rgba(14, 165, 233, 0.25)',
                   },
                 ]}
               >
                 {isExam ? (
                   <GraduationCap size={11} color="#F59E0B" />
                 ) : (
-                  <CalendarDays size={11} color="#6366F1" />
+                  <CalendarDays size={11} color={CALENDAR_THEME.EVENT} />
                 )}
                 <Text
                   style={[
@@ -260,7 +268,7 @@ export function EventDetailModal({
             <Pressable
               style={styles.closeButton}
               onPress={onClose}
-              accessibilityLabel="Close event details"
+              accessibilityLabel={isExam ? 'Close exam details' : 'Close event details'}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </Pressable>
@@ -272,10 +280,10 @@ export function EventDetailModal({
                   { backgroundColor: accentColor },
                 ]}
                 onPress={() => onEdit(event)}
-                accessibilityLabel="Edit event"
+                accessibilityLabel={isExam ? 'Edit exam' : 'Edit event'}
               >
                 <Pencil size={15} color="#FFFFFF" />
-                <Text style={styles.editButtonText}>Edit Event</Text>
+                <Text style={styles.editButtonText}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
               </Pressable>
             ) : null}
           </View>

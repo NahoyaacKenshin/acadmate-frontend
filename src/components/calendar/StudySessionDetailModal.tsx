@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -18,9 +19,10 @@ import {
   ArrowUpRight,
 } from 'lucide-react-native';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
-import { parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { parseDateLocal, parseToPHTDate, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
 import { formatTimePHT } from '@/src/utils/philippineTime';
 import { useTheme } from '@/src/theme/useTheme';
+import { useNotebookStore } from '@/src/store/notebookStore';
 
 export interface StudySessionDetailModalProps {
   visible: boolean;
@@ -64,9 +66,16 @@ export function StudySessionDetailModal({
     ? event.location.replace(/^study_session:/, '')
     : null;
 
+  const notebooks = useNotebookStore((state) => state.notebooks);
+  const notebookExists = notebookId ? notebooks.some((n) => n.id === notebookId) : true;
+
   const handleOpenNotebook = () => {
     onClose();
     if (notebookId) {
+      if (!notebookExists) {
+        Alert.alert('Notebook Unavailable', 'The notebook associated with this study session has been deleted.');
+        return;
+      }
       router.push(`/(app)/notebook/${notebookId}` as any);
     } else {
       router.push('/(app)/notebook' as any);
@@ -93,12 +102,12 @@ export function StudySessionDetailModal({
                 style={[
                   styles.badge,
                   {
-                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#EEF2FF',
-                    borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : '#C7D2FE',
+                    backgroundColor: isDark ? 'rgba(139, 92, 246, 0.18)' : '#F3E8FF',
+                    borderColor: isDark ? 'rgba(139, 92, 246, 0.3)' : '#DDD6FE',
                   },
                 ]}
               >
-                <BookOpen size={12} color="#6366F1" />
+                <BookOpen size={12} color={CALENDAR_THEME.STUDY_SESSION} />
                 <Text style={styles.badgeText}>STUDY SESSION</Text>
               </View>
             </View>
@@ -249,7 +258,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#6366F1',
+    color: CALENDAR_THEME.STUDY_SESSION,
     letterSpacing: 0.5,
     includeFontPadding: false,
     flexShrink: 0,
@@ -313,10 +322,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#6366F1',
+    backgroundColor: CALENDAR_THEME.STUDY_SESSION,
     borderRadius: 12,
     height: 48,
-    shadowColor: '#6366F1',
+    shadowColor: CALENDAR_THEME.STUDY_SESSION,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,

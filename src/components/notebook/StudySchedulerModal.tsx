@@ -140,7 +140,7 @@ export function StudySchedulerModal({
           endISO,
           0,
           `study_session:${notebookId}`,
-          '#6366F1',
+          '#8B5CF6',
           null,
           user?.id ?? '',
           now,

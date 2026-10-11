@@ -13,6 +13,7 @@ export type AIErrorType =
   | 'GATEWAY_TIMEOUT'
   | 'SERVER'
   | 'EMPTY_RESULT'
+  | 'NO_TEXT'
   | 'UNKNOWN';
 
 export interface ClassifiedAIError {
@@ -65,6 +66,10 @@ export const AI_ERROR_MESSAGES: Record<AIErrorType, { message: string; retryable
   },
   EMPTY_RESULT: {
     message: "We couldn't detect any classes or schedule dates in this document. Please ensure the file is clear and right-side up.",
+    retryable: true,
+  },
+  NO_TEXT: {
+    message: 'No readable text was detected in this file. Please verify the document or photo contains legible text.',
     retryable: true,
   },
   UNKNOWN: {
@@ -147,7 +152,21 @@ export function classifyError(err: unknown, status?: number): ClassifiedAIError 
     return { type: 'SERVER', message: AI_ERROR_MESSAGES.SERVER.message, retryable: true, raw: err };
   }
 
-  if (lower.includes('empty') || lower.includes('no readable text') || lower.includes('no classes')) {
+  if (
+    lower.includes('no readable text') ||
+    lower.includes('no text detected') ||
+    lower.includes('no text found') ||
+    (status === 422 && !lower.includes('classes'))
+  ) {
+    return {
+      type: 'NO_TEXT',
+      message: errStr.length > 0 && errStr.length < 160 ? errStr : AI_ERROR_MESSAGES.NO_TEXT.message,
+      retryable: true,
+      raw: err,
+    };
+  }
+
+  if (lower.includes('empty') || lower.includes('no classes')) {
     return { type: 'EMPTY_RESULT', message: AI_ERROR_MESSAGES.EMPTY_RESULT.message, retryable: true, raw: err };
   }
 

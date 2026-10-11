@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
@@ -44,6 +45,7 @@ export function CreateDeckModal({
   const styles = createStyles(colors, isDark);
 
   const handleGenerate = async () => {
+    Keyboard.dismiss();
     if (!isOnline) {
       Alert.alert('Offline Mode', 'Generating new flashcards with AI requires an active internet connection.');
       return;
@@ -61,6 +63,7 @@ export function CreateDeckModal({
   };
 
   const handleManualCreate = async () => {
+    Keyboard.dismiss();
     if (!customTitle.trim()) {
       Alert.alert('Required', 'Please enter a title for the deck.');
       return;
@@ -86,11 +89,16 @@ export function CreateDeckModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={busy ? undefined : onClose} />
+      <Pressable
+        style={styles.backdrop}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (!busy) onClose();
+        }}
+      />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardAvoid}
         pointerEvents="box-none"
       >
@@ -101,7 +109,14 @@ export function CreateDeckModal({
               <Layers size={18} color="#6366F1" />
               <Text style={styles.headerTitle}>New Flashcard Deck</Text>
             </View>
-            <Pressable onPress={onClose} disabled={busy} style={styles.closeBtn}>
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                onClose();
+              }}
+              disabled={busy}
+              style={styles.closeBtn}
+            >
               <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
@@ -114,7 +129,10 @@ export function CreateDeckModal({
             {/* Mode Switcher Tabs */}
             <View style={styles.tabBar}>
             <Pressable
-              onPress={() => setTab('ai')}
+              onPress={() => {
+                Keyboard.dismiss();
+                setTab('ai');
+              }}
               style={[styles.tabItem, tab === 'ai' && styles.tabItemActive]}
             >
               <Sparkles size={15} color={tab === 'ai' ? '#6366F1' : colors.mutedForeground} />
@@ -124,7 +142,10 @@ export function CreateDeckModal({
             </Pressable>
 
             <Pressable
-              onPress={() => setTab('manual')}
+              onPress={() => {
+                Keyboard.dismiss();
+                setTab('manual');
+              }}
               style={[styles.tabItem, tab === 'manual' && styles.tabItemActive]}
             >
               <PenLine size={15} color={tab === 'manual' ? '#6366F1' : colors.mutedForeground} />
@@ -150,7 +171,10 @@ export function CreateDeckModal({
                 {[8, 12, 16, 20].map((num) => (
                   <Pressable
                     key={num}
-                    onPress={() => setCardCount(num)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setCardCount(num);
+                    }}
                     style={[styles.countPill, cardCount === num && styles.countPillActive]}
                   >
                     <Text

@@ -126,19 +126,23 @@ function ClassCard({
     examWeeks
   );
 
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.eventCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-        },
-        pressed && styles.eventCardPressed,
-      ]}
-      onPress={onPress}
-    >
-      <View style={[styles.eventColorBar, { backgroundColor: schedule.subject_color || '#6366F1' }]} />
+    const classColor = (!schedule.subject_color || schedule.subject_color === '#6366F1' || schedule.subject_color === '#8B5CF6')
+      ? CALENDAR_THEME.CLASS
+      : schedule.subject_color;
+
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.eventCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+          pressed && styles.eventCardPressed,
+        ]}
+        onPress={onPress}
+      >
+        <View style={[styles.eventColorBar, { backgroundColor: classColor }]} />
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
           <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
@@ -215,7 +219,11 @@ function EventCard({
   isExam?: boolean;
 }) {
   const { colors, isDark } = useTheme();
-  const accentColor = isExam ? '#F59E0B' : '#6366F1';
+  const accentColor = isExam
+    ? '#F59E0B'
+    : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
+        ? CALENDAR_THEME.EVENT
+        : event.color);
 
   return (
     <Pressable
@@ -324,7 +332,7 @@ function StudySessionCard({
       ]}
       onPress={onPress}
     >
-      <View style={[styles.eventColorBar, { backgroundColor: '#6366F1' }]} />
+      <View style={[styles.eventColorBar, { backgroundColor: CALENDAR_THEME.STUDY_SESSION }]} />
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
           <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
@@ -335,12 +343,12 @@ function StudySessionCard({
               style={[
                 styles.badge,
                 {
-                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#EEF2FF',
+                  backgroundColor: isDark ? 'rgba(139, 92, 246, 0.18)' : '#F3E8FF',
                 },
               ]}
             >
-              <BookOpen size={10} color="#6366F1" />
-              <Text style={[styles.badgeText, { color: '#6366F1' }]}>STUDY</Text>
+              <BookOpen size={10} color={CALENDAR_THEME.STUDY_SESSION} />
+              <Text style={[styles.badgeText, { color: CALENDAR_THEME.STUDY_SESSION }]}>STUDY</Text>
             </View>
             {onEditPress ? (
               <Pressable
@@ -398,7 +406,7 @@ function TaskDueCard({
   const { colors, isDark } = useTheme();
   const isCompleted = task.completed === 1;
   const isOverdue = task.due_date ? isOverduePHT(task.due_date) && !isCompleted : false;
-  const taskDisplayColor = isOverdue ? '#EF4444' : '#10B981';
+  const taskDisplayColor = CALENDAR_THEME.TASK;
   const dueTime = task.due_date ? formatTimePHT(task.due_date) : null;
 
   const handleCheckboxPress = (e: any) => {
@@ -610,7 +618,8 @@ export function DayView({
     Boolean(e.title?.toLowerCase().startsWith('study:'));
 
   const isExamBlocked = activeHolidayPeriods.length > 0 || activeSuspensions.length > 0;
-  const dayExams = isExamBlocked ? [] : dayEvents.filter(isExamEvent);
+  const isExamPeriodActive = activeExamPeriods.length > 0;
+  const dayExams = (!isExamPeriodActive || isExamBlocked) ? [] : dayEvents.filter(isExamEvent);
   const dayStudySessions = dayEvents.filter(isStudySessionEvent);
   const dayGeneralEvents = dayEvents.filter((e) => !isExamEvent(e) && !isStudySessionEvent(e));
 
@@ -853,7 +862,6 @@ const styles = StyleSheet.create({
   },
   eventCardPressed: {
     opacity: 0.8,
-    borderColor: '#6366F1',
   },
   eventColorBar: {
     width: 4,
