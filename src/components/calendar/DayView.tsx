@@ -318,7 +318,7 @@ function StudySessionCard({
   onEditPress?: () => void;
 }) {
   const { colors, isDark } = useTheme();
-  const displayTitle = event.title.replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim();
+  const displayTitle = (event.title || '').replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim() || 'Study Session';
 
   return (
     <Pressable

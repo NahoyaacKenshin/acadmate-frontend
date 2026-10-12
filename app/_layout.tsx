@@ -192,9 +192,11 @@ const styles = StyleSheet.create({
     fontSize: 34,
     letterSpacing: -0.8,
     fontWeight: '800',
+    includeFontPadding: false,
   },
   brandAccent: {
     color: '#6366F1',
+    includeFontPadding: false,
   },
   tagline: {
     fontFamily: 'Inter',
@@ -203,5 +205,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
     fontWeight: '500',
+    includeFontPadding: false,
   },
 });

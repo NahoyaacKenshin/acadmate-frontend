@@ -5,7 +5,7 @@
  * from syllabi, assignment sheets, rubric photos, and LMS screenshots.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -65,18 +65,18 @@ export function useTaskScanner(): UseTaskScannerResult {
 
   const isCancelledRef = useRef(false);
 
-  const clearFile = () => setSelectedFile(null);
-  const clearError = () => {
+  const clearFile = useCallback(() => setSelectedFile(null), []);
+  const clearError = useCallback(() => {
     setError(null);
     setIsRetryable(false);
-  };
+  }, []);
 
-  const cancelUpload = () => {
+  const cancelUpload = useCallback(() => {
     isCancelledRef.current = true;
     setIsLoading(false);
     setError(null);
     setIsRetryable(false);
-  };
+  }, []);
 
   // ── File Pickers ─────────────────────────────────────────────────────────────
 
@@ -293,7 +293,8 @@ export function useTaskScanner(): UseTaskScannerResult {
       const tasksRaw = Array.isArray(parsedBody?.data?.tasks) ? parsedBody.data.tasks : [];
 
       if (tasksRaw.length === 0) {
-        setError("We couldn't detect any tasks or assignments in this document. Please ensure the document is clear and readable.");
+        const noTasksMsg = "We couldn't detect any tasks or assignments in this document. Please ensure the document is clear and readable.";
+        setError(noTasksMsg);
         setIsRetryable(true);
         setIsLoading(false);
         return null;

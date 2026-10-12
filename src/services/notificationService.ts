@@ -4,7 +4,7 @@ import { ClassScheduleRow } from '../hooks/useClassSchedules';
 import { TaskRow } from '../hooks/useTasks';
 import { ExamWeekRow } from '../hooks/useExamWeeks';
 import { CalendarEventRow } from '../hooks/useCalendarEvents';
-import { parseDateLocal, toPhilippineISO, getScheduleDays } from '../utils/scheduleUtils';
+import { parseDateLocal, toPhilippineISO, getScheduleDays, isStudySessionEvent } from '../utils/scheduleUtils';
 import { parseToEpoch } from '../utils/philippineTime';
 
 // Configure notification behavior when app is in foreground
@@ -38,7 +38,8 @@ export function formatLeadMinutes(mins: number): string {
  * Robustly checks if a calendar event is an exam or quiz.
  */
 export function isExamEvent(e: CalendarEventRow): boolean {
-  if (e.color === '#8B5CF6') return true;
+  if (isStudySessionEvent(e) || e.color === '#8B5CF6') return false;
+  if (e.color === '#F59E0B') return true;
   const title = (e.title || '').toLowerCase();
   const desc = (e.description || '').toLowerCase();
   const examKeywords = [

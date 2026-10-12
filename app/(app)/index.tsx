@@ -57,7 +57,7 @@ import { TaskDetailModal } from '@/src/components/tasks/TaskDetailModal';
 import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { isExamEvent } from '@/src/services/notificationService';
 import { resolveScheduleForDate } from '@/src/utils/scheduleResolver';
-import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getCleanPeriodTitle, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
+import { isScheduleActiveOnDate, parseDateLocal, getPeriodCategory, getCleanPeriodTitle, CALENDAR_THEME, isStudySessionEvent } from '@/src/utils/scheduleUtils';
 import {
   getPhilippineToday,
   formatTime12,
@@ -363,16 +363,20 @@ function EventTimelineItem({
   onEditPress?: () => void;
 }) {
   const { colors, isDark } = useTheme();
+  const isStudy = isStudySessionEvent(event) || event.color === CALENDAR_THEME.STUDY_SESSION;
   const isExam =
-    event.color === '#F59E0B' ||
-    Boolean(event.description?.startsWith('🎓')) ||
-    Boolean(event.title?.startsWith('🎓')) ||
-    Boolean(event.description?.toLowerCase().includes('exam')) ||
-    Boolean(event.title?.toLowerCase().includes('exam')) ||
-    isExamEvent(event);
-  const accentColor = isExam
+    !isStudy &&
+    (event.color === '#F59E0B' ||
+      Boolean(event.description?.startsWith('🎓')) ||
+      Boolean(event.title?.startsWith('🎓')) ||
+      Boolean(event.description?.toLowerCase().includes('exam')) ||
+      Boolean(event.title?.toLowerCase().includes('exam')) ||
+      isExamEvent(event));
+  const accentColor = isStudy
+    ? CALENDAR_THEME.STUDY_SESSION
+    : isExam
     ? '#F59E0B'
-    : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
+    : (event.color === '#6366F1' || !event.color
         ? CALENDAR_THEME.EVENT
         : event.color);
 
@@ -405,13 +409,15 @@ function EventTimelineItem({
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
           <View style={styles.timelineActionsRow}>
             <View style={[styles.eventTag, { backgroundColor: accentColor + '18' }]}>
-              {isExam ? (
+              {isStudy ? (
+                <BookOpen size={9} color={accentColor} />
+              ) : isExam ? (
                 <GraduationCap size={9} color={accentColor} />
               ) : (
                 <Calendar size={9} color={accentColor} />
               )}
               <Text style={[styles.modalityText, { color: accentColor }]}>
-                {isExam ? 'Exam' : 'Event'}
+                {isStudy ? 'Study' : isExam ? 'Exam' : 'Event'}
               </Text>
             </View>
             {onEditPress ? (
@@ -442,6 +448,104 @@ function EventTimelineItem({
               <MapPin size={10} color={colors.mutedForeground} />
               <Text style={[styles.timelineSub, { color: colors.mutedForeground }]} numberOfLines={1}>
                 {event.location}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+// ── Study Session Timeline Item ───────────────────────────────────────────────
+
+function StudySessionTimelineItem({
+  session,
+  index,
+  notebookName,
+  onPress,
+  onEditPress,
+}: {
+  session: CalendarEventRow;
+  index: number;
+  notebookName?: string;
+  onPress?: () => void;
+  onEditPress?: () => void;
+}) {
+  const { colors, isDark } = useTheme();
+  const accentColor = CALENDAR_THEME.STUDY_SESSION;
+
+  let timeDisplay = 'All day';
+  if (session.all_day !== 1 && session.start_date) {
+    const startFmt = fmtTime(session.start_date);
+    const endFmt = session.end_date ? fmtTime(session.end_date) : '';
+    timeDisplay = endFmt && endFmt !== startFmt ? `${startFmt} – ${endFmt}` : (startFmt || 'Today');
+  }
+
+  const cleanTitle = session.title
+    ? session.title.replace(/^Study(\s+Session)?:\s*/i, '')
+    : 'Study Session';
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify()}
+      style={styles.timelineItemWrapper}
+    >
+      <TouchableOpacity
+        style={[
+          styles.timelineItem,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderLeftWidth: 3.5,
+            borderLeftColor: accentColor,
+          },
+        ]}
+        activeOpacity={0.75}
+        onPress={onPress}
+      >
+        <View style={styles.timelineTopRow}>
+          <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
+          <View style={styles.timelineActionsRow}>
+            <View style={[styles.eventTag, { backgroundColor: `${accentColor}18` }]}>
+              <BookOpen size={9} color={accentColor} />
+              <Text style={[styles.modalityText, { color: accentColor }]}>Study</Text>
+            </View>
+            {onEditPress ? (
+              <TouchableOpacity
+                style={[
+                  styles.timelineEditBtn,
+                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPress();
+                }}
+                hitSlop={8}
+                accessibilityLabel="Edit study session"
+              >
+                <Pencil size={11} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+        <View style={styles.timelineText}>
+          <Text style={[styles.timelineLabel, { color: colors.foreground }]} numberOfLines={1}>
+            {cleanTitle}
+          </Text>
+          <Text style={[styles.timelineTime, { color: accentColor }]}>{timeDisplay}</Text>
+          {notebookName ? (
+            <View style={styles.timelineMetaRow}>
+              <BookOpen size={10} color={colors.mutedForeground} />
+              <Text style={[styles.timelineSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {notebookName}
+              </Text>
+            </View>
+          ) : session.location && !session.location.startsWith('study_session:') ? (
+            <View style={styles.timelineMetaRow}>
+              <MapPin size={10} color={colors.mutedForeground} />
+              <Text style={[styles.timelineSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {session.location}
               </Text>
             </View>
           ) : null}
@@ -530,8 +634,29 @@ function StudentHomeScreen() {
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
   const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
 
+  const getNotebookIdFromSession = useCallback((e: CalendarEventRow): string | null => {
+    if (e.location && e.location.startsWith('study_session:')) {
+      return e.location.replace(/^study_session:/, '').trim();
+    }
+    return null;
+  }, []);
+
+  const handleStudySessionPress = useCallback((e: CalendarEventRow) => {
+    const nbId = getNotebookIdFromSession(e);
+    if (nbId) {
+      router.push({
+        pathname: '/(app)/notebook/[id]',
+        params: { id: nbId },
+      });
+    } else {
+      router.push('/(app)/notebook');
+    }
+  }, [getNotebookIdFromSession]);
+
   const handleEditEventPress = (e: CalendarEventRow) => {
     const isStudySession =
+      isStudySessionEvent(e) ||
+      e.color === CALENDAR_THEME.STUDY_SESSION ||
       Boolean(e.location?.startsWith('study_session')) ||
       Boolean(e.title?.toLowerCase().startsWith('study session:')) ||
       Boolean(e.title?.toLowerCase().startsWith('study:'));
@@ -619,8 +744,8 @@ function StudentHomeScreen() {
       .sort((a, b) => a.schedule.start_time.localeCompare(b.schedule.start_time));
   }, [schedules, studentSet, anchorMonday, anchorSet, semesterRules, holidays, examWeeks]);
 
-  // Today's exams and events
-  const { todayExams, todayGeneralEvents } = useMemo(() => {
+  // Today's exams, study sessions, and events
+  const { todayExams, todayStudySessions, todayGeneralEvents } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -639,15 +764,33 @@ function StudentHomeScreen() {
         const tb = b.start_date?.substring(11, 16) ?? '00:00';
         return ta.localeCompare(tb);
       });
+
+    const studySessions: CalendarEventRow[] = [];
+    const exams: CalendarEventRow[] = [];
+    const generalEvents: CalendarEventRow[] = [];
+
+    for (const e of list) {
+      if (isStudySessionEvent(e) || e.color === CALENDAR_THEME.STUDY_SESSION) {
+        studySessions.push(e);
+      } else if (isTodayInExamWeek && isExamEvent(e)) {
+        exams.push(e);
+      } else if (e.color === CALENDAR_THEME.EXAM || Boolean(e.title?.toLowerCase().includes('exam') && !e.title?.toLowerCase().includes('study'))) {
+        exams.push(e);
+      } else {
+        generalEvents.push(e);
+      }
+    }
+
     return {
-      todayExams: isTodayInExamWeek ? list.filter(isExamEvent) : [],
-      todayGeneralEvents: list.filter((e) => !isExamEvent(e)),
+      todayExams: exams,
+      todayStudySessions: studySessions,
+      todayGeneralEvents: generalEvents,
     };
   }, [events, examWeeks]);
 
   const todayEvents = useMemo<CalendarEventRow[]>(() => {
-    return [...todayExams, ...todayGeneralEvents];
-  }, [todayExams, todayGeneralEvents]);
+    return [...todayExams, ...todayStudySessions, ...todayGeneralEvents];
+  }, [todayExams, todayStudySessions, todayGeneralEvents]);
 
   // Pinned notebooks
   const pinnedNotebooks = useMemo(() => {
@@ -846,9 +989,8 @@ function StudentHomeScreen() {
                 </Text>
               </View>
 
-              <View style={styles.periodLinkWrap}>
-                <Text style={[styles.periodLinkText, { color: todayPeriodInfo.color }]}>Calendar</Text>
-                <ChevronRight size={14} color={todayPeriodInfo.color} />
+              <View style={styles.periodChevronWrap}>
+                <ChevronRight size={16} color={todayPeriodInfo.color} />
               </View>
             </TouchableOpacity>
           </Animated.View>
@@ -927,6 +1069,37 @@ function StudentHomeScreen() {
             </ScrollView>
           )}
         </Animated.View>
+
+        {/* ── Study Sessions Today ── */}
+        {todayStudySessions.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(125).springify()} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                Study Sessions Today
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timelineScroll}
+            >
+              {todayStudySessions.map((s, i) => {
+                const nbId = getNotebookIdFromSession(s);
+                const linkedNotebook = nbId ? notebooks.find((nb) => nb.id === nbId) : undefined;
+                return (
+                  <StudySessionTimelineItem
+                    key={s.id}
+                    session={s}
+                    index={i}
+                    notebookName={linkedNotebook?.title}
+                    onPress={() => handleStudySessionPress(s)}
+                    onEditPress={() => setEditingStudySession(s)}
+                  />
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+        )}
 
         {/* ── Exams Today ── */}
         {todayExams.length > 0 && (
@@ -1527,6 +1700,7 @@ const styles = StyleSheet.create({
   periodTagRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 5,
     marginBottom: 2,
   },
@@ -1534,30 +1708,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
+    flexShrink: 0,
+    includeFontPadding: false,
   },
   periodDot: {
     fontSize: 10,
+    flexShrink: 0,
+    includeFontPadding: false,
   },
   periodSubAction: {
     fontSize: 10.5,
     fontWeight: '500',
+    flexShrink: 0,
+    includeFontPadding: false,
   },
   periodBannerMainText: {
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
-  periodLinkWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+  periodChevronWrap: {
     paddingLeft: 4,
     flexShrink: 0,
-  },
-  periodLinkText: {
-    fontSize: 12,
-    fontWeight: '600',
-    flexShrink: 0,
-    includeFontPadding: false,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

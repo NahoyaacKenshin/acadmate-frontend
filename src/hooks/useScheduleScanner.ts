@@ -323,7 +323,8 @@ export function useScheduleScanner(): UseScheduleScannerResult {
       const data = json?.data as ParsedScheduleResult | undefined;
 
       if (!data) {
-        setError("Unexpected response from the server. Please try again.");
+        const errorMsg = "Unexpected response from the server. Please try again.";
+        setError(errorMsg);
         setIsRetryable(true);
         return null;
       }

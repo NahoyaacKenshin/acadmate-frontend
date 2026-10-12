@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Pressable, Clipboard, Image } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, StyleSheet, Pressable, Clipboard, Image, Text } from 'react-native';
 import { User, AlertCircle, Copy, RotateCcw } from 'lucide-react-native';
 import { ChatMessageCitations, Citation } from './ChatMessageCitations';
 import { CitationDetailModal } from './CitationDetailModal';

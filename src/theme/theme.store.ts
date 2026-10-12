@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { Appearance } from 'react-native';
+import { Appearance, AppState, type AppStateStatus } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { ThemeMode } from './tokens';
 
@@ -47,29 +47,39 @@ export const useThemeStore = create<ThemeState>((set) => ({
   },
 
   hydrateTheme: async () => {
+    const systemScheme = getNativeSystemScheme();
     try {
       const saved = await SecureStore.getItemAsync(THEME_PREF_KEY);
       if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        set({ theme: saved, isHydrated: true });
+        set({ theme: saved, systemColorScheme: systemScheme, isHydrated: true });
         syncUniwindTheme(saved);
         return;
       }
     } catch {
       // ignore
     }
-    set({ isHydrated: true });
+    set({ theme: 'system', systemColorScheme: systemScheme, isHydrated: true });
     syncUniwindTheme('system');
   },
 }));
 
-// Real-time listener for native OS light/dark mode toggles
+// Real-time listener for native OS light/dark mode toggles (e.g. quick settings shade)
 Appearance.addChangeListener(({ colorScheme }) => {
   const updatedScheme = colorScheme === 'dark' ? 'dark' : 'light';
-  useThemeStore.setState({ systemColorScheme: updatedScheme });
+  const state = useThemeStore.getState();
+  if (state.systemColorScheme !== updatedScheme) {
+    useThemeStore.setState({ systemColorScheme: updatedScheme });
+  }
+});
 
-  const currentPref = useThemeStore.getState().theme;
-  if (currentPref === 'system') {
-    syncUniwindTheme('system');
+// AppState listener for when user changes system theme in Settings and returns to app
+AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+  if (nextAppState === 'active') {
+    const currentScheme = getNativeSystemScheme();
+    const state = useThemeStore.getState();
+    if (state.systemColorScheme !== currentScheme) {
+      useThemeStore.setState({ systemColorScheme: currentScheme });
+    }
   }
 });
 

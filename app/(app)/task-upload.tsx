@@ -23,6 +23,7 @@ import {
   X,
   WifiOff,
   RotateCw,
+  AlertCircle,
 } from "lucide-react-native";
 import { useSystemStore } from "@/src/store/systemStore";
 import { useTheme } from "@/src/theme/useTheme";
@@ -56,12 +57,6 @@ export default function TaskUploadScreen() {
       };
     }, [clearError])
   );
-
-  useEffect(() => {
-    return () => {
-      clearError();
-    };
-  }, [clearError]);
 
   const handleBack = () => {
     clearError();
@@ -169,7 +164,9 @@ export default function TaskUploadScreen() {
 
           {error && (
             <View style={styles.errorBanner}>
+              <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0, marginTop: 2 }} />
               <View style={{ flex: 1 }}>
+                <Text style={styles.errorTitle}>Scan Unsuccessful</Text>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
               {isRetryable && (
@@ -333,18 +330,25 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     errorBanner: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       backgroundColor: isDark ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2",
       borderRadius: 12,
       borderWidth: 1,
       borderColor: isDark ? "rgba(239, 68, 68, 0.3)" : "#FCA5A5",
       padding: 14,
       marginBottom: 12,
-      gap: 10,
+      gap: 12,
+    },
+    errorTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#EF4444",
+      marginBottom: 3,
+      includeFontPadding: false,
     },
     errorText: {
-      fontSize: 13,
-      color: "#EF4444",
+      fontSize: 12,
+      color: isDark ? "#FCA5A5" : "#991B1B",
       lineHeight: 18,
       includeFontPadding: false,
     },

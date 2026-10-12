@@ -14,7 +14,7 @@ import {
   Text,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw, AlertCircle } from 'lucide-react-native';
+import { X, ChevronDown, Calendar, MapPin, Clock, Trash2, RotateCcw, AlertCircle, GraduationCap } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { toPhilippineISO, parseDateLocal, parseToPHTDate, CALENDAR_THEME } from '@/src/utils/scheduleUtils';
@@ -256,7 +256,11 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <Calendar size={16} color={isExam ? '#F59E0B' : '#6366F1'} />
+                {isExam ? (
+                  <GraduationCap size={16} color="#6366F1" />
+                ) : (
+                  <Calendar size={16} color="#6366F1" />
+                )}
               </View>
               <Text style={styles.headerTitle}>{isExam ? 'Edit Exam' : 'Edit Event'}</Text>
             </View>
@@ -437,7 +441,6 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
             <Pressable
               style={[
                 styles.submitBtn,
-                isExam && { backgroundColor: '#F59E0B' },
                 isLoading && styles.submitBtnDisabled,
               ]}
               onPress={handleSave}

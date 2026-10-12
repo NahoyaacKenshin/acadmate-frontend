@@ -24,6 +24,7 @@ import {
   AlertCircle,
   WifiOff,
   BookOpen,
+  RotateCw,
 } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
@@ -284,8 +285,28 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
             {/* Error Banner */}
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={16} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+                <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0, marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.errorTitle}>Scan Unsuccessful</Text>
+                  <Text
+                    style={[
+                      styles.errorText,
+                      { color: isDark ? '#FCA5A5' : '#991B1B' },
+                    ]}
+                  >
+                    {error}
+                  </Text>
+                </View>
+                {isRetryable && (
+                  <Pressable
+                    style={styles.retryBtn}
+                    onPress={handleStartScan}
+                    disabled={isLoading || !isOnline}
+                  >
+                    <RotateCw size={13} color="#EF4444" />
+                    <Text style={styles.retryBtnText}>Retry</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -646,18 +667,40 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     errorBanner: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 10,
-      backgroundColor: 'rgba(239,68,68,0.1)',
+      gap: 12,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
       borderWidth: 1,
-      borderColor: 'rgba(239,68,68,0.25)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
       borderRadius: 12,
       padding: 14,
       marginBottom: 16,
     },
-    errorText: {
+    errorTitle: {
       fontSize: 13,
+      fontWeight: '700',
       color: '#EF4444',
-      flex: 1,
+      marginBottom: 3,
+      includeFontPadding: false,
+    },
+    errorText: {
+      fontSize: 12,
+      lineHeight: 18,
+      includeFontPadding: false,
+    },
+    retryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      alignSelf: 'flex-start',
+    },
+    retryBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#EF4444',
       includeFontPadding: false,
     },
     loadingBox: {

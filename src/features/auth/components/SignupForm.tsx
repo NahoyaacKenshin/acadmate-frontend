@@ -7,9 +7,9 @@ import {
   Pressable,
   Alert,
   StyleSheet,
+  Text,
 } from 'react-native';
 import { useAuthStore } from '@/src/features/auth/auth.store';
-import { Text } from '@/src/components/ui/text';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { promptGoogleSignIn } from '@/src/lib/google-auth';
@@ -282,6 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   input: {
     height: 50,
@@ -311,12 +312,14 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     lineHeight: 16,
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   errorText: {
     fontSize: 12.5,
     marginTop: 2,
     marginLeft: 2,
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   apiErrorBox: {
     padding: 12,
@@ -328,6 +331,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   submitBtn: {
     height: 50,
@@ -340,6 +344,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -355,11 +360,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 1,
+    includeFontPadding: false,
   },
   footerText: {
     fontSize: 14,
+    includeFontPadding: false,
   },
   footerLink: {
     fontWeight: '700',
+    includeFontPadding: false,
   },
 });

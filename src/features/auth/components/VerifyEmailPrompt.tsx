@@ -1,8 +1,7 @@
 import { useRouter, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, View, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, Pressable, StyleSheet, Text } from 'react-native';
 import { authApi } from '@/src/features/auth/auth.api';
-import { Text } from '@/src/components/ui/text';
 import { Mail, ArrowLeft } from 'lucide-react-native';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
@@ -151,6 +150,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontFamily: 'Inter',
     textAlign: 'center',
+    includeFontPadding: false,
   },
   errorBox: {
     width: '100%',
@@ -163,6 +163,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   submitBtn: {
     height: 50,
@@ -176,6 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   backBtnRow: {
     flexDirection: 'row',
@@ -185,5 +187,6 @@ const styles = StyleSheet.create({
   backBtnText: {
     fontSize: 14,
     fontWeight: '600',
+    includeFontPadding: false,
   },
 });

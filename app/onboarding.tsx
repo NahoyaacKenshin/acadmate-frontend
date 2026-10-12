@@ -324,12 +324,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textAlign: 'center',
     letterSpacing: -0.6,
+    includeFontPadding: false,
   },
   subtitle: {
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
     maxWidth: 320,
+    includeFontPadding: false,
   },
   section: {
     marginBottom: 20,
@@ -345,11 +347,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.0,
+    includeFontPadding: false,
   },
   sectionDesc: {
     fontSize: 12,
     marginBottom: 10,
     lineHeight: 16,
+    includeFontPadding: false,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -385,6 +389,7 @@ const styles = StyleSheet.create({
   setName: {
     fontSize: 14,
     fontWeight: '700',
+    includeFontPadding: false,
   },
   setNameSelected: {
     color: '#6366F1',
@@ -392,6 +397,7 @@ const styles = StyleSheet.create({
   setDesc: {
     fontSize: 12,
     lineHeight: 16,
+    includeFontPadding: false,
   },
   footer: {
     marginTop: 14,
@@ -434,11 +440,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     flexShrink: 1,
+    includeFontPadding: false,
   },
   primaryScanBtnSub: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.85)',
     lineHeight: 15,
+    includeFontPadding: false,
   },
   aiBadge: {
     flexDirection: 'row',

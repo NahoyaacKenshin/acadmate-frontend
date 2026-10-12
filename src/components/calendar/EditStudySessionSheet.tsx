@@ -132,7 +132,7 @@ export function EditStudySessionSheet({
         ? session.location.replace(/^study_session:/, '')
         : '';
       const extractedTitle =
-        session.title.replace(/^Study Session:\s*/i, '').trim() || 'Notebook';
+        (session.title || '').replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim() || 'Notebook';
 
       setSelectedNotebookId(extractedNotebookId);
       setSelectedNotebookTitle(extractedTitle);

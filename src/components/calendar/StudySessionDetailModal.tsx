@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Modal,
@@ -46,37 +46,41 @@ export function StudySessionDetailModal({
 }: StudySessionDetailModalProps) {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { notebooks, fetchNotebooks } = useNotebookStore();
 
-  if (!event) return null;
+  useEffect(() => {
+    if (visible && notebooks.length === 0) {
+      fetchNotebooks(true).catch(() => {});
+    }
+  }, [visible, notebooks.length, fetchNotebooks]);
+
+  if (!visible || !event) return null;
 
   const startDate = event.start_date
     ? (parseToPHTDate(event.start_date) ?? parseDateLocal(event.start_date) ?? new Date(event.start_date))
     : new Date();
+  const validStart = !isNaN(startDate.getTime()) ? startDate : new Date();
 
   const endDate = event.end_date
     ? (parseToPHTDate(event.end_date) ?? parseDateLocal(event.end_date) ?? new Date(event.end_date))
     : null;
 
   const startTimeStr = formatTimePHT(event.start_date);
-  const endTimeStr = endDate ? ` – ${formatTimePHT(event.end_date!)}` : '';
-  const timeString = `${formatDate(startDate)} · ${startTimeStr}${endTimeStr}`;
+  const endTimeStr = endDate && event.end_date ? ` – ${formatTimePHT(event.end_date)}` : '';
+  const timeString = `${formatDate(validStart)} · ${startTimeStr}${endTimeStr}`;
 
-  const notebookTitle = event.title.replace(/^Study Session:\s*/i, '').trim() || 'Notebook';
+  const notebookTitle = (event.title || '').replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim() || 'Notebook';
   const notebookId = event.location?.startsWith('study_session:')
     ? event.location.replace(/^study_session:/, '')
     : null;
 
-  const notebooks = useNotebookStore((state) => state.notebooks);
-  const notebookExists = notebookId ? notebooks.some((n) => n.id === notebookId) : true;
-
   const handleOpenNotebook = () => {
     onClose();
     if (notebookId) {
-      if (!notebookExists) {
-        Alert.alert('Notebook Unavailable', 'The notebook associated with this study session has been deleted.');
-        return;
-      }
-      router.push(`/(app)/notebook/${notebookId}` as any);
+      router.push({
+        pathname: '/(app)/notebook/[id]',
+        params: { id: notebookId, title: notebookTitle },
+      } as any);
     } else {
       router.push('/(app)/notebook' as any);
     }

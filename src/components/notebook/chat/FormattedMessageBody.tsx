@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Clipboard } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, StyleSheet, ScrollView, Pressable, Clipboard, Text } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { SvgXml } from 'react-native-svg';
 import { Code2, Copy, Check } from 'lucide-react-native';
@@ -385,6 +384,23 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
       fontSize: 14,
       lineHeight: 21,
     },
+    text: {
+      color: colors.foreground,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    textgroup: {
+      color: colors.foreground,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    paragraph: {
+      color: colors.foreground,
+      fontSize: 14,
+      lineHeight: 21,
+      marginBottom: 6,
+      marginTop: 0,
+    },
     strong: {
       color: colors.foreground,
       fontWeight: '700' as const,
@@ -392,6 +408,10 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
     em: {
       fontStyle: 'italic' as const,
       color: colors.mutedForeground,
+    },
+    s: {
+      color: colors.mutedForeground,
+      textDecorationLine: 'line-through' as const,
     },
     heading1: {
       color: colors.foreground,
@@ -414,6 +434,23 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
       marginBottom: 4,
       marginTop: 2,
     },
+    heading4: {
+      color: colors.foreground,
+      fontSize: 13,
+      fontWeight: '700' as const,
+      marginBottom: 4,
+      marginTop: 2,
+    },
+    heading5: {
+      color: colors.foreground,
+      fontSize: 12,
+      fontWeight: '700' as const,
+    },
+    heading6: {
+      color: colors.foreground,
+      fontSize: 11,
+      fontWeight: '700' as const,
+    },
     bullet_list: {
       marginTop: 4,
       marginBottom: 4,
@@ -423,6 +460,16 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
       marginBottom: 4,
     },
     list_item: {
+      color: colors.foreground,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    bullet_list_icon: {
+      color: colors.foreground,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    ordered_list_icon: {
       color: colors.foreground,
       fontSize: 14,
       lineHeight: 21,
@@ -453,9 +500,12 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
       color: '#6366F1',
       textDecorationLine: 'underline' as const,
     },
-    paragraph: {
-      marginBottom: 6,
-      marginTop: 0,
+    th: {
+      color: colors.foreground,
+      fontWeight: '700' as const,
+    },
+    td: {
+      color: colors.foreground,
     },
   };
 
@@ -493,6 +543,33 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
         </Text>
       );
     },
+
+    // Enforce high-contrast text rendering on leaf text tokens
+    text: (node: any, children: any, parent: any, stylesObj: any, inheritedStyles: any = {}) => (
+      <Text
+        key={node.key}
+        style={[
+          { color: colors.foreground, fontSize: 14, lineHeight: 21, includeFontPadding: false },
+          inheritedStyles,
+          stylesObj.text,
+        ]}
+      >
+        {node.content}
+      </Text>
+    ),
+
+    // Enforce high-contrast text rendering on textgroup wrappers
+    textgroup: (node: any, children: any, parent: any, stylesObj: any) => (
+      <Text
+        key={node.key}
+        style={[
+          { color: colors.foreground, fontSize: 14, lineHeight: 21, includeFontPadding: false },
+          stylesObj.textgroup,
+        ]}
+      >
+        {children}
+      </Text>
+    ),
   };
 
   return (

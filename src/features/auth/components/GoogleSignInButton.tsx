@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, View, StyleSheet } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { ActivityIndicator, Pressable, View, StyleSheet, Text } from 'react-native';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 import { useTheme } from '@/src/theme/useTheme';
 
@@ -59,22 +58,6 @@ export function GoogleSignInButton({
     }
   };
 
-  const backgroundColor = isDark
-    ? pressed
-      ? '#1C2030'
-      : '#141722'
-    : pressed
-      ? '#F4F4F5'
-      : '#FFFFFF';
-
-  const borderColor = isDark
-    ? pressed
-      ? '#383E54'
-      : '#272B3B'
-    : pressed
-      ? '#D4D4D8'
-      : '#E4E4E7';
-
   return (
     <Pressable
       onPress={handlePress}
@@ -82,8 +65,10 @@ export function GoogleSignInButton({
       style={({ pressed: nativePressed }) => [
         styles.button,
         {
-          backgroundColor: nativePressed ? (isDark ? '#1C2030' : '#F4F4F5') : backgroundColor,
-          borderColor: nativePressed ? (isDark ? '#383E54' : '#D4D4D8') : borderColor,
+          backgroundColor: nativePressed || pressed
+            ? (isDark ? 'rgba(255,255,255,0.06)' : '#F4F4F5')
+            : colors.card,
+          borderColor: colors.border,
           opacity: isLoading ? 0.6 : 1,
           transform: [{ scale: pressed || nativePressed ? 0.985 : 1 }],
         },
@@ -127,5 +112,6 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
 });

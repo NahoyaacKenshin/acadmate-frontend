@@ -38,6 +38,7 @@ import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedul
 import { useTasks, TaskRow } from '@/src/hooks/useTasks';
 import { useExamWeeks } from '@/src/hooks/useExamWeeks';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { useNotebookStore } from '@/src/store/notebookStore';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,11 @@ export default function CalendarScreen() {
     };
     fetchHolidays();
   }, [displayYear]);
+
+  // Preload notebooks cache in background so all calendar modals have instant access
+  useEffect(() => {
+    useNotebookStore.getState().fetchNotebooks(true).catch(() => {});
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 

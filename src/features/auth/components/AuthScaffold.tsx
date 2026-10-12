@@ -7,9 +7,9 @@ import {
   Platform,
   Image,
   Dimensions,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 
 interface AuthScaffoldProps {
@@ -117,9 +117,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontWeight: '800',
     letterSpacing: -0.5,
+    includeFontPadding: false,
   },
   brandAccent: {
     color: '#6366F1',
+    includeFontPadding: false,
   },
   titleSection: {
     marginBottom: 28,
@@ -129,12 +131,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.6,
     lineHeight: SCREEN_WIDTH < 380 ? 30 : 34,
+    includeFontPadding: false,
   },
   subtitleText: {
     fontSize: 14.5,
     marginTop: 6,
     lineHeight: 20,
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   formContainer: {
     width: '100%',

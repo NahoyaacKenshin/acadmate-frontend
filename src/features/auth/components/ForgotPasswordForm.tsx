@@ -1,8 +1,7 @@
 import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, TextInput, View, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, TextInput, View, Pressable, StyleSheet, Text } from 'react-native';
 import { authApi } from '@/src/features/auth/auth.api';
-import { Text } from '@/src/components/ui/text';
 import { AuthScaffold } from './AuthScaffold';
 import { useTheme } from '@/src/theme/useTheme';
 import { ArrowLeft } from 'lucide-react-native';
@@ -185,6 +184,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   input: {
     height: 50,
@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginLeft: 2,
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   messageBox: {
     padding: 14,
@@ -209,6 +210,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   errorBox: {
     padding: 12,
@@ -220,6 +222,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
     fontFamily: 'Inter',
+    includeFontPadding: false,
   },
   submitBtn: {
     height: 50,
@@ -232,6 +235,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
+    includeFontPadding: false,
   },
   backBtnRow: {
     flexDirection: 'row',
@@ -241,5 +245,6 @@ const styles = StyleSheet.create({
   backBtnText: {
     fontSize: 14,
     fontWeight: '600',
+    includeFontPadding: false,
   },
 });

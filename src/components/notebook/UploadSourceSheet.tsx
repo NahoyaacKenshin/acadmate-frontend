@@ -25,6 +25,7 @@ import {
   AlertCircle,
   File,
   WifiOff,
+  RotateCw,
 } from 'lucide-react-native';
 import { useSystemStore } from '@/src/store/systemStore';
 import {
@@ -463,13 +464,35 @@ export function UploadSourceSheet({
             style={[
               styles.errorBanner,
               {
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2',
-                borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FECACA',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
               },
             ]}
           >
-            <AlertCircle size={16} color="#EF4444" />
-            <Text style={styles.errorText}>{errorMsg}</Text>
+            <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0, marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorTitle}>Upload Unsuccessful</Text>
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: isDark ? '#FCA5A5' : '#991B1B' },
+                ]}
+              >
+                {errorMsg}
+              </Text>
+            </View>
+            {selectedFile && isOnline && (
+              <Pressable
+                style={[
+                  styles.retryBtn,
+                  { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' },
+                ]}
+                onPress={handleUpload}
+              >
+                <RotateCw size={13} color="#EF4444" />
+                <Text style={styles.retryBtnText}>Retry</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -655,16 +678,37 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 12,
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
   },
-  errorText: {
+  errorTitle: {
     fontSize: 13,
+    fontWeight: '700',
     color: '#EF4444',
-    flex: 1,
+    marginBottom: 3,
+    includeFontPadding: false,
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
     includeFontPadding: false,
   },
   uploadBtn: {
