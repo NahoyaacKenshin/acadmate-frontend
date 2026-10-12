@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,81 +6,53 @@ import {
   Pressable,
   ActivityIndicator,
   TextInput,
+  TouchableOpacity,
+  Text,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Text } from '@/src/components/ui/text';
-import { Button } from '@/src/components/ui/button';
-import { GraduationCap, CheckCircle2, ChevronRight, Smile } from 'lucide-react-native';
-import { useUserStore } from '@/src/store/userStore';
-import { useProgramMappings } from '@/src/hooks/useProgramMappings';
-import { AdminApiService } from '@/src/services/admin.api';
+import { CheckCircle2, ScanLine, ArrowRight, Smile, Layers } from 'lucide-react-native';
+import { useUserStore, type StudentSet } from '@/src/store/userStore';
+import { useAuthStore } from '@/src/features/auth/auth.store';
+import { useTheme } from '@/src/theme/useTheme';
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { setProgram, setNickname, completeOnboarding } = useUserStore();
-  const { programMappings: localMappings, isLoading: isHookLoading } = useProgramMappings();
-  const [apiMappings, setApiMappings] = useState<{ id: string; program_name: string; student_set: 'A' | 'B' }[]>([]);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const { colors, isDark } = useTheme();
+  const { user } = useAuthStore();
+  const { setNickname, setStudentSet, completeOnboarding } = useUserStore();
 
-  useEffect(() => {
-    async function fetchApiPrograms() {
-      setIsLoadingApi(true);
-      try {
-        const res = await AdminApiService.listProgramMappings();
-        if (res?.data && Array.isArray(res.data)) {
-          setApiMappings(
-            res.data.map((m: any) => ({
-              id: m.id,
-              program_name: m.programName,
-              student_set: m.studentSet,
-            }))
-          );
-        }
-      } catch (err) {
-        console.error('Failed to fetch fallback program mappings', err);
-      } finally {
-        setIsLoadingApi(false);
-      }
-    }
-    fetchApiPrograms();
-  }, []);
-
-  const programMappings = localMappings.length > 0 ? localMappings : apiMappings;
-  const isLoading = isHookLoading && isLoadingApi;
-
-  const [nicknameInput, setNicknameInput] = useState('');
-  const [selectedProgram, setSelectedProgram] = useState<string>('');
-  const [selectedSet, setSelectedSet] = useState<'A' | 'B'>('A');
+  const [nicknameInput, setNicknameInput] = useState(
+    user?.name ? user.name.split(' ')[0] : ''
+  );
+  const [selectedSet, setSelectedSet] = useState<StudentSet>('Standard');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-select first program when programMappings are loaded
-  useEffect(() => {
-    if (programMappings.length > 0 && !selectedProgram) {
-      setSelectedProgram(programMappings[0].program_name);
-      setSelectedSet(programMappings[0].student_set);
+  const savePreferences = async () => {
+    if (nicknameInput.trim()) {
+      await setNickname(nicknameInput.trim());
     }
-  }, [programMappings, selectedProgram]);
+    await setStudentSet(selectedSet);
+    await completeOnboarding(selectedSet);
+  };
 
-  // Auto-resolve set when program selection changes
-  useEffect(() => {
-    if (!selectedProgram) return;
-    const mapping = programMappings.find(
-      (m) => m.program_name.toUpperCase() === selectedProgram.toUpperCase()
-    );
-    if (mapping) {
-      setSelectedSet(mapping.student_set);
-    }
-  }, [selectedProgram, programMappings]);
-
-  const handleFinish = async () => {
-    if (!selectedProgram) return;
+  const handleScanSchedule = async () => {
     setIsSubmitting(true);
     try {
-      await setProgram(selectedProgram, selectedSet);
-      if (nicknameInput.trim()) {
-        await setNickname(nicknameInput.trim());
-      }
-      await completeOnboarding();
+      await savePreferences();
+      router.replace('/(app)/schedule-upload');
+    } catch (e) {
+      console.error('Failed to save onboarding selections', e);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStartFresh = async () => {
+    setIsSubmitting(true);
+    try {
+      await savePreferences();
       router.replace('/');
     } catch (e) {
       console.error('Failed to save onboarding selections', e);
@@ -90,7 +62,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -99,163 +71,270 @@ export default function OnboardingScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.iconRing}>
-            <GraduationCap size={32} color="#6C8EFF" />
+          <View
+            style={[
+              styles.iconRing,
+              {
+                backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+                borderColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.18)',
+              },
+            ]}
+          >
+            <Image
+              source={require('../assets/images/new-splash-favicon-icon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
-          <Text style={styles.title}>Welcome to AcadMate</Text>
-          <Text style={styles.subtitle}>
-            Set up your profile in seconds — your schedule, calendar, and reminders will be personalized just for you.
+          <Text style={[styles.title, { color: colors.foreground }]}>Welcome to AcadMate</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            Your personal academic workspace. Set up your preferences to personalize schedules, notifications, and study notebooks.
           </Text>
         </View>
 
         {/* Nickname Section */}
         <View style={styles.section}>
           <View style={styles.sectionLabelRow}>
-            <Smile size={15} color="#6C8EFF" />
-            <Text style={styles.sectionLabel}>What should we call you?</Text>
+            <Smile size={15} color="#6366F1" />
+            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>What should we call you?</Text>
           </View>
-          <Text style={styles.sectionDesc}>
-            This nickname will appear in your greetings and throughout the app.
+          <Text style={[styles.sectionDesc, { color: colors.mutedForeground }]}>
+            This nickname will appear in your daily timeline and greetings.
           </Text>
-          <View style={styles.inputWrapper}>
+          <View
+            style={[
+              styles.inputWrapper,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
             <TextInput
-              style={styles.input}
-              placeholder="e.g. Alex, Kenz, Ate Jess…"
-              placeholderTextColor="#4A5568"
+              style={[styles.input, { color: colors.foreground }]}
+              placeholder="e.g. Alex, Kenji, Ate Jess…"
+              placeholderTextColor={colors.mutedForeground}
               value={nicknameInput}
               onChangeText={setNicknameInput}
               maxLength={24}
               autoCorrect={false}
             />
-            {nicknameInput.length > 0 && (
+            {nicknameInput.trim().length > 0 && (
               <View style={styles.inputCheck}>
                 <CheckCircle2 size={18} color="#10B981" />
               </View>
             )}
           </View>
-          {nicknameInput.length === 0 && (
-            <Text style={styles.inputHint}>Optional — you can add this later in Settings.</Text>
-          )}
         </View>
 
-        {/* Program Selection Section */}
+        {/* Modality / Schedule Set Selection */}
         <View style={styles.section}>
           <View style={styles.sectionLabelRow}>
-            <GraduationCap size={15} color="#6C8EFF" />
-            <Text style={styles.sectionLabel}>Select Your Degree Program</Text>
+            <Layers size={15} color="#6366F1" />
+            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Class Modality / Schedule Set</Text>
           </View>
-          {isLoading ? (
-            <ActivityIndicator color="#6C8EFF" style={{ marginVertical: 20 }} />
-          ) : programMappings.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyBoxText}>
-                No academic programs configured by Admin yet. You can set your program later in Settings.
+          <Text style={[styles.sectionDesc, { color: colors.mutedForeground }]}>
+            Choose your schedule set for alternating Face-to-Face and Online classes.
+          </Text>
+
+          <View style={styles.setGrid}>
+            <Pressable
+              style={[
+                styles.setCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+                selectedSet === 'A' && {
+                  borderColor: '#6366F1',
+                  backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)',
+                },
+              ]}
+              onPress={() => setSelectedSet('A')}
+            >
+              <View style={styles.setCardHeader}>
+                <Text
+                  style={[
+                    styles.setName,
+                    { color: colors.foreground },
+                    selectedSet === 'A' && styles.setNameSelected,
+                  ]}
+                >
+                  Set A
+                </Text>
+                {selectedSet === 'A' && <CheckCircle2 size={16} color="#6366F1" />}
+              </View>
+              <Text style={[styles.setDesc, { color: colors.mutedForeground }]}>
+                F2F on Set A weeks / Saturdays. Online on Set B.
               </Text>
-            </View>
-          ) : (
-            <View style={styles.programGrid}>
-              {programMappings.map((prog) => {
-                const isSelected = selectedProgram.toUpperCase() === prog.program_name.toUpperCase();
-                return (
-                  <Pressable
-                    key={prog.id || prog.program_name}
-                    style={[
-                      styles.programCard,
-                      isSelected && styles.programCardSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedProgram(prog.program_name);
-                      setSelectedSet(prog.student_set);
-                    }}
-                  >
-                    <View style={styles.programCardHeader}>
-                      <Text
-                        style={[
-                          styles.programName,
-                          isSelected && styles.programNameSelected,
-                        ]}
-                      >
-                        {prog.program_name}
-                      </Text>
-                      {isSelected && <CheckCircle2 size={18} color="#6C8EFF" />}
-                    </View>
-                    <Text style={styles.programDesc} numberOfLines={2}>
-                      Schedule Set {prog.student_set} · Auto-assigned by Admin
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.setCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+                selectedSet === 'B' && {
+                  borderColor: '#6366F1',
+                  backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)',
+                },
+              ]}
+              onPress={() => setSelectedSet('B')}
+            >
+              <View style={styles.setCardHeader}>
+                <Text
+                  style={[
+                    styles.setName,
+                    { color: colors.foreground },
+                    selectedSet === 'B' && styles.setNameSelected,
+                  ]}
+                >
+                  Set B
+                </Text>
+                {selectedSet === 'B' && <CheckCircle2 size={16} color="#6366F1" />}
+              </View>
+              <Text style={[styles.setDesc, { color: colors.mutedForeground }]}>
+                F2F on Set B weeks / Saturdays. Online on Set A.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.setCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+                selectedSet === 'Standard' && {
+                  borderColor: '#6366F1',
+                  backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)',
+                },
+              ]}
+              onPress={() => setSelectedSet('Standard')}
+            >
+              <View style={styles.setCardHeader}>
+                <Text
+                  style={[
+                    styles.setName,
+                    { color: colors.foreground },
+                    selectedSet === 'Standard' && styles.setNameSelected,
+                  ]}
+                >
+                  Standard / Regular
+                </Text>
+                {selectedSet === 'Standard' && <CheckCircle2 size={16} color="#6366F1" />}
+              </View>
+              <Text style={[styles.setDesc, { color: colors.mutedForeground }]}>
+                Regular recurring timetable with no alternating sets.
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
-        {/* Bottom CTA Button */}
+        {/* Action CTAs */}
         <View style={styles.footer}>
-          <Button
-            style={[styles.submitBtn, !selectedProgram && styles.submitBtnDisabled]}
-            disabled={isSubmitting || (!selectedProgram && programMappings.length > 0)}
-            onPress={handleFinish}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <View style={styles.btnRow}>
-                <Text style={styles.btnText}>
-                  {nicknameInput.trim()
-                    ? `Let's go, ${nicknameInput.trim()}! 🎉`
-                    : "Continue to AcadMate"}
+          {isSubmitting ? (
+            <ActivityIndicator color="#6366F1" style={{ paddingVertical: 20 }} />
+          ) : (
+            <>
+              {/* Primary Action: Scan COR / Syllabus */}
+              <TouchableOpacity
+                style={styles.primaryScanBtn}
+                onPress={handleScanSchedule}
+                activeOpacity={0.85}
+              >
+                <View style={styles.scanBtnIconWrap}>
+                  <ScanLine size={20} color="#ffffff" />
+                </View>
+                <View style={styles.scanBtnTextWrap}>
+                  <View style={styles.scanBtnTitleRow}>
+                    <Text style={styles.primaryScanBtnTitle}>Scan Certificate of Registration / Syllabus</Text>
+                    <View style={styles.aiBadge}>
+                      <Image
+                        source={require('../assets/images/new-splash-favicon-icon.png')}
+                        style={styles.aiBadgeLogo}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.aiBadgeText}>AI</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.primaryScanBtnSub}>
+                    Auto-import classes, rooms, and exam dates from photo or PDF.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Secondary Action: Start Fresh */}
+              <TouchableOpacity
+                style={[
+                  styles.secondaryBtn,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={handleStartFresh}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>
+                  Start Fresh (Manual Entry)
                 </Text>
-                <ChevronRight size={18} color="#ffffff" />
-              </View>
-            )}
-          </Button>
+                <ArrowRight size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#10131C',
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingVertical: 28,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   iconRing: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(108,142,255,0.12)',
+    width: 54,
+    height: 54,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.3)',
+  },
+  logoImage: {
+    width: 32,
+    height: 32,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
+    letterSpacing: -0.6,
+    includeFontPadding: false,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
+    maxWidth: 320,
+    includeFontPadding: false,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionLabelRow: {
     flexDirection: 'row',
@@ -264,109 +343,143 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#CBD5E1',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 1.0,
+    includeFontPadding: false,
   },
   sectionDesc: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 12,
-    lineHeight: 18,
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 16,
+    includeFontPadding: false,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161A26',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#2A3143',
-    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
     paddingVertical: 2,
   },
   input: {
     flex: 1,
-    height: 50,
-    color: '#ffffff',
-    fontSize: 16,
+    height: 48,
+    fontSize: 15,
     fontWeight: '500',
   },
   inputCheck: {
     paddingLeft: 8,
   },
-  inputHint: {
-    fontSize: 12,
-    color: '#4A5568',
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  emptyBox: {
-    padding: 16,
-    backgroundColor: '#161A26',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-  },
-  emptyBoxText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  programGrid: {
+  setGrid: {
     gap: 10,
   },
-  programCard: {
-    backgroundColor: '#161A26',
-    borderRadius: 14,
+  setCard: {
+    borderRadius: 12,
     padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#2A3143',
+    borderWidth: 1,
   },
-  programCardSelected: {
-    borderColor: '#6C8EFF',
-    backgroundColor: 'rgba(108,142,255,0.08)',
-  },
-  programCardHeader: {
+  setCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
-  programName: {
-    fontSize: 16,
+  setName: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
-  programNameSelected: {
-    color: '#6C8EFF',
+  setNameSelected: {
+    color: '#6366F1',
   },
-  programDesc: {
+  setDesc: {
     fontSize: 12,
-    color: '#94A3B8',
+    lineHeight: 16,
+    includeFontPadding: false,
   },
   footer: {
-    marginTop: 10,
+    marginTop: 14,
+    gap: 10,
   },
-  submitBtn: {
-    backgroundColor: '#6C8EFF',
+  primaryScanBtn: {
+    backgroundColor: '#6366F1',
     borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitBtnDisabled: {
-    opacity: 0.5,
-  },
-  btnRow: {
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  scanBtnIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  scanBtnTextWrap: {
+    flex: 1,
+  },
+  scanBtnTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+    flexWrap: 'wrap',
+  },
+  primaryScanBtnTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+    flexShrink: 1,
+    includeFontPadding: false,
+  },
+  primaryScanBtnSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  aiBadgeLogo: {
+    width: 12,
+    height: 12,
+  },
+  aiBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6366F1',
+    includeFontPadding: false,
+  },
+  secondaryBtn: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
-  btnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
+  secondaryBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    includeFontPadding: false,
   },
 });

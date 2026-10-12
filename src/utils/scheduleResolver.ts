@@ -2,7 +2,7 @@ import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
 import { ExamWeekRow } from '@/src/hooks/useExamWeeks';
 import { SemesterRuleRow } from '@/src/hooks/useSemesterRules';
 import { HolidayRow } from '@/src/hooks/useHolidays';
-import { parseDateLocal } from './scheduleUtils';
+import { parseDateLocal, getScheduleDays, getPeriodCategory, getCleanPeriodTitle, getPeriodColor } from './scheduleUtils';
 
 export interface ScheduleResolution {
   isActive: boolean;
@@ -19,22 +19,25 @@ export interface ScheduleResolution {
  * Dynamically resolves a student's personal ClassSchedule against:
  *  1. Global SemesterRules (Saturday Set A/B rules)
  *  2. Philippine Holidays
- *  3. Global Exam Weeks
+ *  3. Global Exam Weeks / Periods
  *  4. Student's assigned StudentSet ('A' | 'B')
  */
 export function resolveScheduleForDate(
   schedule: ClassScheduleRow,
   date: Date,
-  studentSet: 'A' | 'B' | null = null,
+  studentSet: 'A' | 'B' | 'Standard' | null = null,
   semesterRules: SemesterRuleRow[] = [],
   holidays: HolidayRow[] = [],
   examWeeks: ExamWeekRow[] = []
 ): ScheduleResolution {
+  // Treat 'Standard' the same as null — no alternating set logic
+  const effectiveSet: 'A' | 'B' | null = studentSet === 'Standard' ? null : studentSet;
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
 
-  // 1. Day of week match check
-  if (schedule.day_of_week !== target.getDay()) {
+  // 1. Day of week match check (supports multi-day schedules)
+  const days = getScheduleDays(schedule);
+  if (!days.includes(target.getDay())) {
     return {
       isActive: false,
       isHoliday: false,
@@ -47,7 +50,54 @@ export function resolveScheduleForDate(
     };
   }
 
-  // 2. Date bounds check
+  // 2. Schedule Set / Student Set filter
+  const st = schedule.set_type ? String(schedule.set_type).trim().toUpperCase() : null;
+  const isSetA = st === 'A';
+  const isSetB = st === 'B';
+  const isEveryWeek = !isSetA && !isSetB;
+
+  if (studentSet === 'Standard' || studentSet === null) {
+    if (!isEveryWeek) {
+      return {
+        isActive: false,
+        isHoliday: false,
+        isExamWeek: false,
+        modality: schedule.modality,
+        effectiveRoom: null,
+        reason: 'Set A/B class hidden in Standard mode',
+        badgeText: schedule.modality,
+        badgeColor: '#6B7280',
+      };
+    }
+  } else if (studentSet === 'A') {
+    if (isSetB) {
+      return {
+        isActive: false,
+        isHoliday: false,
+        isExamWeek: false,
+        modality: schedule.modality,
+        effectiveRoom: null,
+        reason: 'Set B class hidden in Set A',
+        badgeText: schedule.modality,
+        badgeColor: '#6B7280',
+      };
+    }
+  } else if (studentSet === 'B') {
+    if (isSetA) {
+      return {
+        isActive: false,
+        isHoliday: false,
+        isExamWeek: false,
+        modality: schedule.modality,
+        effectiveRoom: null,
+        reason: 'Set A class hidden in Set B',
+        badgeText: schedule.modality,
+        badgeColor: '#6B7280',
+      };
+    }
+  }
+
+  // 3. Date bounds check
   const rangeStart = parseDateLocal(schedule.start_date);
   if (rangeStart && target < rangeStart) {
     return {
@@ -76,7 +126,7 @@ export function resolveScheduleForDate(
     };
   }
 
-  // 3. Philippine Holiday Check
+  // 4. Philippine Holiday Check
   const targetIsoDate = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
   const holiday = holidays.find((h) => {
     const hDate = parseDateLocal(h.date);
@@ -99,32 +149,60 @@ export function resolveScheduleForDate(
       effectiveRoom: null,
       reason: isSuspension ? `Suspension: ${holiday.name}` : `Holiday: ${holiday.name}`,
       badgeText: isSuspension ? 'SUSPENSION' : isRegular ? 'REGULAR HOLIDAY' : 'SPECIAL HOLIDAY',
-      badgeColor: isSuspension ? '#EC4899' : '#EF4444',
+      badgeColor: isSuspension ? '#EF4444' : '#10B981',
     };
   }
 
-  // 4. Exam Week Check
+  // 5. Period Check (User-inputted periods: Exam Week, Holiday, Suspension)
   for (const ew of examWeeks) {
     const ewStart = parseDateLocal(ew.startDate);
     const ewEnd = parseDateLocal(ew.endDate);
     if (ewStart && ewEnd && target >= ewStart && target <= ewEnd) {
-      return {
-        isActive: false,
-        isHoliday: false,
-        isExamWeek: true,
-        modality: 'EXAM_WEEK',
-        effectiveRoom: null,
-        reason: `Exam Period: ${ew.title}`,
-        badgeText: 'EXAM WEEK',
-        badgeColor: '#F59E0B',
-      };
+      const cat = getPeriodCategory(ew);
+      const cleanTitle = getCleanPeriodTitle(ew.title);
+      const color = getPeriodColor(cat);
+      if (cat === 'HOLIDAY') {
+        return {
+          isActive: false,
+          isHoliday: true,
+          isExamWeek: false,
+          modality: 'HOLIDAY',
+          effectiveRoom: null,
+          reason: `Holiday: ${cleanTitle}`,
+          badgeText: 'HOLIDAY',
+          badgeColor: color,
+        };
+      } else if (cat === 'SUSPENSION') {
+        return {
+          isActive: false,
+          isHoliday: true,
+          isExamWeek: false,
+          modality: 'HOLIDAY',
+          effectiveRoom: null,
+          reason: `Suspension: ${cleanTitle}`,
+          badgeText: 'SUSPENSION',
+          badgeColor: color,
+        };
+      } else {
+        return {
+          isActive: false,
+          isHoliday: false,
+          isExamWeek: true,
+          modality: 'EXAM_WEEK',
+          effectiveRoom: null,
+          reason: `Exam Period: ${cleanTitle}`,
+          badgeText: 'EXAM WEEK',
+          badgeColor: color,
+        };
+      }
     }
   }
 
   // Determine effective set (user set or schedule set fallback)
-  const effectiveSet = studentSet || (schedule.set_type === 'A' || schedule.set_type === 'B' ? schedule.set_type : 'A');
+  // effectiveSet is already resolved above ('Standard' → null); fall back to the schedule's own set_type
+  const resolvedSet: 'A' | 'B' = effectiveSet || (schedule.set_type === 'A' || schedule.set_type === 'B' ? schedule.set_type : 'A');
 
-  // 5. Special Day / Semester Rules (SemesterRule)
+  // 6. Special Day / Semester Rules (SemesterRule)
   if (semesterRules.length > 0) {
     const matchedRule = semesterRules.find((r) => {
       if (r.dayOfWeek !== target.getDay()) return false;
@@ -139,7 +217,7 @@ export function resolveScheduleForDate(
     });
 
     if (matchedRule) {
-      const isF2F = effectiveSet === matchedRule.setType;
+      const isF2F = resolvedSet === matchedRule.setType;
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const dayName = days[matchedRule.dayOfWeek];
       const otherSet = matchedRule.setType === 'A' ? 'B' : 'A';
@@ -156,80 +234,25 @@ export function resolveScheduleForDate(
     }
   }
 
-  // 6. Regular Set A/B Alternating Week Calculation
-  if ((schedule.set_type === 'A' || schedule.set_type === 'B') && rangeStart) {
-    const diffMs = target.getTime() - rangeStart.getTime();
-    let diffWeeks = Math.floor(Math.round(diffMs / 86400000) / 7);
-
-    // Subtract past exam weeks
-    let pastExamWeeksCount = 0;
-    for (const ew of examWeeks) {
-      const ewStart = parseDateLocal(ew.startDate);
-      if (ewStart && ewStart >= rangeStart && ewStart <= target) {
-        pastExamWeeksCount++;
-      }
-    }
-    diffWeeks -= pastExamWeeksCount;
-
-    const isSetAWeek = diffWeeks % 2 === 0;
-
-    if (schedule.set_type === 'A') {
-      if (!isSetAWeek) {
-        return {
-          isActive: true,
-          isHoliday: false,
-          isExamWeek: false,
-          modality: 'ONLINE',
-          effectiveRoom: 'Online Class',
-          reason: 'Set B Week (Set A Online)',
-          badgeText: 'ONLINE (Set A)',
-          badgeColor: '#3B82F6',
-        };
-      }
-      return {
-        isActive: true,
-        isHoliday: false,
-        isExamWeek: false,
-        modality: 'F2F',
-        effectiveRoom: schedule.room,
-        reason: 'Set A Week (F2F)',
-        badgeText: 'F2F (Set A)',
-        badgeColor: '#10B981',
-      };
-    } else if (schedule.set_type === 'B') {
-      if (isSetAWeek) {
-        return {
-          isActive: true,
-          isHoliday: false,
-          isExamWeek: false,
-          modality: 'ONLINE',
-          effectiveRoom: 'Online Class',
-          reason: 'Set A Week (Set B Online)',
-          badgeText: 'ONLINE (Set B)',
-          badgeColor: '#3B82F6',
-        };
-      }
-      return {
-        isActive: true,
-        isHoliday: false,
-        isExamWeek: false,
-        modality: 'F2F',
-        effectiveRoom: schedule.room,
-        reason: 'Set B Week (F2F)',
-        badgeText: 'F2F (Set B)',
-        badgeColor: '#10B981',
-      };
-    }
+  // 7. Dynamic Class Modality & Set Resolution (Replaces static 'Regular Class' badge)
+  let setBadgeText: string;
+  if (st === 'A') {
+    setBadgeText = 'Set A';
+  } else if (st === 'B') {
+    setBadgeText = 'Set B';
+  } else if (effectiveSet === 'A' || effectiveSet === 'B') {
+    setBadgeText = `Set ${effectiveSet}`;
+  } else {
+    setBadgeText = 'Every Week';
   }
 
-  // 7. Regular Default Modality
   return {
     isActive: true,
     isHoliday: false,
     isExamWeek: false,
     modality: schedule.modality,
     effectiveRoom: schedule.modality === 'ONLINE' ? 'Online Class' : schedule.room,
-    reason: 'Regular Class',
+    reason: setBadgeText,
     badgeText: schedule.modality,
     badgeColor: schedule.modality === 'F2F' ? '#10B981' : schedule.modality === 'ONLINE' ? '#3B82F6' : '#8B5CF6',
   };

@@ -14,6 +14,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Text } from '@/src/components/ui/text';
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { useTheme } from '@/src/theme/useTheme';
 import {
   FileText,
   Image as ImageIcon,
@@ -23,13 +24,22 @@ import {
   CheckCircle2,
   AlertCircle,
   File,
+  WifiOff,
+  RotateCw,
 } from 'lucide-react-native';
+import { useSystemStore } from '@/src/store/systemStore';
+import {
+  assertOnline,
+  classifyError,
+  refreshSharedSession,
+  getValidAccessToken,
+} from '@/src/lib/aiRequest';
 
 interface UploadSourceSheetProps {
   visible: boolean;
   notebookId: string;
   onClose: () => void;
-  onUploaded: () => void; // refresh list after upload
+  onUploaded: () => void;
 }
 
 type UploadState = 'idle' | 'uploading' | 'success' | 'error';
@@ -48,6 +58,10 @@ function PickerCard({
   color,
   onPress,
   disabled,
+  cardBg,
+  borderColor,
+  textColor,
+  mutedColor,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -55,12 +69,16 @@ function PickerCard({
   color: string;
   onPress: () => void;
   disabled?: boolean;
+  cardBg: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
 }) {
   return (
     <Pressable
       style={({ pressed }) => [
         styles.pickerCard,
-        { borderColor: `${color}33` },
+        { backgroundColor: cardBg, borderColor },
         pressed && { opacity: 0.7 },
         disabled && { opacity: 0.4 },
       ]}
@@ -70,8 +88,8 @@ function PickerCard({
       <View style={[styles.pickerIconWrap, { backgroundColor: `${color}1A` }]}>
         {icon}
       </View>
-      <Text style={styles.pickerLabel}>{label}</Text>
-      <Text style={styles.pickerSubtitle}>{subtitle}</Text>
+      <Text style={[styles.pickerLabel, { color: textColor }]}>{label}</Text>
+      <Text style={[styles.pickerSubtitle, { color: mutedColor }]}>{subtitle}</Text>
     </Pressable>
   );
 }
@@ -82,13 +100,16 @@ export function UploadSourceSheet({
   onClose,
   onUploaded,
 }: UploadSourceSheetProps) {
+  const { colors, isDark } = useTheme();
   const { accessToken } = useAuthStore();
+  const isOnline = useSystemStore((s) => s.isOnline);
 
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0); // 0–1
+  const [uploadProgress, setUploadProgress] = useState(0);
 
+  const uploadTaskRef = useRef<FileSystem.UploadTask | null>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -107,8 +128,22 @@ export function UploadSourceSheet({
     progressAnim.setValue(0);
   };
 
+  const handleCancelUpload = async () => {
+    if (uploadTaskRef.current) {
+      try {
+        await uploadTaskRef.current.cancelAsync();
+      } catch {}
+      uploadTaskRef.current = null;
+    }
+    setUploadState('idle');
+    setUploadProgress(0);
+    setErrorMsg('Upload cancelled.');
+  };
+
   const handleClose = () => {
-    if (uploadState === 'uploading') return;
+    if (uploadState === 'uploading') {
+      handleCancelUpload();
+    }
     resetState();
     onClose();
   };
@@ -153,65 +188,90 @@ export function UploadSourceSheet({
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    try {
+      assertOnline();
+    } catch (err) {
+      const classified = classifyError(err);
+      setUploadState('error');
+      setErrorMsg(classified.message);
+      return;
+    }
+
     setUploadState('uploading');
     setErrorMsg(null);
     setUploadProgress(0);
 
     try {
       const uploadUrl = `${ENV.API_URL}/notebooks/${notebookId}/sources`;
+      let token = await getValidAccessToken();
       
-      const uploadTask = FileSystem.createUploadTask(
-        uploadUrl,
-        selectedFile.uri,
-        {
-          httpMethod: 'POST',
-          uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
-          fieldName: 'file',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+      const createAndRunTask = async (authToken: string | null) => {
+        const task = FileSystem.createUploadTask(
+          uploadUrl,
+          selectedFile.uri,
+          {
+            httpMethod: 'POST',
+            uploadType: (FileSystem as any).FileSystemUploadType?.MULTIPART ?? 0,
+            fieldName: 'file',
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
           },
-        },
-        (data) => {
-          if (data.totalBytesExpectedToSend > 0) {
-            const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
-            setUploadProgress(progress);
+          (data) => {
+            if (data.totalBytesExpectedToSend > 0) {
+              const progress = data.totalBytesSent / data.totalBytesExpectedToSend;
+              setUploadProgress(progress);
+            }
           }
-        }
-      );
+        );
+        uploadTaskRef.current = task;
+        return await task.uploadAsync();
+      };
 
-      const response = await uploadTask.uploadAsync();
+      let response = await createAndRunTask(token);
+
+      // Handle 401 session expiration
+      if (response && response.status === 401) {
+        const refreshed = await refreshSharedSession();
+        if (!refreshed) {
+          throw new Error('Session expired. Please sign in again.');
+        }
+        token = await getValidAccessToken();
+        response = await createAndRunTask(token);
+      }
+
+      uploadTaskRef.current = null;
 
       if (!response) {
         throw new Error('Upload returned no response.');
       }
 
       if (response.status >= 400) {
-        let errorMessage = 'Upload failed.';
+        let msg = 'Upload failed.';
         try {
           const body = JSON.parse(response.body);
-          errorMessage = body.message ?? errorMessage;
+          msg = body.message ?? msg;
         } catch {}
-        if (response.status === 413) errorMessage = 'File is too large (max 20MB).';
-        if (response.status === 415) errorMessage = 'Unsupported file type.';
-        throw new Error(errorMessage);
+        const classified = classifyError(new Error(msg), response.status);
+        throw new Error(classified.message);
       }
 
       setUploadProgress(1);
       setUploadState('success');
-      // Auto-close after success and refresh the list
       setTimeout(() => {
         resetState();
         onUploaded();
         onClose();
       }, 1500);
     } catch (err: any) {
+      uploadTaskRef.current = null;
       setUploadState('error');
-      setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
+      const classified = classifyError(err);
+      setErrorMsg(classified.message);
       setUploadProgress(0);
     }
   };
-
-  // ─── Render ────────────────────────────────────────────────────────────────
 
   const progressBarWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -227,24 +287,66 @@ export function UploadSourceSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheet}>
+      <View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
         {/* Handle */}
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.headerIconWrap}>
-              <Upload size={18} color="#6C8EFF" />
+            <View
+              style={[
+                styles.headerIconWrap,
+                { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' },
+              ]}
+            >
+              <Upload size={18} color="#6366F1" />
             </View>
-            <Text style={styles.headerTitle}>Add Source</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Add Source</Text>
           </View>
-          <Pressable style={styles.closeBtn} onPress={handleClose} disabled={uploadState === 'uploading'}>
-            <X size={20} color="#64748B" />
+          <Pressable
+            style={[
+              styles.closeBtn,
+              { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F4F4F5' },
+            ]}
+            onPress={handleClose}
+            disabled={uploadState === 'uploading'}
+          >
+            <X size={18} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
-        <Text style={styles.sectionLabel}>Choose a file to upload</Text>
+        {!isOnline && (
+          <View
+            style={[
+              styles.offlineBanner,
+              {
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FEF3C7',
+                borderColor: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FDE68A',
+              },
+            ]}
+          >
+            <WifiOff size={16} color={isDark ? '#F59E0B' : '#D97706'} />
+            <Text
+              style={[
+                styles.offlineText,
+                { color: isDark ? '#F59E0B' : '#D97706' },
+              ]}
+            >
+              You're offline. Reconnect to upload and index documents.
+            </Text>
+          </View>
+        )}
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>CHOOSE A FILE TO UPLOAD</Text>
 
         {/* Picker cards */}
         <View style={styles.pickerRow}>
@@ -254,7 +356,11 @@ export function UploadSourceSheet({
             subtitle="PDF, DOCX, TXT"
             color="#EF4444"
             onPress={pickDocument}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
+            cardBg={isDark ? 'rgba(255, 255, 255, 0.03)' : '#F9FAFB'}
+            borderColor={colors.border}
+            textColor={colors.foreground}
+            mutedColor={colors.mutedForeground}
           />
           <PickerCard
             icon={<ImageIcon size={22} color="#8B5CF6" />}
@@ -262,31 +368,58 @@ export function UploadSourceSheet({
             subtitle="JPG, PNG"
             color="#8B5CF6"
             onPress={pickImage}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
+            cardBg={isDark ? 'rgba(255, 255, 255, 0.03)' : '#F9FAFB'}
+            borderColor={colors.border}
+            textColor={colors.foreground}
+            mutedColor={colors.mutedForeground}
           />
           <PickerCard
-            icon={<Camera size={22} color="#22C55E" />}
+            icon={<Camera size={22} color="#10B981" />}
             label="Camera"
             subtitle="Take a photo"
-            color="#22C55E"
+            color="#10B981"
             onPress={pickCamera}
-            disabled={uploadState === 'uploading'}
+            disabled={!isOnline || uploadState === 'uploading'}
+            cardBg={isDark ? 'rgba(255, 255, 255, 0.03)' : '#F9FAFB'}
+            borderColor={colors.border}
+            textColor={colors.foreground}
+            mutedColor={colors.mutedForeground}
           />
         </View>
 
         {/* Selected file preview */}
         {selectedFile && (
-          <View style={styles.filePreview}>
-            <View style={styles.filePreviewIcon}>
-              <File size={18} color="#6C8EFF" />
+          <View
+            style={[
+              styles.filePreview,
+              {
+                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.08)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(99, 102, 241, 0.2)' : '#C7D2FE',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.filePreviewIcon,
+                { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#E0E7FF' },
+              ]}
+            >
+              <File size={18} color="#6366F1" />
             </View>
             <View style={styles.filePreviewInfo}>
-              <Text style={styles.filePreviewName} numberOfLines={1}>{selectedFile.name}</Text>
-              {fileSizeLabel && <Text style={styles.filePreviewSize}>{fileSizeLabel}</Text>}
+              <Text style={[styles.filePreviewName, { color: colors.foreground }]} numberOfLines={1}>
+                {selectedFile.name}
+              </Text>
+              {fileSizeLabel && (
+                <Text style={[styles.filePreviewSize, { color: colors.mutedForeground }]}>
+                  {fileSizeLabel}
+                </Text>
+              )}
             </View>
             {uploadState !== 'uploading' && (
               <Pressable onPress={() => setSelectedFile(null)} hitSlop={8}>
-                <X size={16} color="#64748B" />
+                <X size={16} color={colors.mutedForeground} />
               </Pressable>
             )}
           </View>
@@ -295,28 +428,71 @@ export function UploadSourceSheet({
         {/* Progress bar */}
         {uploadState === 'uploading' && (
           <View style={styles.progressContainer}>
-            <View style={styles.progressTrack}>
+            <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
               <Animated.View style={[styles.progressFill, { width: progressBarWidth }]} />
             </View>
-            <Text style={styles.progressLabel}>
-              {Math.round(uploadProgress * 100)}% — Uploading, please wait…
-            </Text>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>
+                {Math.round(uploadProgress * 100)}% — Uploading, please wait…
+              </Text>
+              <Pressable onPress={handleCancelUpload} hitSlop={8}>
+                <Text style={styles.cancelUploadText}>Cancel</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
         {/* Success state */}
         {uploadState === 'success' && (
-          <View style={styles.successBanner}>
-            <CheckCircle2 size={16} color="#22C55E" />
+          <View
+            style={[
+              styles.successBanner,
+              {
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5',
+                borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0',
+              },
+            ]}
+          >
+            <CheckCircle2 size={16} color="#10B981" />
             <Text style={styles.successText}>Uploaded! AI indexing started in the background.</Text>
           </View>
         )}
 
         {/* Error state */}
         {uploadState === 'error' && errorMsg && (
-          <View style={styles.errorBanner}>
-            <AlertCircle size={16} color="#EF4444" />
-            <Text style={styles.errorText}>{errorMsg}</Text>
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+              },
+            ]}
+          >
+            <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0, marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorTitle}>Upload Unsuccessful</Text>
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: isDark ? '#FCA5A5' : '#991B1B' },
+                ]}
+              >
+                {errorMsg}
+              </Text>
+            </View>
+            {selectedFile && isOnline && (
+              <Pressable
+                style={[
+                  styles.retryBtn,
+                  { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' },
+                ]}
+                onPress={handleUpload}
+              >
+                <RotateCw size={13} color="#EF4444" />
+                <Text style={styles.retryBtnText}>Retry</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -325,17 +501,19 @@ export function UploadSourceSheet({
           <Pressable
             style={[
               styles.uploadBtn,
-              (!selectedFile || uploadState === 'uploading') && styles.uploadBtnDisabled,
+              (!selectedFile || !isOnline || uploadState === 'uploading') && styles.uploadBtnDisabled,
             ]}
             onPress={handleUpload}
-            disabled={!selectedFile || uploadState === 'uploading'}
+            disabled={!selectedFile || !isOnline || uploadState === 'uploading'}
           >
             {uploadState === 'uploading' ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
               <>
                 <Upload size={18} color="#ffffff" />
-                <Text style={styles.uploadBtnText}>Upload & Index</Text>
+                <Text style={styles.uploadBtnText}>
+                  {!isOnline ? 'Offline — Connect to Upload' : 'Upload'}
+                </Text>
               </>
             )}
           </Pressable>
@@ -351,11 +529,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#161A26',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderColor: '#2A3143',
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
@@ -363,7 +539,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 40,
     height: 4,
-    backgroundColor: '#2A3143',
     borderRadius: 2,
     marginTop: 12,
     marginBottom: 16,
@@ -383,28 +558,27 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(108,142,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1E2330',
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
     marginBottom: 14,
+    includeFontPadding: false,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -413,7 +587,6 @@ const styles = StyleSheet.create({
   },
   pickerCard: {
     flex: 1,
-    backgroundColor: '#10131C',
     borderRadius: 16,
     borderWidth: 1,
     padding: 14,
@@ -430,19 +603,17 @@ const styles = StyleSheet.create({
   pickerLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
   pickerSubtitle: {
     fontSize: 11,
-    color: '#4A5568',
     textAlign: 'center',
+    includeFontPadding: false,
   },
   filePreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(108,142,255,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(108,142,255,0.2)',
     borderRadius: 12,
     padding: 12,
     gap: 12,
@@ -452,7 +623,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 9,
-    backgroundColor: 'rgba(108,142,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -462,12 +632,12 @@ const styles = StyleSheet.create({
   filePreviewName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#ffffff',
+    includeFontPadding: false,
   },
   filePreviewSize: {
     fontSize: 11,
-    color: '#64748B',
     marginTop: 2,
+    includeFontPadding: false,
   },
   progressContainer: {
     marginBottom: 16,
@@ -475,66 +645,85 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 6,
-    backgroundColor: '#1E2330',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6C8EFF',
+    backgroundColor: '#6366F1',
     borderRadius: 3,
   },
   progressLabel: {
     fontSize: 12,
-    color: '#6C8EFF',
+    color: '#6366F1',
     fontWeight: '600',
+    includeFontPadding: false,
   },
   successBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(34,197,94,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.25)',
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
   },
   successText: {
     fontSize: 13,
-    color: '#22C55E',
+    color: '#10B981',
     fontWeight: '600',
     flex: 1,
+    includeFontPadding: false,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: 'rgba(239,68,68,0.1)',
+    gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
   },
-  errorText: {
+  errorTitle: {
     fontSize: 13,
+    fontWeight: '700',
     color: '#EF4444',
-    flex: 1,
+    marginBottom: 3,
+    includeFontPadding: false,
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
+    includeFontPadding: false,
   },
   uploadBtn: {
     flexDirection: 'row',
-    backgroundColor: '#6C8EFF',
+    backgroundColor: '#6366F1',
     borderRadius: 14,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    shadowColor: '#6C8EFF',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 4,
   },
   uploadBtnDisabled: {
     opacity: 0.45,
@@ -542,8 +731,38 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   uploadBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#ffffff',
+    includeFontPadding: false,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  offlineText: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+    includeFontPadding: false,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cancelUploadText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '600',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    includeFontPadding: false,
   },
 });

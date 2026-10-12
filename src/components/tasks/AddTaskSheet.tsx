@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,40 +8,70 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Text,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar } from 'lucide-react-native';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import {
+  X,
+  ChevronDown,
+  Calendar,
+  CheckSquare,
+  AlertCircle,
+  Sparkles,
+  ChevronRight,
+} from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { SubjectRow } from '@/src/hooks/useSubjects';
+import { toPhilippineISO } from '@/src/utils/philippineTime';
+import { NotificationService } from '@/src/services/notificationService';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface AddTaskSheetProps {
   visible: boolean;
   subjects: SubjectRow[];
   onClose: () => void;
+  onOpenScanner?: () => void;
 }
 
 type DatePickerStep = 'date' | 'time' | null;
 
+const PRESET_COLORS = [
+  '#6366F1',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+  '#06B6D4',
+  '#EC4899',
+  '#14B8A6',
+  '#3B82F6',
+  '#F97316',
+];
+
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const hours = date.getHours();
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const hour12 = hours % 12 || 12;
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
-export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) {
+export function AddTaskSheet({ visible, subjects, onClose, onOpenScanner }: AddTaskSheetProps) {
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +83,7 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
     setTitle('');
     setDescription('');
     setDueDate(null);
+    setSelectedColor(PRESET_COLORS[0]);
     setSelectedSubjectId(null);
     setShowSubjectPicker(false);
     setDatePickerStep(null);
@@ -64,41 +95,40 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
 
   const handleOpenDatePicker = () => {
     setShowSubjectPicker(false);
-    if (Platform.OS === 'ios') {
-      // iOS uses a single datetime spinner inside the sheet
-      setDatePickerStep('date');
+    if (Platform.OS === 'android') {
+      const base = dueDate ?? new Date();
+      DateTimePickerAndroid.open({
+        value: base,
+        mode: 'date',
+        minimumDate: new Date(),
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                setDueDate(merged);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              setDueDate(finalDate);
+            },
+          });
+        },
+      });
     } else {
-      // Android shows a native dialog; start with date, then chain to time
       setDatePickerStep('date');
     }
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (!selected) {
-      // User dismissed the picker on Android
-      setDatePickerStep(null);
-      return;
-    }
-
-    if (Platform.OS === 'android') {
-      if (datePickerStep === 'date') {
-        // Merge chosen date with existing time (or now)
-        const base = dueDate ?? new Date();
-        const merged = new Date(selected);
-        merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-        setDueDate(merged);
-        // Chain directly to time picker
-        setDatePickerStep('time');
-      } else {
-        // time step: merge chosen time into existing date
-        const base = dueDate ?? new Date();
-        const merged = new Date(base);
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep(null);
-      }
-    } else {
-      // iOS: single call, update directly
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) {
       setDueDate(selected);
     }
   };
@@ -124,14 +154,34 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
 
     try {
       const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const now = new Date().toISOString();
-      const dueDateISO = dueDate ? dueDate.toISOString() : null;
+      const now = toPhilippineISO(new Date());
+      const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
+
+      const taskColor = selectedSubject?.color ?? selectedColor ?? '#6366F1';
 
       await powerSync.execute(
-        `INSERT INTO Task (id, title, description, dueDate, completed, subjectId, userId, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-        [id, title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, userId, now, now]
+        `INSERT INTO Task (id, title, description, dueDate, completed, color, subtasks, subjectId, userId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, 0, ?, '[]', ?, ?, ?, ?)`,
+        [id, title.trim(), description.trim() || null, dueDateISO, taskColor, selectedSubjectId, userId, now, now]
       );
+
+      if (dueDateISO) {
+        NotificationService.scheduleTaskReminders({
+          id,
+          title: title.trim(),
+          description: description.trim() || null,
+          due_date: dueDateISO,
+          completed: 0,
+          color: taskColor,
+          subtasks: '[]',
+          subject_id: selectedSubjectId,
+          user_id: userId,
+          created_at: now,
+          updated_at: now,
+          subject_name: selectedSubject?.name ?? null,
+          subject_color: selectedSubject?.color ?? null,
+        }).catch((e) => console.warn('[AddTask] scheduleTaskReminders error:', e));
+      }
 
       handleClose();
     } catch (err: any) {
@@ -142,257 +192,434 @@ export function AddTaskSheet({ visible, subjects, onClose }: AddTaskSheetProps) 
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      {/* Backdrop tap-to-dismiss */}
       <Pressable style={styles.backdrop} onPress={handleClose} />
-
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add New Task</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
-
-        {/* Scrollable form — scrolls under the keyboard on Android (pan mode) */}
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Title */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Task Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="What needs to be done?"
-              placeholderTextColor="#94A3B8"
-              value={title}
-              onChangeText={setTitle}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              placeholder="Optional details..."
-              placeholderTextColor="#94A3B8"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Due Date & Time */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Due Date & Time</Text>
-            <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
-              <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
-                {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
-              </Text>
-              <Calendar size={16} color="#94A3B8" />
-            </Pressable>
-
-            {/* iOS inline datetime spinner */}
-            {Platform.OS === 'ios' && datePickerStep !== null && (
-              <View style={styles.iosPickerWrapper}>
-                <DateTimePicker
-                  value={dueDate ?? new Date()}
-                  mode="datetime"
-                  display="spinner"
-                  onValueChange={handleDateChange}
-                  textColor="#ffffff"
-                  themeVariant="dark"
-                  style={styles.iosPicker}
-                />
-                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                  <Text style={styles.iosDoneBtnText}>Done</Text>
-                </Pressable>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheet}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <CheckSquare size={16} color={colors.primary} />
               </View>
+              <Text style={styles.headerTitle}>New Task</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          {/* Error Banner */}
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <ScrollView
+            style={styles.formContainer}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Quick Scanner Shortcut */}
+            {onOpenScanner && (
+              <Pressable style={styles.scanBanner} onPress={onOpenScanner}>
+                <View style={styles.scanBannerIcon}>
+                  <Sparkles size={16} color={colors.primary} />
+                </View>
+                <View style={styles.scanBannerContent}>
+                  <Text style={styles.scanBannerTitle}>Scan Assignment or Syllabus</Text>
+                  <Text style={styles.scanBannerSubtitle}>Auto-extract task title, due dates & subjects</Text>
+                </View>
+                <ChevronRight size={16} color={colors.mutedForeground} />
+              </Pressable>
             )}
 
-            {/* Android native dialogs (date then time) */}
-            {Platform.OS === 'android' && datePickerStep !== null && (
-              <DateTimePicker
-                value={dueDate ?? new Date()}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
+            {/* Title */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Task Title *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Platform Architecture Challenge"
+                placeholderTextColor={colors.mutedForeground}
+                value={title}
+                onChangeText={setTitle}
+                onFocus={() => setShowSubjectPicker(false)}
               />
-            )}
-          </View>
+            </View>
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
-                {selectedSubject ? selectedSubject.name : 'Select a subject...'}
-              </Text>
-              <ChevronDown size={16} color="#94A3B8" />
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+            {/* Description */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                placeholder="Optional details..."
+                placeholderTextColor={colors.mutedForeground}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+
+            {/* Due Date & Time */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Due Date & Time (Optional)</Text>
+                {dueDate && (
                   <Pressable
-                    style={styles.pickerItem}
-                    onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                    onPress={() => setDueDate(null)}
+                    style={styles.resetBtn}
+                    hitSlop={8}
                   >
-                    <Text style={styles.pickerItemText}>None</Text>
+                    <X size={12} color="#EF4444" />
+                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
                   </Pressable>
-                  {subjects.map((s) => (
-                    <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
-                    >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                )}
               </View>
-            )}
-          </View>
+              <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
+                <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
+                </Text>
+                <Calendar size={16} color={colors.mutedForeground} />
+              </Pressable>
 
-          <Button style={styles.addButton} onPress={handleAdd} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Add Task</Text>}
-          </Button>
-        </ScrollView>
-      </View>
+              {/* iOS inline datetime spinner */}
+              {Platform.OS === 'ios' && datePickerStep !== null && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={dueDate ?? new Date()}
+                    mode="datetime"
+                    minimumDate={new Date()}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Subject */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject (Optional)</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => setShowSubjectPicker((prev) => !prev)}
+              >
+                <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
+                  {selectedSubject ? selectedSubject.name : 'Select a subject...'}
+                </Text>
+                <ChevronDown size={16} color={colors.mutedForeground} />
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+                    <Pressable
+                      style={styles.pickerItem}
+                      onPress={() => {
+                        setSelectedSubjectId(null);
+                        setShowSubjectPicker(false);
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>None</Text>
+                    </Pressable>
+                    {subjects.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        style={styles.pickerItem}
+                        onPress={() => {
+                          setSelectedSubjectId(s.id);
+                          setShowSubjectPicker(false);
+                        }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color || colors.primary }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <Pressable
+              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              onPress={handleAdd}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText} numberOfLines={1}>
+                  Add Task
+                </Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: { padding: 4 },
-  formContainer: {
-    paddingBottom: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  formGroup: { marginBottom: 16 },
-  label: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 16 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 16 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  // iOS inline picker
-  iosPickerWrapper: {
-    marginTop: 8,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  iosPicker: {
-    height: 180,
-  },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: {
-    color: '#6C8EFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  addButton: {
-    marginTop: 8,
-    backgroundColor: '#6C8EFF',
-  },
-});
-
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.primary + '18',
+      borderWidth: 1,
+      borderColor: colors.primary + '35',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    closeBtn: { padding: 6 },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    scanBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.primary + '12',
+      borderWidth: 1,
+      borderColor: colors.primary + '25',
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 16,
+    },
+    scanBannerIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scanBannerContent: {
+      flex: 1,
+    },
+    scanBannerTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    scanBannerSubtitle: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.foreground,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    resetBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      fontSize: 15,
+      color: colors.foreground,
+    },
+    multiline: {
+      minHeight: 70,
+      textAlignVertical: 'top',
+    },
+    picker: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 14,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    pickerList: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 8,
+    },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    subjectDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    iosPickerWrapper: {
+      marginTop: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 8,
+    },
+    iosPicker: {
+      height: 140,
+    },
+    iosDoneBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      paddingVertical: 8,
+      alignItems: 'center',
+      marginTop: 6,
+    },
+    iosDoneBtnText: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    submitBtn: {
+      backgroundColor: '#6366F1',
+      marginTop: 18,
+      height: 48,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+    },
+    submitBtnDisabled: {
+      opacity: 0.6,
+    },
+    submitBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+      textAlign: 'center',
+    },
+  });
+}

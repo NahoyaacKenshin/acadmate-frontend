@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,23 +8,47 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Text,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
-import { Button } from '../ui/button';
-import { X, ChevronDown, Calendar } from 'lucide-react-native';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import {
+  X,
+  ChevronDown,
+  Calendar,
+  CheckSquare,
+  AlertCircle,
+  Sparkles,
+} from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
-import { SubjectRow } from '@/src/hooks/useSubjects';
+import { SubjectRow, useSubjects } from '@/src/hooks/useSubjects';
+import { toPhilippineISO, parseToPHTDate } from '@/src/utils/philippineTime';
 import { TaskRow } from '@/src/hooks/useTasks';
+import { NotificationService } from '@/src/services/notificationService';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
 
 interface EditTaskSheetProps {
   visible: boolean;
   task: TaskRow | null;
-  subjects: SubjectRow[];
+  subjects?: SubjectRow[];
   onClose: () => void;
 }
 
 type DatePickerStep = 'date' | 'time' | null;
+
+const PRESET_COLORS = [
+  '#6366F1', // indigo (AcadMate brand)
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // purple
+  '#06B6D4', // cyan
+  '#EC4899', // pink
+  '#14B8A6', // teal
+  '#3B82F6', // blue
+  '#F97316', // orange
+];
 
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -35,12 +59,17 @@ function formatDateTime(date: Date): string {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
-export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskSheetProps) {
+export function EditTaskSheet({ visible, task, subjects: propSubjects, onClose }: EditTaskSheetProps) {
   const powerSync = usePowerSync();
+  const { subjects: dbSubjects } = useSubjects();
+  const subjects = propSubjects ?? dbSubjects;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string>(PRESET_COLORS[0]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
@@ -52,7 +81,8 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     if (task) {
       setTitle(task.title);
       setDescription(task.description ?? '');
-      setDueDate(task.due_date ? new Date(task.due_date) : null);
+      setDueDate(task.due_date ? (parseToPHTDate(task.due_date) ?? new Date(task.due_date)) : null);
+      setSelectedColor(task.color ?? PRESET_COLORS[0]);
       setSelectedSubjectId(task.subject_id);
       setShowSubjectPicker(false);
       setDatePickerStep(null);
@@ -63,9 +93,9 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
   const handleClose = () => {
+    setError(null);
     setShowSubjectPicker(false);
     setDatePickerStep(null);
-    setError(null);
     onClose();
   };
 
@@ -73,30 +103,40 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
 
   const handleOpenDatePicker = () => {
     setShowSubjectPicker(false);
-    setDatePickerStep('date');
+    if (Platform.OS === 'android') {
+      const base = dueDate ?? new Date();
+      DateTimePickerAndroid.open({
+        value: base,
+        mode: 'date',
+        minimumDate: new Date(),
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'dismissed' || !selectedDate) return;
+          const merged = new Date(selectedDate);
+          merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                setDueDate(merged);
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              setDueDate(finalDate);
+            },
+          });
+        },
+      });
+    } else {
+      setDatePickerStep('date');
+    }
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (!selected) {
-      setDatePickerStep(null);
-      return;
-    }
-
-    if (Platform.OS === 'android') {
-      if (datePickerStep === 'date') {
-        const base = dueDate ?? new Date();
-        const merged = new Date(selected);
-        merged.setHours(base.getHours(), base.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep('time');
-      } else {
-        const base = dueDate ?? new Date();
-        const merged = new Date(base);
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-        setDueDate(merged);
-        setDatePickerStep(null);
-      }
-    } else {
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    if (selected) {
       setDueDate(selected);
     }
   };
@@ -118,14 +158,39 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     setError(null);
 
     try {
-      const now = new Date().toISOString();
-      const dueDateISO = dueDate ? dueDate.toISOString() : null;
+      const now = toPhilippineISO(new Date());
+      const dueDateISO = dueDate ? toPhilippineISO(dueDate) : null;
+      const subtasksJson = task.subtasks ?? '[]';
+
+      const finalColor = task.color ?? selectedSubject?.color ?? '#6366F1';
 
       await powerSync.execute(
-        `UPDATE Task SET title = ?, description = ?, dueDate = ?, subjectId = ?, updatedAt = ?
+        `UPDATE Task SET title = ?, description = ?, dueDate = ?, color = ?, subtasks = ?, subjectId = ?, updatedAt = ?
          WHERE id = ?`,
-        [title.trim(), description.trim() || null, dueDateISO, selectedSubjectId, now, task.id]
+        [title.trim(), description.trim() || null, dueDateISO, finalColor, subtasksJson, selectedSubjectId, now, task.id]
       );
+
+      // Cancel previous notification alarms
+      await NotificationService.cancelTaskNotifications(task.id);
+
+      // Reschedule if dueDate exists and task is still pending
+      if (dueDateISO && task.completed === 0) {
+        NotificationService.scheduleTaskReminders({
+          id: task.id,
+          title: title.trim(),
+          description: description.trim() || null,
+          due_date: dueDateISO,
+          completed: 0,
+          color: finalColor,
+          subtasks: subtasksJson,
+          subject_id: selectedSubjectId,
+          user_id: task.user_id,
+          created_at: task.created_at,
+          updated_at: now,
+          subject_name: selectedSubject?.name ?? null,
+          subject_color: selectedSubject?.color ?? null,
+        }).catch((e) => console.warn('[EditTask] scheduleTaskReminders error:', e));
+      }
 
       handleClose();
     } catch (err: any) {
@@ -136,257 +201,382 @@ export function EditTaskSheet({ visible, task, subjects, onClose }: EditTaskShee
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      {/* Backdrop tap-to-dismiss */}
       <Pressable style={styles.backdrop} onPress={handleClose} />
-
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Task</Text>
-          <Pressable onPress={handleClose} style={styles.closeBtn}>
-            <X size={24} color="#94A3B8" />
-          </Pressable>
-        </View>
-
-        {/* Scrollable form */}
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Title */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Task Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="What needs to be done?"
-              placeholderTextColor="#94A3B8"
-              value={title}
-              onChangeText={setTitle}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              placeholder="Optional details..."
-              placeholderTextColor="#94A3B8"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              onFocus={() => setShowSubjectPicker(false)}
-            />
-          </View>
-
-          {/* Due Date & Time */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Due Date & Time</Text>
-            <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
-              <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
-                {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
-              </Text>
-              <Calendar size={16} color="#94A3B8" />
-            </Pressable>
-
-            {/* iOS inline datetime spinner */}
-            {Platform.OS === 'ios' && datePickerStep !== null && (
-              <View style={styles.iosPickerWrapper}>
-                <DateTimePicker
-                  value={dueDate ?? new Date()}
-                  mode="datetime"
-                  display="spinner"
-                  onValueChange={handleDateChange}
-                  textColor="#ffffff"
-                  themeVariant="dark"
-                  style={styles.iosPicker}
-                />
-                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                  <Text style={styles.iosDoneBtnText}>Done</Text>
-                </Pressable>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheet}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <CheckSquare size={16} color={colors.primary} />
               </View>
-            )}
+              <Text style={styles.headerTitle}>Edit Task</Text>
+            </View>
+            <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <X size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
 
-            {/* Android native dialogs (date then time) */}
-            {Platform.OS === 'android' && datePickerStep !== null && (
-              <DateTimePicker
-                value={dueDate ?? new Date()}
-                mode={datePickerStep}
-                display="default"
-                onValueChange={handleDateChange}
+          {/* Error Banner */}
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <ScrollView
+            style={styles.formContainer}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Title */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Task Title *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Finish Math Homework"
+                placeholderTextColor={colors.mutedForeground}
+                value={title}
+                onChangeText={setTitle}
+                onFocus={() => setShowSubjectPicker(false)}
               />
-            )}
-          </View>
+            </View>
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
-                {selectedSubject ? selectedSubject.name : 'Select a subject...'}
-              </Text>
-              <ChevronDown size={16} color="#94A3B8" />
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+            {/* Description */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                placeholder="Optional notes or details..."
+                placeholderTextColor={colors.mutedForeground}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+
+            {/* Due Date & Time */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Due Date & Time (Optional)</Text>
+                {dueDate && (
                   <Pressable
-                    style={styles.pickerItem}
-                    onPress={() => { setSelectedSubjectId(null); setShowSubjectPicker(false); }}
+                    onPress={() => setDueDate(null)}
+                    style={styles.resetBtn}
+                    hitSlop={8}
                   >
-                    <Text style={styles.pickerItemText}>None</Text>
+                    <X size={12} color="#EF4444" />
+                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
                   </Pressable>
-                  {subjects.map((s) => (
-                    <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
-                    >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                )}
               </View>
-            )}
-          </View>
+              <Pressable style={styles.picker} onPress={handleOpenDatePicker}>
+                <Text style={dueDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {dueDate ? formatDateTime(dueDate) : 'Select date & time...'}
+                </Text>
+                <Calendar size={16} color={colors.mutedForeground} />
+              </Pressable>
 
-          <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text>Save Changes</Text>}
-          </Button>
-        </ScrollView>
-      </View>
+              {/* iOS inline datetime spinner */}
+              {Platform.OS === 'ios' && datePickerStep !== null && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={dueDate ?? new Date()}
+                    mode="datetime"
+                    minimumDate={new Date()}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Subject */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject (Optional)</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => setShowSubjectPicker((prev) => !prev)}
+              >
+                <Text style={selectedSubject ? styles.pickerText : styles.pickerPlaceholder}>
+                  {selectedSubject ? selectedSubject.name : 'Select a subject...'}
+                </Text>
+                <ChevronDown size={16} color={colors.mutedForeground} />
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 160 }}>
+                    <Pressable
+                      style={styles.pickerItem}
+                      onPress={() => {
+                        setSelectedSubjectId(null);
+                        setShowSubjectPicker(false);
+                      }}
+                    >
+                      <Text style={styles.pickerItemText}>None</Text>
+                    </Pressable>
+                    {subjects.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        style={styles.pickerItem}
+                        onPress={() => {
+                          setSelectedSubjectId(s.id);
+                          setShowSubjectPicker(false);
+                        }}
+                      >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color || colors.primary }]} />
+                        <Text style={styles.pickerItemText}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <Pressable
+              style={[styles.saveButton, isLoading && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText} numberOfLines={1}>
+                  Save Changes
+                </Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  closeBtn: { padding: 4 },
-  formContainer: {
-    paddingBottom: 8,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  formGroup: { marginBottom: 16 },
-  label: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 16 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 16 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  // iOS inline picker
-  iosPickerWrapper: {
-    marginTop: 8,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  iosPicker: {
-    height: 180,
-  },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: {
-    color: '#6C8EFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  saveButton: {
-    marginTop: 8,
-    backgroundColor: '#6C8EFF',
-  },
-});
-
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.primary + '18',
+      borderWidth: 1,
+      borderColor: colors.primary + '35',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.foreground,
+      includeFontPadding: false,
+    },
+    closeBtn: { padding: 6 },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+      includeFontPadding: false,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    resetBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.foreground,
+      marginBottom: 6,
+      includeFontPadding: false,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 15,
+    },
+    multiline: {
+      minHeight: 70,
+      textAlignVertical: 'top',
+    },
+    picker: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: {
+      color: colors.foreground,
+      fontSize: 14,
+      fontWeight: '500',
+      includeFontPadding: false,
+    },
+    pickerPlaceholder: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    pickerList: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 8,
+    },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    subjectDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    iosPickerWrapper: {
+      marginTop: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 8,
+    },
+    iosPicker: {
+      height: 140,
+    },
+    iosDoneBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      paddingVertical: 8,
+      alignItems: 'center',
+      marginTop: 6,
+    },
+    iosDoneBtnText: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 14,
+      includeFontPadding: false,
+    },
+    saveButton: {
+      backgroundColor: '#6366F1',
+      marginTop: 18,
+      height: 48,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+    },
+    saveBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+      textAlign: 'center',
+    },
+  });
+}

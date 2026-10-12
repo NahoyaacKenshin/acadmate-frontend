@@ -1,11 +1,47 @@
 import { useQuery } from '@powersync/react';
 
+export interface SubtaskItem {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+/**
+ * Robust parser for subtasks, supporting JSON strings, native arrays, and objects
+ * to prevent subtasks from silently disappearing if already parsed or differently formatted.
+ */
+export function parseSubtasks(raw: unknown): SubtaskItem[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((s) => s && typeof s === 'object' && typeof (s as any).title === 'string')
+      .map((s: any, idx) => ({
+        id: String(s.id || idx + 1),
+        title: String(s.title),
+        completed: Boolean(s.completed),
+      }));
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === '[]') return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parseSubtasks(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export interface TaskRow {
   id: string;
   title: string;
   description: string | null;
   due_date: string | null;
   completed: number; // 0 or 1 (SQLite integer)
+  color: string | null;
+  subtasks: string | null; // JSON array of SubtaskItem
   subject_id: string | null;
   user_id: string | null;
   created_at: string | null;
@@ -28,6 +64,8 @@ export function useTasks() {
       Task.description,
       Task.dueDate AS due_date,
       Task.completed,
+      Task.color,
+      Task.subtasks AS subtasks,
       Task.subjectId AS subject_id,
       Task.userId AS user_id,
       Task.createdAt AS created_at,

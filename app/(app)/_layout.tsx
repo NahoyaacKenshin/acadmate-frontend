@@ -1,125 +1,198 @@
 import { Tabs } from 'expo-router';
-import { Home, CalendarDays, Book, Settings, ListTodo, WifiOff, ShieldAlert } from 'lucide-react-native';
-import { View, StyleSheet, Platform } from 'react-native';
-import { useSystemStore } from '@/src/store/systemStore';
-import { useAuthStore } from '@/src/features/auth/auth.store';
-import { Text } from '@/src/components/ui/text';
+import { Home, CalendarDays, Book, Settings, ListTodo } from 'lucide-react-native';
+import { Platform, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/src/theme/useTheme';
 
-export default function AppLayout() {
-  const { isOnline } = useSystemStore();
-  const { user } = useAuthStore();
+function TabBarButton(props: any) {
+  const { isDark } = useTheme();
+  const { style, children, onPress, onLongPress, href, ...rest } = props;
 
-  const isAdmin = user?.role === 'ADMIN';
+  if (href === null) {
+    return null;
+  }
 
   return (
-    <>
-      <Tabs
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: '#10131C',
-          },
-          headerTintColor: '#ffffff',
-          tabBarStyle: {
-            backgroundColor: '#10131C',
-            borderTopColor: '#2A3143',
-          },
-          tabBarActiveTintColor: '#6C8EFF',
-          tabBarInactiveTintColor: '#94A3B8',
+    <Pressable
+      {...rest}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{
+        color: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+        borderless: true,
+        radius: 28,
+      }}
+      style={(state: any) => [
+        style,
+        styles.tabBarButton,
+        state.pressed && {
+          backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.06)',
+          opacity: 0.88,
+          transform: [{ scale: 0.95 }],
+        },
+        state.hovered && !state.pressed && {
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(99, 102, 241, 0.04)',
+        },
+      ]}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+export default function AppLayout() {
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Dynamically calculate bottom offset based on system navigation mode (3-button vs gesture) or iOS home bar
+  const bottomOffset = insets.bottom > 0
+    ? insets.bottom + (Platform.OS === 'android' ? 10 : 8)
+    : (Platform.OS === 'ios' ? 24 : 16);
+
+  return (
+    <Tabs
+      backBehavior="history"
+      screenOptions={{
+        headerShown: false,
+        headerStyle: {
+          backgroundColor: colors.card,
+        },
+        headerTintColor: colors.foreground,
+        tabBarButton: (props) => <TabBarButton {...props} />,
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 8),
+          backgroundColor: colors.card,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          borderWidth: 0,
+          borderRadius: 0,
+          shadowOpacity: 0,
+          elevation: 0,
+          paddingTop: 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+        },
+        tabBarLabelStyle: {
+          fontFamily: 'Inter',
+          fontSize: 10.5,
+          fontWeight: '600',
+          marginTop: 3,
+          marginBottom: 0,
+          includeFontPadding: false,
+        },
+        tabBarItemStyle: {
+          paddingHorizontal: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        tabBarActiveTintColor: '#6366F1',
+        tabBarInactiveTintColor: colors.mutedForeground,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => <Home size={21} color={color} strokeWidth={2} />,
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: isAdmin ? 'Admin Portal' : 'Home',
-            tabBarIcon: ({ color, size }) =>
-              isAdmin ? <ShieldAlert size={size} color={color} /> : <Home size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="calendar"
-          options={{
-            href: isAdmin ? null : undefined,
-            title: 'Calendar',
-            tabBarIcon: ({ color, size }) => <CalendarDays size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="tasks"
-          options={{
-            href: isAdmin ? null : undefined,
-            title: 'Tasks',
-            tabBarIcon: ({ color, size }) => <ListTodo size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="notebook"
-          options={{
-            href: isAdmin ? null : undefined,
-            title: 'Notebook',
-            tabBarIcon: ({ color, size }) => <Book size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: 'Settings',
-            tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-          }}
-        />
-        {/* Hidden full-screen routes — not shown in tab bar */}
-        <Tabs.Screen
-          name="schedule-upload"
-          options={{ href: null, headerShown: false, title: 'Scan Schedule' }}
-        />
-        <Tabs.Screen
-          name="schedule-confirm"
-          options={{ href: null, headerShown: false, title: 'Review Your Schedule' }}
-        />
-        <Tabs.Screen
-          name="admin"
-          options={{ href: null, headerShown: false, title: 'Admin Dashboard' }}
-        />
-        <Tabs.Screen
-          name="notebook/[id]"
-          options={{ href: null, headerShown: false, title: 'Notebook' }}
-        />
-        <Tabs.Screen
-          name="notebook-chat"
-          options={{ href: null, headerShown: false, title: 'AI Notebook Chat' }}
-        />
-      </Tabs>
-      {!isOnline && (
-        <View style={styles.offlineBannerAbsolute} pointerEvents="none">
-          <WifiOff size={16} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={styles.offlineText}>Offline: AI features unavailable. Changes will sync later.</Text>
-        </View>
-      )}
-    </>
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color }) => <CalendarDays size={21} color={color} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          tabBarIcon: ({ color }) => <ListTodo size={21} color={color} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notebook"
+        options={{
+          title: 'Notebooks',
+          tabBarIcon: ({ color }) => <Book size={21} color={color} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }) => <Settings size={21} color={color} strokeWidth={2} />,
+        }}
+      />
+      {/* Hidden full-screen routes — not shown in tab bar */}
+      <Tabs.Screen
+        name="schedule-upload"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'Scan Schedule',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="schedule-confirm"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'Review Your Schedule',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="task-upload"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'Scan Tasks',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="task-confirm"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'Review Scanned Tasks',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="notebook/[id]"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'Notebook',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="notebook-chat"
+        options={{
+          href: null,
+          headerShown: false,
+          title: 'AI Notebook Chat',
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+    </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  offlineBannerAbsolute: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 20,
-    right: 20,
-    backgroundColor: '#F59E0B',
-    padding: 12,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+  tabBarButton: {
+    borderRadius: 12,
+    marginHorizontal: 3,
+    marginVertical: 2,
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
-    zIndex: 999,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  offlineText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  }
 });

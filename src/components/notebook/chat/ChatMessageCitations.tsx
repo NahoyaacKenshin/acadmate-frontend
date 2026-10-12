@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { FileText, Image as ImageIcon, File } from 'lucide-react-native';
+import { FileText, Image as ImageIcon, File, BookOpen, ChevronDown } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
 
 export interface Citation {
   sourceId: string;
@@ -16,17 +17,20 @@ interface ChatMessageCitationsProps {
   onPress: (citation: Citation) => void;
 }
 
-function fileTypeColor(fileName: string): { color: string; bg: string } {
+function fileTypeColor(fileName: string, isDark: boolean): { color: string; bg: string } {
   const lower = fileName.toLowerCase();
-  if (lower.endsWith('.pdf')) return { color: '#EF4444', bg: 'rgba(239,68,68,0.12)' };
+  if (lower.endsWith('.pdf')) {
+    return { color: '#EF4444', bg: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' };
+  }
   if (
     lower.endsWith('.png') ||
     lower.endsWith('.jpg') ||
     lower.endsWith('.jpeg') ||
     lower.endsWith('.webp')
-  )
-    return { color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' };
-  return { color: '#22C55E', bg: 'rgba(34,197,94,0.12)' };
+  ) {
+    return { color: isDark ? '#A78BFA' : '#7C3AED', bg: isDark ? 'rgba(167, 139, 250, 0.15)' : '#EDE9FE' };
+  }
+  return { color: '#10B981', bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' };
 }
 
 function FileIcon({ fileName, color }: { fileName: string; color: string }) {
@@ -43,68 +47,109 @@ function FileIcon({ fileName, color }: { fileName: string; color: string }) {
 }
 
 export function ChatMessageCitations({ citations, onPress }: ChatMessageCitationsProps) {
+  const { isDark } = useTheme();
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (!citations || citations.length === 0) return null;
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>Sources</Text>
-      <View style={styles.chips}>
-        {citations.map((c, idx) => {
-          const { color, bg } = fileTypeColor(c.fileName);
-          const pct = Math.round(c.similarity * 100);
-          const shortName =
-            c.fileName.length > 22 ? c.fileName.slice(0, 20) + '…' : c.fileName;
-          return (
-            <Pressable
-              key={`${c.sourceId}-${c.chunkIndex}`}
-              style={({ pressed }) => [
-                styles.chip,
-                { backgroundColor: bg },
-                pressed && styles.chipPressed,
-              ]}
-              onPress={() => onPress(c)}
-              hitSlop={4}
-            >
-              <FileIcon fileName={c.fileName} color={color} />
-              <Text style={[styles.chipText, { color }]} numberOfLines={1}>
-                {shortName}
-              </Text>
-              <View style={[styles.pctBadge, { borderColor: color }]}>
-                <Text style={[styles.pctText, { color }]}>{pct}%</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Collapsible toggle bar */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.toggleBar,
+          {
+            backgroundColor: isDark ? 'rgba(99, 102, 241, 0.1)' : '#EEF2FF',
+            borderColor: isDark ? 'rgba(99, 102, 241, 0.25)' : '#C7D2FE',
+          },
+          pressed && styles.toggleBarPressed,
+        ]}
+        onPress={() => setIsExpanded((prev) => !prev)}
+        hitSlop={6}
+      >
+        <BookOpen size={12} color="#6366F1" />
+        <Text style={styles.toggleText}>
+          {citations.length} {citations.length === 1 ? 'source' : 'sources'} referenced
+        </Text>
+        <ChevronDown
+          size={12}
+          color="#6366F1"
+          style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+        />
+      </Pressable>
+
+      {/* Expanded citation chips */}
+      {isExpanded && (
+        <View style={styles.chips}>
+          {citations.map((c, idx) => {
+            const { color, bg } = fileTypeColor(c.fileName, isDark);
+            const shortName =
+              c.fileName.length > 22 ? c.fileName.slice(0, 20) + '…' : c.fileName;
+            return (
+              <Pressable
+                key={`${c.sourceId}-${c.chunkIndex}-${idx}`}
+                style={({ pressed }) => [
+                  styles.chip,
+                  { backgroundColor: bg },
+                  pressed && styles.chipPressed,
+                ]}
+                onPress={() => onPress(c)}
+                hitSlop={4}
+              >
+                <FileIcon fileName={c.fileName} color={color} />
+                <Text style={[styles.chipText, { color }]} numberOfLines={1}>
+                  {shortName}
+                </Text>
+                <View style={[styles.chunkBadge, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.6)' }]}>
+                  <Text style={[styles.chunkBadgeText, { color }]}>Part {c.chunkIndex + 1}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginTop: 10,
-    gap: 6,
+    marginTop: 8,
+    gap: 8,
   },
-  label: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#4A5568',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+  toggleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  toggleBarPressed: {
+    opacity: 0.7,
+  },
+  toggleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6366F1',
+    includeFontPadding: false,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+    paddingTop: 2,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 20,
-    maxWidth: 220,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    maxWidth: 240,
   },
   chipPressed: {
     opacity: 0.7,
@@ -114,15 +159,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
+    includeFontPadding: false,
   },
-  pctBadge: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+  chunkBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    flexShrink: 0,
   },
-  pctText: {
+  chunkBadgeText: {
     fontSize: 10,
     fontWeight: '700',
+    includeFontPadding: false,
   },
 });

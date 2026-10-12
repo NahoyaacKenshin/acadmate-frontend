@@ -25,16 +25,35 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers.set('Content-Type', 'application/json');
   }
 
-  if (options.token) {
-    headers.set('Authorization', `Bearer ${options.token}`);
+  let token = options.token;
+  if (token === undefined) {
+    try {
+      const { useAuthStore } = await import('@/src/features/auth/auth.store');
+      token = useAuthStore.getState().accessToken;
+    } catch {
+      // ignore
+    }
   }
 
-  const response = await fetch(buildUrl(path), {
-    ...options,
-    headers,
-    credentials: 'include',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      ...options,
+      headers,
+      credentials: 'include',
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+  } catch (networkError) {
+    throw new ApiError(
+      0,
+      'No internet connection. Please check your Wi-Fi or mobile data and try again.',
+      networkError
+    );
+  }
 
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;

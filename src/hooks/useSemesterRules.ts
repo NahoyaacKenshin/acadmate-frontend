@@ -9,6 +9,7 @@ export interface SemesterRuleRow {
   label: string | null;
   createdAt?: string;
   updatedAt?: string;
+  userId?: string;
 }
 
 export function useSemesterRules() {

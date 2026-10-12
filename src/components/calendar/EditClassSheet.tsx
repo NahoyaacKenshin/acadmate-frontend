@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,16 +9,20 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Text,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Text } from '../ui/text';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Button } from '../ui/button';
-import { X, Clock, Calendar, Trash2 } from 'lucide-react-native';
+import { X, Clock, Calendar, Trash2, RotateCcw, BookOpen, AlertCircle } from 'lucide-react-native';
 import { usePowerSync } from '@powersync/react';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useSubjects } from '@/src/hooks/useSubjects';
-import { ClassScheduleRow } from '@/src/hooks/useClassSchedules';
-import { formatDateLocal } from '@/src/utils/scheduleUtils';
+import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
+import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
+import { useTheme } from '@/src/theme/useTheme';
+import type { ThemeColors } from '@/src/theme/tokens';
+
 
 interface EditClassSheetProps {
   visible: boolean;
@@ -26,7 +30,7 @@ interface EditClassSheetProps {
   onClose: () => void;
 }
 
-type Modality = 'F2F' | 'ONLINE' | 'HYBRID';
+type Modality = 'F2F' | 'ONLINE';
 type SetType = 'A' | 'B' | null;
 type PickerField = 'startTime' | 'endTime' | 'startDate' | 'endDate';
 
@@ -43,14 +47,20 @@ const DAYS = [
 const MODALITIES: { label: string; value: Modality }[] = [
   { label: 'F2F', value: 'F2F' },
   { label: 'Online', value: 'ONLINE' },
-  { label: 'Hybrid', value: 'HYBRID' },
 ];
 
-const SET_TYPES: { label: string; value: SetType }[] = [
+const SET_OPTIONS: { label: string; value: SetType }[] = [
   { label: 'Every Week', value: null },
   { label: 'Set A', value: 'A' },
   { label: 'Set B', value: 'B' },
 ];
+
+function generateId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 function toHHMM(date: Date): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -65,22 +75,35 @@ function formatTime12(hhmm: string): string {
 
 function dateFromHHMM(hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d;
+  return new Date(2000, 0, 1, h, m, 0, 0);
 }
 
-function formatDate(date: Date): string {
+function formatDate(date: Date | null): string {
+  if (!date) return '';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const powerSync = usePowerSync();
   const userId = useAuthStore((s) => s.user?.id);
   const { subjects } = useSubjects();
+  const { schedules } = useClassSchedules();
 
-  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const siblingSchedules = useMemo(() => {
+    if (!schedule) return [];
+    return schedules.filter(
+      (s) =>
+        s.subject_id === schedule.subject_id &&
+        s.start_time === schedule.start_time &&
+        s.end_time === schedule.end_time &&
+        (s.set_type === schedule.set_type || (!s.set_type && !schedule.set_type))
+    );
+  }, [schedule, schedules]);
+
+  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('09:30');
   const [modality, setModality] = useState<Modality>('F2F');
@@ -89,8 +112,14 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date>(new Date());
   const [activePickerField, setActivePickerField] = useState<PickerField | null>(null);
+
+  // Inline Subject Creation state
+  const [isCreatingSubject, setIsCreatingSubject] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectColor, setNewSubjectColor] = useState('#2563EB');
+  const [isSavingSubject, setIsSavingSubject] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -99,77 +128,292 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   // Populate form when schedule changes
   useEffect(() => {
     if (schedule) {
-      setSelectedDay(schedule.day_of_week);
+      const daysSet = new Set<number>();
+      if (schedule.days_of_week) {
+        try {
+          const parsed = JSON.parse(schedule.days_of_week);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            parsed.forEach((d) => daysSet.add(Number(d)));
+          }
+        } catch {
+          const parts = schedule.days_of_week
+            .split(',')
+            .map((s: string) => Number(s.trim()))
+            .filter((n: number) => !isNaN(n));
+          parts.forEach((d) => daysSet.add(d));
+        }
+      }
+      for (const s of siblingSchedules) {
+        if (s.days_of_week) {
+          try {
+            const parsed = JSON.parse(s.days_of_week);
+            if (Array.isArray(parsed)) parsed.forEach((d) => daysSet.add(Number(d)));
+          } catch {}
+        }
+        if (s.day_of_week != null) {
+          daysSet.add(s.day_of_week);
+        }
+      }
+      if (daysSet.size === 0 && schedule.day_of_week != null) {
+        daysSet.add(schedule.day_of_week);
+      }
+      const sortedDays = Array.from(daysSet).sort((a, b) => a - b);
+      setSelectedDays(sortedDays.length > 0 ? sortedDays : [schedule.day_of_week]);
       setStartTime(schedule.start_time);
       setEndTime(schedule.end_time);
-      setModality(schedule.modality as Modality);
-      setSetType((schedule.set_type as SetType) ?? null);
+      const mod = schedule.modality === 'ONLINE' ? 'ONLINE' : 'F2F';
+      setModality(mod);
+      const st = schedule.set_type === 'A' ? 'A' : schedule.set_type === 'B' ? 'B' : null;
+      setSetType(st);
       setRoom(schedule.room ?? '');
       setSelectedSubjectId(schedule.subject_id);
-      setStartDate(new Date(schedule.start_date));
-      setEndDate(schedule.end_date ? new Date(schedule.end_date) : null);
+      setStartDate(parseToPHTDate(schedule.start_date) ?? parseDateLocal(schedule.start_date) ?? new Date(schedule.start_date));
+      const parsedEnd = schedule.end_date ? (parseToPHTDate(schedule.end_date) ?? parseDateLocal(schedule.end_date) ?? new Date(schedule.end_date)) : null;
+      setEndDate(parsedEnd ?? parseToPHTDate(schedule.start_date) ?? parseDateLocal(schedule.start_date) ?? new Date(schedule.start_date));
       setShowSubjectPicker(false);
       setActivePickerField(null);
+      setIsCreatingSubject(false);
+      setNewSubjectName('');
       setError(null);
+      setIsDeleting(false);
+      setIsLoading(false);
     }
-  }, [schedule]);
+  }, [schedule, siblingSchedules]);
 
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
   const handleClose = () => {
     setShowSubjectPicker(false);
     setActivePickerField(null);
+    setIsCreatingSubject(false);
     setError(null);
+    setIsDeleting(false);
+    setIsLoading(false);
     onClose();
+  };
+
+  const handleCreateSubject = async () => {
+    if (!newSubjectName.trim() || !userId) return;
+    setIsSavingSubject(true);
+    try {
+      const subjectId = generateId();
+      const now = toPhilippineISO(new Date());
+      await powerSync.execute(
+        `INSERT INTO Subject (id, name, color, userId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
+        [subjectId, newSubjectName.trim(), null, userId, now, now]
+      );
+      setSelectedSubjectId(subjectId);
+      setIsCreatingSubject(false);
+      setShowSubjectPicker(false);
+      setNewSubjectName('');
+    } catch (err) {
+      console.error('[EditClass] Subject insert failed:', err);
+      setError('Failed to create subject.');
+    } finally {
+      setIsSavingSubject(false);
+    }
+  };
+
+  const handleDeleteSubject = async (subjectId: string) => {
+    if (!userId) return;
+    try {
+      await powerSync.execute('DELETE FROM Subject WHERE id = ? AND userId = ?', [subjectId, userId]);
+      if (selectedSubjectId === subjectId) {
+        setSelectedSubjectId(null);
+      }
+    } catch (err) {
+      console.error('[EditClass] Subject delete failed:', err);
+      setError('Failed to delete subject.');
+    }
   };
 
   const openPicker = (field: PickerField) => {
     setShowSubjectPicker(false);
-    setActivePickerField(field);
+    if (field === 'endDate' && !startDate) return;
+
+    if (Platform.OS === 'android') {
+      if (field === 'startTime' || field === 'endTime') {
+        const val = dateFromHHMM(field === 'startTime' ? startTime : endTime);
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'time',
+          is24Hour: false,
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const hhmm = toHHMM(selectedDate);
+            if (field === 'startTime') setStartTime(hhmm);
+            else setEndTime(hhmm);
+          },
+        });
+      } else {
+        const val = field === 'startDate' ? (startDate ?? new Date()) : (endDate ?? startDate ?? new Date());
+        DateTimePickerAndroid.open({
+          value: val,
+          mode: 'date',
+          minimumDate: field === 'startDate' ? undefined : (startDate ?? undefined),
+          onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+            if (event.type === 'dismissed' || !selectedDate) return;
+            if (field === 'startDate') {
+              setStartDate(selectedDate);
+              if (endDate && endDate < selectedDate) setEndDate(selectedDate);
+            } else {
+              const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
+              setEndDate(safeEnd);
+            }
+          },
+        });
+      }
+    } else {
+      setActivePickerField(field);
+    }
   };
 
-  const handleTimeChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
-    if (!selected) return;
-    const hhmm = toHHMM(selected);
-    if (activePickerField === 'startTime') setStartTime(hhmm);
-    else if (activePickerField === 'endTime') setEndTime(hhmm);
+  const handleTimeChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (!selectedDate || !activePickerField) return;
+    const hh = String(selectedDate.getHours()).padStart(2, '0');
+    const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+    if (activePickerField === 'startTime') setStartTime(timeStr);
+    else if (activePickerField === 'endTime') setEndTime(timeStr);
   };
 
-  const handleDateChange = (_event: any, selected?: Date) => {
-    if (Platform.OS === 'android') setActivePickerField(null);
-    if (!selected) return;
-    if (activePickerField === 'startDate') setStartDate(selected);
-    else if (activePickerField === 'endDate') setEndDate(selected);
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (!selectedDate || !activePickerField) return;
+    if (activePickerField === 'startDate') {
+      setStartDate(selectedDate);
+      if (endDate && endDate < selectedDate) setEndDate(selectedDate);
+    } else if (activePickerField === 'endDate') {
+      const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
+      setEndDate(safeEnd);
+    }
   };
 
   const handleIOSDone = () => setActivePickerField(null);
 
   const handleSave = async () => {
     if (!schedule) return;
+    if (selectedDays.length === 0) { setError('Please select at least one day.'); return; }
+    if (!selectedSubjectId) { setError('Please select a subject.'); return; }
+    if (!endDate) { setError('Please select an end date.'); return; }
+    if (endDate < startDate) { setError('End date cannot be earlier than start date.'); return; }
+
     setIsLoading(true);
     setError(null);
     try {
-      const now = new Date().toISOString();
-      await powerSync.execute(
-        `UPDATE ClassSchedule SET
-          dayOfWeek = ?, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
-          modality = ?, setType = ?, subjectId = ?, updatedAt = ?
-         WHERE id = ?`,
-        [
-          selectedDay,
-          startTime,
-          endTime,
-          formatDateLocal(startDate),
-          endDate ? formatDateLocal(endDate) : null,
-          room.trim() || null,
-          modality,
-          setType,
-          selectedSubjectId,
-          now,
-          schedule.id,
-        ]
-      );
+      const now = toPhilippineISO(new Date());
+      const normalizedSetType = (setType === 'A' || setType === 'B') ? setType : null;
+      const formattedStart = formatDateLocal(startDate);
+      const formattedEnd = endDate ? formatDateLocal(endDate) : null;
+      const safeRoom = room.trim() || null;
+
+      // Map existing sibling schedules by their day_of_week
+      const siblingsByDay = new Map<number, ClassScheduleRow>();
+      for (const s of siblingSchedules) {
+        if (s.day_of_week != null && !siblingsByDay.has(s.day_of_week)) {
+          siblingsByDay.set(s.day_of_week, s);
+        }
+      }
+      if (schedule.day_of_week != null && !siblingsByDay.has(schedule.day_of_week)) {
+        siblingsByDay.set(schedule.day_of_week, schedule);
+      }
+
+      const existingDays = Array.from(siblingsByDay.keys());
+      const daysToKeepOrUpdate = selectedDays.filter((d) => existingDays.includes(d));
+      const daysToAdd = selectedDays.filter((d) => !existingDays.includes(d));
+      const daysToDelete = existingDays.filter((d) => !selectedDays.includes(d));
+
+      const ops: Promise<any>[] = [];
+
+      // 1. Delete rows for days that user unchecked
+      for (const day of daysToDelete) {
+        const item = siblingsByDay.get(day);
+        if (item) {
+          ops.push(powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [item.id]));
+        }
+      }
+
+      // 2. Update retained days with new values (times, room, modality, dates, subject)
+      for (const day of daysToKeepOrUpdate) {
+        const item = siblingsByDay.get(day);
+        if (item) {
+          ops.push(
+            powerSync.execute(
+              `UPDATE ClassSchedule SET
+                dayOfWeek = ?, daysOfWeek = NULL, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
+                modality = ?, setType = ?, subjectId = ?, updatedAt = ?
+               WHERE id = ?`,
+              [
+                day,
+                startTime,
+                endTime,
+                formattedStart,
+                formattedEnd,
+                safeRoom,
+                modality,
+                normalizedSetType,
+                selectedSubjectId,
+                now,
+                item.id,
+              ]
+            )
+          );
+        }
+      }
+
+      // If user unchecked the original schedule's day and added new days, reuse the original schedule.id
+      if (daysToKeepOrUpdate.length === 0 && daysToAdd.length > 0) {
+        const firstNewDay = daysToAdd.shift()!;
+        ops.push(
+          powerSync.execute(
+            `UPDATE ClassSchedule SET
+              dayOfWeek = ?, daysOfWeek = NULL, startTime = ?, endTime = ?, startDate = ?, endDate = ?, room = ?,
+              modality = ?, setType = ?, subjectId = ?, updatedAt = ?
+             WHERE id = ?`,
+            [
+              firstNewDay,
+              startTime,
+              endTime,
+              formattedStart,
+              formattedEnd,
+              safeRoom,
+              modality,
+              normalizedSetType,
+              selectedSubjectId,
+              now,
+              schedule.id,
+            ]
+          )
+        );
+      }
+
+      // 3. Insert newly checked days as distinct rows
+      for (const day of daysToAdd) {
+        ops.push(
+          powerSync.execute(
+            `INSERT INTO ClassSchedule
+              (id, dayOfWeek, daysOfWeek, startTime, endTime, startDate, endDate, room, modality, setType, subjectId, userId, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              generateId(),
+              day,
+              null,
+              startTime,
+              endTime,
+              formattedStart,
+              formattedEnd,
+              safeRoom,
+              modality,
+              normalizedSetType,
+              selectedSubjectId,
+              userId,
+              now,
+              now,
+            ]
+          )
+        );
+      }
+
+      await Promise.all(ops);
       handleClose();
     } catch (err) {
       console.error('[EditClass] update failed:', err);
@@ -181,8 +425,8 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Class',
-      'Are you sure you want to delete this class schedule? This cannot be undone.',
+      'Delete Class Schedule',
+      'Are you sure you want to remove this schedule?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -192,11 +436,19 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
             if (!schedule) return;
             setIsDeleting(true);
             try {
-              await powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [schedule.id]);
+              const idsToDelete = new Set<string>([schedule.id]);
+              for (const s of siblingSchedules) {
+                idsToDelete.add(s.id);
+              }
+              await Promise.all(
+                Array.from(idsToDelete).map((id) =>
+                  powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
+                )
+              );
               handleClose();
             } catch (err) {
               console.error('[EditClass] delete failed:', err);
-              setError('Failed to delete class.');
+              setError('Failed to delete schedule.');
             } finally {
               setIsDeleting(false);
             }
@@ -210,386 +462,650 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
 
-      <View style={styles.sheetContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Class</Text>
-          <View style={styles.headerActions}>
-            <Pressable onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting}>
-              {isDeleting
-                ? <ActivityIndicator size="small" color="#EF4444" />
-                : <Trash2 size={20} color="#EF4444" />
-              }
-            </Pressable>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={24} color="#94A3B8" />
-            </Pressable>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={styles.keyboardAvoid}
+      >
+        <View style={styles.sheet}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerBadge}>
+                <BookOpen size={16} color="#6366F1" />
+              </View>
+              <Text style={styles.headerTitle}>Edit Class</Text>
+            </View>
+            <View style={styles.headerActions}>
+              <Pressable onPress={handleDelete} style={styles.deleteBtn} hitSlop={8} disabled={isDeleting}>
+                {isDeleting
+                  ? <ActivityIndicator size="small" color="#EF4444" />
+                  : <Trash2 size={18} color="#EF4444" />
+                }
+              </Pressable>
+              <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+                <X size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContainer}
-        >
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
-          {/* Subject */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Subject</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => setShowSubjectPicker((prev) => !prev)}
-            >
-              <View style={styles.subjectPickerInner}>
-                {selectedSubject ? (
-                  <>
-                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color ?? '#6C8EFF' }]} />
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.formContainer}
+          >
+
+            {/* Subject Picker with inline Create/Delete */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Subject</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => {
+                  setShowSubjectPicker((prev) => !prev);
+                  setIsCreatingSubject(false);
+                }}
+              >
+                <View style={styles.subjectPickerInner}>
+                  {selectedSubject ? (
                     <Text style={styles.pickerText}>{selectedSubject.name}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
-                )}
-              </View>
-            </Pressable>
-            {showSubjectPicker && (
-              <View style={styles.pickerList}>
-                <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
-                  {subjects.map((s) => (
+                  ) : (
+                    <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
+                  )}
+                </View>
+              </Pressable>
+              {showSubjectPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={styles.subjectScroll} showsVerticalScrollIndicator={false}>
+                    {subjects.map((s) => (
+                      <View key={s.id} style={styles.pickerItemWrapper}>
+                        <Pressable
+                          style={styles.pickerItem}
+                          onPress={() => {
+                            setSelectedSubjectId(s.id);
+                            setShowSubjectPicker(false);
+                            setIsCreatingSubject(false);
+                          }}
+                        >
+                          <Text style={styles.pickerItemText}>{s.name}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.deleteSubjectBtn}
+                          onPress={() => handleDeleteSubject(s.id)}
+                        >
+                          <X size={16} color={colors.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+
+                  {!isCreatingSubject ? (
                     <Pressable
-                      key={s.id}
-                      style={styles.pickerItem}
-                      onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); }}
+                      style={styles.newSubjectBtn}
+                      onPress={() => setIsCreatingSubject(true)}
                     >
-                      <View style={[styles.subjectDot, { backgroundColor: s.color ?? '#6C8EFF' }]} />
-                      <Text style={styles.pickerItemText}>{s.name}</Text>
+                      <Text style={styles.newSubjectBtnText}>+ New Subject</Text>
                     </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
+                  ) : (
+                    <View style={styles.newSubjectForm}>
+                      <TextInput
+                        style={styles.newSubjectInput}
+                        placeholder="Subject Name"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={newSubjectName}
+                        onChangeText={setNewSubjectName}
+                        autoFocus
+                      />
 
-          {/* Day of Week */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Day of Week</Text>
-            <View style={styles.pillRow}>
-              {DAYS.map((d) => (
-                <Pressable
-                  key={d.value}
-                  style={[styles.pill, selectedDay === d.value && styles.pillSelected]}
-                  onPress={() => setSelectedDay(d.value)}
-                >
-                  <Text style={[styles.pillText, selectedDay === d.value && styles.pillTextSelected]}>
-                    {d.label}
-                  </Text>
-                </Pressable>
-              ))}
+                      <View style={styles.newSubjectActions}>
+                        <Pressable
+                          style={styles.newSubjectCancel}
+                          onPress={() => setIsCreatingSubject(false)}
+                        >
+                          <Text style={styles.newSubjectCancelText}>Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.newSubjectSave}
+                          onPress={handleCreateSubject}
+                        >
+                          {isSavingSubject ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <Text style={styles.newSubjectSaveText}>Save</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
-          </View>
 
-          {/* Start & End Date — side by side */}
-          <View style={[styles.formGroup, styles.timeRow]}>
-            {/* Start Date */}
-            <View style={styles.timeField}>
-              <Text style={styles.label}>Start Date</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
-                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
-            {/* End Date */}
-            <View style={styles.timeField}>
-              <Text style={styles.label}>End Date</Text>
-              <Text style={styles.sublabel}>Optional</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('endDate')}>
-                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
-                  {endDate ? formatDate(endDate) : 'None'}
-                </Text>
-                <Calendar size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Android date picker */}
-          {Platform.OS === 'android' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
-            <DateTimePicker
-              value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
-              mode="date"
-              display="default"
-              onValueChange={handleDateChange}
-            />
-          )}
-
-          {/* iOS date picker */}
-          {Platform.OS === 'ios' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
-            <View style={styles.iosPickerWrapper}>
-              <DateTimePicker
-                value={activePickerField === 'startDate' ? startDate : (endDate ?? startDate)}
-                mode="date"
-                display="spinner"
-                onValueChange={handleDateChange}
-                textColor="#ffffff"
-                themeVariant="dark"
-                style={styles.iosPicker}
-              />
-              <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                <Text style={styles.iosDoneBtnText}>Done</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Start & End Time */}
-          <View style={[styles.formGroup, styles.timeRow]}>
-            <View style={styles.timeField}>
-              <Text style={styles.label}>Start Time</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
-                <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
-            <View style={styles.timeField}>
-              <Text style={styles.label}>End Time</Text>
-              <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
-                <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
-                <Clock size={14} color="#94A3B8" />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Android time picker */}
-          {Platform.OS === 'android' && (activePickerField === 'startTime' || activePickerField === 'endTime') && (
-            <DateTimePicker
-              value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)}
-              mode="time"
-              display="default"
-              onValueChange={handleTimeChange}
-            />
-          )}
-
-          {/* iOS time picker */}
-          {Platform.OS === 'ios' && (activePickerField === 'startTime' || activePickerField === 'endTime') && (
-            <View style={styles.iosPickerWrapper}>
-              <DateTimePicker
-                value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)}
-                mode="time"
-                display="spinner"
-                onValueChange={handleTimeChange}
-                textColor="#ffffff"
-                themeVariant="dark"
-                style={styles.iosPicker}
-              />
-              <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
-                <Text style={styles.iosDoneBtnText}>Done</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* If Every Week, show normal Modality + Schedule Set + Room */}
-          {setType === null ? (
-            <>
-              {/* Modality */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Modality</Text>
-                <View style={styles.pillRow}>
-                  {MODALITIES.map((m) => (
+            {/* Day of Week — multi-select */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Days of Week</Text>
+              <View style={styles.pillRow}>
+                {DAYS.map((d) => {
+                  const isSelected = selectedDays.includes(d.value);
+                  return (
                     <Pressable
-                      key={m.value}
-                      style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
-                      onPress={() => setModality(m.value)}
+                      key={d.value}
+                      style={[styles.pill, isSelected && styles.pillSelected]}
+                      onPress={() => {
+                        setSelectedDays((prev) => {
+                          if (prev.includes(d.value)) {
+                            if (prev.length === 1) return prev;
+                            return prev.filter((x) => x !== d.value);
+                          }
+                          return [...prev, d.value].sort((a, b) => a - b);
+                        });
+                      }}
                     >
-                      <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
-                        {m.label}
+                      <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>
+                        {d.label}
                       </Text>
                     </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              {/* Set Type (Locked to Every Week to prevent desyncing pairs) */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Schedule Set</Text>
-                <View style={styles.pillRow}>
-                  <Pressable style={[styles.pill, styles.pillWide, styles.pillSelected]}>
-                    <Text style={[styles.pillText, styles.pillTextSelected]}>Every Week</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Room */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Room / Location (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Room 416, Tech Hall"
-                  placeholderTextColor="#94A3B8"
-                  value={room}
-                  onChangeText={setRoom}
-                  onFocus={() => setShowSubjectPicker(false)}
-                />
-              </View>
-            </>
-          ) : (
-            /* If By Set, show locked Modality + Room for this specific set */
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Set {setType} Configuration</Text>
-              
-              <View style={{ backgroundColor: '#10131C', borderWidth: 1, borderColor: '#2A3143', borderRadius: 10, padding: 12 }}>
-                <Text style={{ fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' }}>Modality</Text>
-                <View style={[styles.pillRow, { marginBottom: 10 }]}>
-                  {MODALITIES.map((m) => (
-                    <Pressable
-                      key={m.value}
-                      style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
-                      onPress={() => setModality(m.value)}
-                    >
-                      <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>{m.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <Text style={{ fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' }}>Room / Location (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={`e.g. Room for Set ${setType}`}
-                  placeholderTextColor="#94A3B8"
-                  value={room}
-                  onChangeText={setRoom}
-                  onFocus={() => setShowSubjectPicker(false)}
-                />
+                  );
+                })}
               </View>
             </View>
-          )}
 
-          <Button style={styles.saveButton} onPress={handleSave} disabled={isLoading}>
-            {isLoading
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text>Save Changes</Text>
-            }
-          </Button>
-        </ScrollView>
-      </View>
+            {/* Start & End Date — side by side */}
+            <View style={[styles.formGroup, styles.timeRow]}>
+              {/* Start Date */}
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Start Date</Text>
+                  <Pressable
+                    onPress={() => {
+                      const today = new Date();
+                      setStartDate(today);
+                      if (endDate && endDate < today) setEndDate(today);
+                    }}
+                    style={styles.resetBtn}
+                    hitSlop={8}
+                  >
+                    <RotateCcw size={10} color={colors.mutedForeground} />
+                    <Text style={styles.resetBtnText}>Today</Text>
+                  </Pressable>
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
+                  <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
+                  <Calendar size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+
+              <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
+
+              {/* End Date */}
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Date</Text>
+                  {endDate > startDate && (
+                    <Pressable
+                      onPress={() => setEndDate(new Date(startDate))}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <RotateCcw size={10} color={colors.mutedForeground} />
+                      <Text style={styles.resetBtnText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable
+                  style={[styles.picker, !startDate && styles.pickerDisabled]}
+                  onPress={() => openPicker('endDate')}
+                  disabled={!startDate}
+                >
+                  <Text style={styles.pickerText}>
+                    {formatDate(endDate)}
+                  </Text>
+                  <Calendar size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* iOS date picker */}
+            {Platform.OS === 'ios' && (activePickerField === 'startDate' || activePickerField === 'endDate') && (
+              <View style={styles.iosPickerWrapper}>
+                <DateTimePicker
+                  value={
+                    activePickerField === 'startDate'
+                      ? (startDate ?? new Date())
+                      : (endDate && startDate && endDate >= startDate ? endDate : (startDate ?? new Date()))
+                  }
+                  mode="date"
+                  minimumDate={activePickerField === 'endDate' ? (startDate ?? undefined) : undefined}
+                  display="spinner"
+                  onChange={handleDateChange}
+                  textColor={colors.foreground}
+                  themeVariant={isDark ? 'dark' : 'light'}
+                  style={styles.iosPicker}
+                />
+                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                  <Text style={styles.iosDoneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Start & End Time — side by side */}
+            <View style={[styles.formGroup, styles.timeRow]}>
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Start Time</Text>
+                  {startTime !== '08:00' && (
+                    <Pressable
+                      onPress={() => setStartTime('08:00')}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <RotateCcw size={10} color={colors.mutedForeground} />
+                      <Text style={styles.resetBtnText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('startTime')}>
+                  <Text style={styles.pickerText}>{formatTime12(startTime)}</Text>
+                  <Clock size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+              <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
+              <View style={styles.timeField}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>End Time</Text>
+                  {endTime !== '09:30' && (
+                    <Pressable
+                      onPress={() => setEndTime('09:30')}
+                      style={styles.resetBtn}
+                      hitSlop={8}
+                    >
+                      <RotateCcw size={10} color={colors.mutedForeground} />
+                      <Text style={styles.resetBtnText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable style={styles.picker} onPress={() => openPicker('endTime')}>
+                  <Text style={styles.pickerText}>{formatTime12(endTime)}</Text>
+                  <Clock size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* iOS time picker */}
+            {Platform.OS === 'ios' && (activePickerField === 'startTime' || activePickerField === 'endTime') && (
+              <View style={styles.iosPickerWrapper}>
+                <DateTimePicker
+                  value={dateFromHHMM(activePickerField === 'startTime' ? startTime : endTime)}
+                  mode="time"
+                  is24Hour={false}
+                  display="spinner"
+                  onChange={handleTimeChange}
+                  textColor={colors.foreground}
+                  themeVariant={isDark ? 'dark' : 'light'}
+                  style={styles.iosPicker}
+                />
+                <Pressable style={styles.iosDoneBtn} onPress={handleIOSDone}>
+                  <Text style={styles.iosDoneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Modality */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Modality</Text>
+              <View style={styles.pillRow}>
+                {MODALITIES.map((m) => (
+                  <Pressable
+                    key={m.value}
+                    style={[styles.pill, styles.pillWide, modality === m.value && styles.pillSelected]}
+                    onPress={() => setModality(m.value)}
+                  >
+                    <Text style={[styles.pillText, modality === m.value && styles.pillTextSelected]}>
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Schedule Set */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Schedule Set</Text>
+              <View style={styles.pillRow}>
+                {SET_OPTIONS.map((opt) => {
+                  const isSelected = setType === opt.value;
+                  return (
+                    <Pressable
+                      key={String(opt.value)}
+                      style={[styles.pill, styles.pillWide, isSelected && styles.pillSelected]}
+                      onPress={() => setSetType(opt.value)}
+                    >
+                      <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Room */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Room / Location (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={setType ? `e.g. Room for Set ${setType}` : 'e.g. Room 416, Tech Hall'}
+                placeholderTextColor={colors.mutedForeground}
+                value={room}
+                onChangeText={setRoom}
+                onFocus={() => setShowSubjectPicker(false)}
+              />
+            </View>
+
+            <Pressable
+              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              onPress={handleSave}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText}>Save Changes</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  sheetContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1A1F2E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderColor: '#2A3143',
-    maxHeight: '92%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  deleteBtn: { padding: 6 },
-  closeBtn: { padding: 4 },
-  formContainer: { paddingBottom: 8 },
-  errorText: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
-  formGroup: { marginBottom: 18 },
-  label: { fontSize: 14, color: '#94A3B8', marginBottom: 8 },
-  sublabel: { fontSize: 12, color: '#64748B', marginBottom: 8, marginTop: -6 },
-  setRoomLabel: { fontSize: 12, color: '#6C8EFF', marginBottom: 6, fontWeight: '600' },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    backgroundColor: '#10131C',
-    minWidth: 48,
-    alignItems: 'center',
-  },
-  pillWide: { flex: 1 },
-  pillSelected: { backgroundColor: 'rgba(108,142,255,0.15)', borderColor: '#6C8EFF' },
-  pillText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
-  pillTextSelected: { color: '#6C8EFF' },
-  timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  timeField: { flex: 1 },
-  timeSeparator: { paddingBottom: 12 },
-  timeSeparatorText: { color: '#94A3B8', fontSize: 16 },
-  input: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  picker: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pickerText: { color: '#ffffff', fontSize: 15, flex: 1 },
-  pickerPlaceholder: { color: '#94A3B8', fontSize: 15, flex: 1 },
-  subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
-  subjectDot: { width: 10, height: 10, borderRadius: 5 },
-  pickerList: {
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3143',
-  },
-  pickerItemText: { color: '#ffffff', fontSize: 15, marginLeft: 8 },
-  iosPickerWrapper: {
-    marginTop: -10,
-    marginBottom: 12,
-    backgroundColor: '#10131C',
-    borderWidth: 1,
-    borderColor: '#2A3143',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  iosPicker: { height: 150 },
-  iosDoneBtn: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2A3143',
-  },
-  iosDoneBtnText: { color: '#6C8EFF', fontSize: 15, fontWeight: '600' },
-  saveButton: { marginTop: 8, backgroundColor: '#6C8EFF' },
-});
-
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  return StyleSheet.create({
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    keyboardAvoid: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '92%',
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: colors.foreground, letterSpacing: -0.3 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    deleteBtn: { padding: 6 },
+    closeBtn: { padding: 6 },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      marginHorizontal: 20,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 13,
+      flex: 1,
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
+    },
+    submitBtn: {
+      backgroundColor: '#6366F1',
+      marginTop: 20,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitBtnDisabled: {
+      opacity: 0.5,
+    },
+    submitBtnText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '700',
+      includeFontPadding: false,
+    },
+    formGroup: { marginBottom: 18 },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    resetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+    },
+    resetBtnText: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      fontWeight: '600',
+      includeFontPadding: false,
+    },
+    label: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, marginBottom: 8, includeFontPadding: false },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.background : colors.muted,
+      minWidth: 48,
+      alignItems: 'center',
+    },
+    pillWide: { flex: 1 },
+    pillSelected: { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)', borderColor: '#6366F1' },
+    pillText: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, includeFontPadding: false },
+    pillTextSelected: { color: '#6366F1' },
+    timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    timeField: { flex: 1 },
+    timeSeparator: { paddingBottom: 12 },
+    timeSeparatorText: { color: colors.mutedForeground, fontSize: 16 },
+    input: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.foreground,
+      fontSize: 15,
+    },
+    picker: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerText: { color: colors.foreground, fontSize: 14, flex: 1 },
+    pickerPlaceholder: { color: colors.mutedForeground, fontSize: 14, flex: 1 },
+    pickerDisabled: {
+      opacity: 0.45,
+    },
+    subjectPickerInner: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
+    subjectDot: { width: 10, height: 10, borderRadius: 5 },
+    pickerList: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      marginTop: 4,
+      overflow: 'hidden',
+    },
+    pickerItemWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    pickerItem: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    pickerItemText: { color: colors.foreground, fontSize: 14, marginLeft: 8 },
+    deleteSubjectBtn: {
+      padding: 12,
+    },
+    subjectScroll: {
+      maxHeight: 200,
+    },
+    newSubjectBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      alignItems: 'center',
+    },
+    newSubjectBtnText: {
+      color: '#6366F1',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    newSubjectForm: {
+      padding: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    newSubjectInput: {
+      backgroundColor: isDark ? colors.background : colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: colors.foreground,
+      fontSize: 14,
+      marginBottom: 12,
+    },
+    newSubjectColors: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 8,
+      marginBottom: 24,
+    },
+    newSubjectColorSwatch: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+    },
+    newSubjectColorSelected: {
+      borderWidth: 2,
+      borderColor: colors.foreground,
+      transform: [{ scale: 1.15 }],
+    },
+    newSubjectActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 12,
+    },
+    newSubjectCancel: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    newSubjectCancelText: {
+      color: colors.mutedForeground,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    newSubjectSave: {
+      backgroundColor: '#6366F1',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      minWidth: 64,
+      alignItems: 'center',
+    },
+    newSubjectSaveText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    iosPickerWrapper: {
+      marginTop: -10,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    iosPicker: { height: 150 },
+    iosDoneBtn: {
+      alignItems: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    iosDoneBtnText: { color: '#6366F1', fontSize: 14, fontWeight: '600' },
+    saveButton: { marginTop: 8, backgroundColor: '#6366F1' },
+  });
+}

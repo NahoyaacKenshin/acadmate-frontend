@@ -2,8 +2,12 @@ export type AuthUser = {
   id: string;
   name: string | null;
   email: string | null;
+  avatarUrl?: string | null;
   role: 'USER' | 'ADMIN';
   emailVerified?: string | null;
+  programName?: string | null;
+  studentSet?: 'A' | 'B' | 'Standard' | null;
+  hasCompletedOnboarding?: boolean;
 };
 
 export type AuthTokens = {
@@ -29,7 +33,7 @@ export type LoginInput = {
 };
 
 export type SignupInput = {
-  name: string;
+  name?: string;
   email: string;
   password: string;
 };

@@ -13,16 +13,23 @@ export const Task = new Table({
   description: column.text,
   dueDate: column.text,
   completed: column.integer,
+  color: column.text,
+  subtasks: column.text,
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_tasks: ['userId', 'completed', 'dueDate']
+  }
 });
 
 // ── Week 3: Calendar & Scheduler ─────────────────────────────────────────────
 
 export const ClassSchedule = new Table({
   dayOfWeek: column.integer,
+  daysOfWeek: column.text,
   startTime: column.text,
   endTime: column.text,
   startDate: column.text,
@@ -34,6 +41,10 @@ export const ClassSchedule = new Table({
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_classes: ['userId', 'dayOfWeek']
+  }
 });
 
 export const CalendarEvent = new Table({
@@ -48,6 +59,10 @@ export const CalendarEvent = new Table({
   updatedAt: column.text,
   userId: column.text,
   subjectId: column.text
+}, {
+  indexes: {
+    user_events: ['userId', 'startDate']
+  }
 });
 
 export const ExamWeek = new Table({
@@ -57,6 +72,10 @@ export const ExamWeek = new Table({
   createdAt: column.text,
   updatedAt: column.text,
   userId: column.text
+}, {
+  indexes: {
+    user_exams: ['userId', 'startDate']
+  }
 });
 
 // ── Week 4 Additional: Admin & Set A/B Global Config ───────────────────────
@@ -68,14 +87,8 @@ export const SemesterRule = new Table({
   setType: column.text,
   label: column.text,
   createdAt: column.text,
-  updatedAt: column.text
-});
-
-export const ProgramMapping = new Table({
-  programName: column.text,
-  studentSet: column.text,
-  createdAt: column.text,
-  updatedAt: column.text
+  updatedAt: column.text,
+  userId: column.text
 });
 
 export const PhilippineHoliday = new Table({
@@ -91,7 +104,6 @@ export const AppSchema = new Schema({
   CalendarEvent,
   ExamWeek,
   SemesterRule,
-  ProgramMapping,
   PhilippineHoliday
 });
 

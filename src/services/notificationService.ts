@@ -1,0 +1,850 @@
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { ClassScheduleRow } from '../hooks/useClassSchedules';
+import { TaskRow } from '../hooks/useTasks';
+import { ExamWeekRow } from '../hooks/useExamWeeks';
+import { CalendarEventRow } from '../hooks/useCalendarEvents';
+import { parseDateLocal, toPhilippineISO, getScheduleDays, isStudySessionEvent } from '../utils/scheduleUtils';
+import { parseToEpoch } from '../utils/philippineTime';
+
+// Configure notification behavior when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: false, // Prevents duplicate native OS heads-up banner while InAppNotificationBanner is active
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.DEFAULT,
+    shouldShowBanner: false, // Prevents duplicate native OS banner in foreground
+    shouldShowList: true, // Notification is still kept in the OS notification tray/center
+  }),
+});
+
+/**
+ * Formats lead minutes into a friendly string (e.g. 15m, 1h, 1d, 2d).
+ */
+export function formatLeadMinutes(mins: number): string {
+  if (mins === 0) return 'At start';
+  if (mins % 1440 === 0) return `${mins / 1440}d`;
+  if (mins % 60 === 0) return `${mins / 60}h`;
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${mins}m`;
+}
+
+/**
+ * Robustly checks if a calendar event is an exam or quiz.
+ */
+export function isExamEvent(e: CalendarEventRow): boolean {
+  if (isStudySessionEvent(e) || e.color === '#8B5CF6') return false;
+  if (e.color === '#F59E0B') return true;
+  const title = (e.title || '').toLowerCase();
+  const desc = (e.description || '').toLowerCase();
+  const examKeywords = [
+    'exam',
+    'quiz',
+    'midterm',
+    'prelim',
+    'semi-final',
+    'semifinal',
+    'finals',
+    'final exam',
+    'long test',
+    'periodical',
+    'assessment',
+  ];
+  return examKeywords.some((k) => title.includes(k) || desc.includes(k));
+}
+
+export interface StudyReminderPayload {
+  notebookId: string;
+  notebookTitle: string;
+  focusText: string;
+  dateTime: Date;
+  leadMinutes?: number;
+}
+
+export const NotificationService = {
+  /**
+   * Requests necessary OS notification permissions.
+   */
+  requestPermissions: async (): Promise<boolean> => {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    return finalStatus === 'granted';
+  },
+
+  /**
+   * Configures Android specific channels for heads-up banners, sound, and vibration.
+   */
+  configureChannels: async () => {
+    if (Platform.OS === 'android') {
+      try {
+        await Notifications.deleteNotificationChannelAsync('classes');
+        await Notifications.deleteNotificationChannelAsync('tasks');
+        await Notifications.deleteNotificationChannelAsync('study');
+      } catch {}
+
+      // Omitting 'sound' defaults to Android's native Settings.System.DEFAULT_NOTIFICATION_URI
+      await Notifications.setNotificationChannelAsync('classes_alerts', {
+        name: 'Class Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#6C8EFF',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+      });
+      await Notifications.setNotificationChannelAsync('tasks_alerts', {
+        name: 'Task & Exam Alerts',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#10B981',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+      });
+      await Notifications.setNotificationChannelAsync('study_alerts', {
+        name: 'Study Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#A78BFA',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+      });
+      await Notifications.setNotificationChannelAsync('events_alerts', {
+        name: 'General Event Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#F59E0B',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+      });
+    }
+  },
+
+  /**
+   * Helper to cancel a group of scheduled notifications by identifier.
+   */
+  cancelNotification: async (identifier: string) => {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(identifier);
+    } catch (e) {
+      console.warn(`Failed to cancel notification: ${identifier}`, e);
+    }
+  },
+
+  /**
+   * Helper to cancel all scheduled notifications for a given task.
+   */
+  cancelTaskNotifications: async (taskId: string) => {
+    await NotificationService.cancelNotification(`task_${taskId}_lead`);
+    await NotificationService.cancelNotification(`task_${taskId}_day`);
+    await NotificationService.cancelNotification(`task_${taskId}_hour`);
+    await NotificationService.cancelNotification(`task_${taskId}_due`);
+  },
+
+  /**
+   * Schedules recurring weekly notifications for a class schedule.
+   * Day of week: 0 = Sun, 1 = Mon ... 6 = Sat.
+   */
+  scheduleClassReminders: async (
+    schedule: ClassScheduleRow,
+    leadMinutes: number
+  ): Promise<string[]> => {
+    const identifiers: string[] = [];
+    const days = getScheduleDays(schedule);
+    const { id, start_time, subject_name, room, modality } = schedule;
+    if (!start_time || days.length === 0) return [];
+
+    // Parse class time "HH:MM"
+    const [hours, minutes] = start_time.split(':').map(Number);
+
+    for (const dow of days) {
+      let totalMinutes = hours * 60 + minutes - leadMinutes;
+      let targetDayOfWeek = dow;
+
+      if (totalMinutes < 0) {
+        totalMinutes += 24 * 60; // Wrap around to previous day
+        targetDayOfWeek = (dow - 1 + 7) % 7;
+      }
+
+      const scheduledHour = Math.floor(totalMinutes / 60);
+      const scheduledMinute = totalMinutes % 60;
+
+      // Map 0-6 to expo-notifications WeeklyTrigger: 1 = Sun, 2 = Mon ... 7 = Sat
+      const triggerWeekday = targetDayOfWeek + 1;
+      const identifier = `class_${id}_${dow}`;
+
+      try {
+        // First cancel existing to prevent duplication
+        await NotificationService.cancelNotification(identifier);
+
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content: {
+            title: `Upcoming Class: ${subject_name || 'Class'}`,
+            body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'class',
+              scheduleId: id,
+              subjectName: subject_name || 'Class',
+              room: room || '',
+              modality: modality || '',
+              startTime: start_time,
+              dayOfWeek: dow,
+              leadMinutes,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            channelId: 'classes_alerts',
+            weekday: triggerWeekday,
+            hour: scheduledHour,
+            minute: scheduledMinute,
+          },
+        });
+
+        identifiers.push(identifier);
+      } catch (e) {
+        console.error('Failed to schedule class reminder', e);
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Schedules task reminders: leadMinutes before + 1 hour before (if lead > 1h) + due now.
+   */
+  scheduleTaskReminders: async (task: TaskRow, leadMinutes: number = 1440): Promise<string[]> => {
+    const identifiers: string[] = [];
+    const { id, title, due_date, subject_name } = task;
+    if (!due_date) return [];
+
+    const dueTime = parseToEpoch(due_date);
+    if (!dueTime) return [];
+    const now = Date.now();
+
+    // Primary lead reminder
+    const primaryLeadTime = dueTime - leadMinutes * 60 * 1000;
+    if (primaryLeadTime > now) {
+      const idLead = `task_${id}_lead`;
+      const leadLabel = formatLeadMinutes(leadMinutes);
+      const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
+      const daysCount = leadMinutes / 1440;
+      const titleText = isDays
+        ? daysCount === 1 ? 'Task Due Tomorrow' : `Task Due in ${daysCount} Days`
+        : `Task Due in ${leadLabel}`;
+
+      try {
+        await NotificationService.cancelNotification(idLead);
+        await Notifications.scheduleNotificationAsync({
+          identifier: idLead,
+          content: {
+            title: titleText,
+            body: `"${title}" is due in ${leadLabel}${subject_name ? ` for ${subject_name}` : ''}`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'task',
+              taskId: id,
+              title,
+              dueDate: due_date,
+              subjectName: subject_name || '',
+              reminderType: 'lead_time',
+              leadMinutes,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks_alerts',
+            date: new Date(primaryLeadTime),
+          },
+        });
+        identifiers.push(idLead);
+      } catch (e) {
+        console.error('Failed to schedule task primary reminder', e);
+      }
+    }
+
+    // 1 Hour before reminder (only if primary lead was more than 1 hour)
+    if (leadMinutes > 60) {
+      const hourBeforeTime = dueTime - 60 * 60 * 1000;
+      if (hourBeforeTime > now) {
+        const idHour = `task_${id}_hour`;
+        try {
+          await NotificationService.cancelNotification(idHour);
+          await Notifications.scheduleNotificationAsync({
+            identifier: idHour,
+            content: {
+              title: `Task Due in 1 Hour`,
+              body: `"${title}" is due soon. Make sure to complete it!`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: {
+                type: 'task',
+                taskId: id,
+                title,
+                dueDate: due_date,
+                subjectName: subject_name || '',
+                reminderType: 'hour_before',
+              },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'tasks_alerts',
+              date: new Date(hourBeforeTime),
+            },
+          });
+          identifiers.push(idHour);
+        } catch (e) {
+          console.error('Failed to schedule task hour-before reminder', e);
+        }
+      }
+    }
+
+    // Due time / due soon reminder (if created within the last hour before due date)
+    const hourCutoff = dueTime - 60 * 60 * 1000;
+    if (hourCutoff <= now && dueTime > now + 60 * 1000) {
+      const idDue = `task_${id}_due`;
+      try {
+        await NotificationService.cancelNotification(idDue);
+        await Notifications.scheduleNotificationAsync({
+          identifier: idDue,
+          content: {
+            title: `Task Due Soon`,
+            body: `"${title}" is due right now!`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'task',
+              taskId: id,
+              title,
+              dueDate: due_date,
+              subjectName: subject_name || '',
+              reminderType: 'due_now',
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks_alerts',
+            date: new Date(dueTime),
+          },
+        });
+        identifiers.push(idDue);
+      } catch (e) {
+        console.error('Failed to schedule task due-now reminder', e);
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Schedules a study session alert with optional lead-time.
+   */
+  scheduleStudyReminder: async (payload: StudyReminderPayload): Promise<string> => {
+    const { notebookId, notebookTitle, focusText, dateTime, leadMinutes = 0 } = payload;
+    const alertTime = new Date(dateTime.getTime() - leadMinutes * 60 * 1000);
+    const identifier = `study_${notebookId}_${dateTime.getTime()}`;
+
+    try {
+      await NotificationService.cancelNotification(identifier);
+
+      if (alertTime.getTime() > Date.now()) {
+        const leadLabel = leadMinutes > 0 ? ` (in ${leadMinutes}m)` : '';
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content: {
+            title: `Study Reminder: ${notebookTitle}${leadLabel}`,
+            body: focusText || `Get ready for your scheduled study session!`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'study',
+              notebookId,
+              notebookTitle,
+              focusText: focusText || '',
+              dateTime: toPhilippineISO(dateTime),
+              leadMinutes,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'study_alerts',
+            date: alertTime,
+          },
+        });
+      }
+    } catch (e) {
+      console.error('Failed to schedule study reminder', e);
+    }
+
+    return identifier;
+  },
+
+  /**
+   * Helper to cancel all scheduled study reminders for a deleted notebook.
+   */
+  cancelStudyRemindersForNotebook: async (notebookId: string): Promise<void> => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const prefix = `study_${notebookId}_`;
+      for (const notif of allNotifications) {
+        const matchesId = notif.identifier.startsWith(prefix);
+        const matchesData = notif.content?.data?.notebookId === notebookId;
+        if (matchesId || matchesData) {
+          await NotificationService.cancelNotification(notif.identifier);
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to cancel study notifications for notebook: ${notebookId}`, e);
+    }
+  },
+
+  /**
+   * Schedules a quick test notification for immediate on-device verification.
+   */
+  sendTestNotification: async (delaySeconds = 3): Promise<string> => {
+    const identifier = `test_${Date.now()}`;
+    const triggerDate = new Date(Date.now() + delaySeconds * 1000);
+
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: {
+        title: 'AcadMate Local Notification',
+        body: 'Offline notification engine & in-app alerts are active and working!',
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        data: {
+          type: 'test',
+          timestamp: Date.now(),
+        },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        channelId: 'tasks_alerts',
+        date: triggerDate,
+      },
+    });
+
+    return identifier;
+  },
+
+  /**
+   * Bulk helper to synchronize class notifications without cancelling active ones unnecessarily.
+   */
+  rescheduleAllClasses: async (
+    schedules: ClassScheduleRow[],
+    enabled: boolean,
+    leadMinutes: number,
+    studentSet?: 'A' | 'B' | 'Standard' | null
+  ) => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingClassNotifs = allNotifications.filter((n) => n.identifier.startsWith('class_'));
+      const existingIds = new Set(existingClassNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingClassNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      // Filter for student set if set
+      const filtered = schedules.filter((s) => {
+        if (studentSet === 'Standard' || studentSet === null) {
+          return !s.set_type;
+        }
+        if (studentSet === 'A') {
+          return s.set_type === 'A' || !s.set_type;
+        }
+        if (studentSet === 'B') {
+          return s.set_type === 'B' || !s.set_type;
+        }
+        return true;
+      });
+
+      const desiredIds = new Set<string>();
+
+      for (const schedule of filtered) {
+        if (!schedule.start_time) continue;
+        const days = getScheduleDays(schedule);
+        for (const dow of days) {
+          const identifier = `class_${schedule.id}_${dow}`;
+          desiredIds.add(identifier);
+        }
+        await NotificationService.scheduleClassReminders(schedule, leadMinutes);
+      }
+
+      // Clean up orphaned/deleted class notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllClasses:', err);
+    }
+  },
+
+  /**
+   * Bulk helper to synchronize task notifications without cancelling active ones unnecessarily.
+   */
+  rescheduleAllTasks: async (tasks: TaskRow[], enabled: boolean, leadMinutes: number = 1440) => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingTaskNotifs = allNotifications.filter((n) => n.identifier.startsWith('task_'));
+      const existingIds = new Set(existingTaskNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingTaskNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      const incompleteTasks = tasks.filter((t) => t.completed === 0 && !!t.due_date);
+      const desiredIds = new Set<string>();
+
+      for (const task of incompleteTasks) {
+        const scheduledIds = await NotificationService.scheduleTaskReminders(task, leadMinutes);
+        scheduledIds.forEach((id) => desiredIds.add(id));
+      }
+
+      // Clean up orphaned task notifications (completed or deleted tasks)
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllTasks:', err);
+    }
+  },
+
+  /**
+   * Schedules reminders for an Exam Week block (1 day before start date at 8:00 AM).
+   */
+  scheduleExamWeekReminders: async (ew: ExamWeekRow): Promise<string[]> => {
+    const identifiers: string[] = [];
+    const startDate = parseDateLocal(ew.startDate);
+    if (!startDate) return [];
+
+    const alertTime = new Date(startDate);
+    alertTime.setDate(alertTime.getDate() - 1);
+    alertTime.setHours(8, 0, 0, 0);
+
+    if (alertTime.getTime() > Date.now()) {
+      const id = `examweek_${ew.id}_day`;
+      try {
+        await NotificationService.cancelNotification(id);
+        await Notifications.scheduleNotificationAsync({
+          identifier: id,
+          content: {
+            title: `Exam Week Starts Tomorrow`,
+            body: `"${ew.title}" begins tomorrow. Check your schedule and prepare well!`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'exam_week',
+              examWeekId: ew.id,
+              title: ew.title,
+              startDate: ew.startDate,
+              endDate: ew.endDate,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks_alerts',
+            date: alertTime,
+          },
+        });
+        identifiers.push(id);
+      } catch (e) {
+        console.error('Failed to schedule exam week reminder', e);
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Schedules reminders for a specific subject exam (leadMinutes before + 1 hour before if lead > 1h).
+   */
+  scheduleSubjectExamReminders: async (
+    event: CalendarEventRow,
+    leadMinutes: number = 1440
+  ): Promise<string[]> => {
+    const identifiers: string[] = [];
+    if (!event.start_date) return [];
+
+    const examTime = parseToEpoch(event.start_date);
+    if (!examTime) return [];
+    const now = Date.now();
+
+    // Primary lead reminder
+    const primaryLeadTime = examTime - leadMinutes * 60 * 1000;
+    if (primaryLeadTime > now) {
+      const idLead = `exam_${event.id}_lead`;
+      const leadLabel = formatLeadMinutes(leadMinutes);
+      const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
+      const daysCount = leadMinutes / 1440;
+      const titleText = isDays
+        ? daysCount === 1 ? `Exam Tomorrow: ${event.title}` : `Exam in ${daysCount} Days: ${event.title}`
+        : `Exam in ${leadLabel}: ${event.title}`;
+
+      try {
+        await NotificationService.cancelNotification(idLead);
+        await Notifications.scheduleNotificationAsync({
+          identifier: idLead,
+          content: {
+            title: titleText,
+            body: `Starts in ${leadLabel}${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              type: 'exam',
+              eventId: event.id,
+              title: event.title,
+              startDate: event.start_date,
+              location: event.location || '',
+              leadMinutes,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            channelId: 'tasks_alerts',
+            date: new Date(primaryLeadTime),
+          },
+        });
+        identifiers.push(idLead);
+      } catch (e) {
+        console.error('Failed to schedule exam primary reminder', e);
+      }
+    }
+
+    // 1 Hour before (if leadMinutes > 60)
+    if (leadMinutes > 60) {
+      const hourBeforeTime = examTime - 60 * 60 * 1000;
+      if (hourBeforeTime > now) {
+        const idHour = `exam_${event.id}_hour`;
+        try {
+          await NotificationService.cancelNotification(idHour);
+          await Notifications.scheduleNotificationAsync({
+            identifier: idHour,
+            content: {
+              title: `Exam in 1 Hour: ${event.title}`,
+              body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: {
+                type: 'exam',
+                eventId: event.id,
+                title: event.title,
+                startDate: event.start_date,
+                location: event.location || '',
+              },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'tasks_alerts',
+              date: new Date(hourBeforeTime),
+            },
+          });
+          identifiers.push(idHour);
+        } catch (e) {
+          console.error('Failed to schedule exam hour-before reminder', e);
+        }
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Synchronizes exam notifications (both exam weeks and subject exams).
+   */
+  rescheduleAllExams: async (
+    examWeeks: ExamWeekRow[],
+    events: CalendarEventRow[],
+    enabled: boolean,
+    leadMinutes: number = 1440
+  ) => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingExamNotifs = allNotifications.filter(
+        (n) => n.identifier.startsWith('examweek_') || n.identifier.startsWith('exam_')
+      );
+      const existingIds = new Set(existingExamNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingExamNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      const desiredIds = new Set<string>();
+
+      // Schedule exam week blockers
+      for (const ew of examWeeks) {
+        const ids = await NotificationService.scheduleExamWeekReminders(ew);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Schedule individual subject exams using refined matcher
+      const examEvents = events.filter(isExamEvent);
+      for (const ex of examEvents) {
+        const ids = await NotificationService.scheduleSubjectExamReminders(ex, leadMinutes);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Clean up orphaned exam notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllExams:', err);
+    }
+  },
+  /**
+   * Schedules a single general CalendarEvent reminder (non-exam/quiz events only).
+   * For timed events: fires `leadMinutes` before startDate.
+   * For all-day events: fires at 8:00 AM on the event day.
+   * Returns the array of scheduled notification identifiers.
+   */
+  scheduleCalendarEventReminders: async (
+    event: CalendarEventRow,
+    leadMinutes: number
+  ): Promise<string[]> => {
+    const identifiers: string[] = [];
+
+    // Skip exam / quiz events — those are handled by examAlerts
+    if (isExamEvent(event)) return [];
+
+    const now = Date.now();
+
+    if (event.all_day === 1) {
+      // All-day events: remind at 8:00 AM on the day of the event
+      const eventDate = parseDateLocal(event.start_date);
+      if (!eventDate) return [];
+      const reminderTime = new Date(eventDate);
+      reminderTime.setHours(8, 0, 0, 0);
+      if (reminderTime.getTime() > now) {
+        const id = `event_${event.id}_allday`;
+        try {
+          await NotificationService.cancelNotification(id);
+          await Notifications.scheduleNotificationAsync({
+            identifier: id,
+            content: {
+              title: `Today: ${event.title}`,
+              body: event.location ? `At ${event.location}` : 'All-day event today',
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: { type: 'event', eventId: event.id, title: event.title },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'events_alerts',
+              date: reminderTime,
+            },
+          });
+          identifiers.push(id);
+        } catch (e) {
+          console.error('Failed to schedule all-day event reminder', e);
+        }
+      }
+    } else {
+      // Timed events: remind N minutes before startDate
+      const startEpoch = parseToEpoch(event.start_date);
+      if (!startEpoch) return [];
+      const reminderTime = startEpoch - leadMinutes * 60 * 1000;
+      if (reminderTime > now) {
+        const id = `event_${event.id}_lead`;
+        try {
+          await NotificationService.cancelNotification(id);
+          await Notifications.scheduleNotificationAsync({
+            identifier: id,
+            content: {
+              title: `Event in ${leadMinutes}m: ${event.title}`,
+              body: event.location ? `Location: ${event.location}` : 'Upcoming event',
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              data: { type: 'event', eventId: event.id, title: event.title, location: event.location || '' },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId: 'events_alerts',
+              date: new Date(reminderTime),
+            },
+          });
+          identifiers.push(id);
+        } catch (e) {
+          console.error('Failed to schedule timed event reminder', e);
+        }
+      }
+    }
+
+    return identifiers;
+  },
+
+  /**
+   * Synchronizes general CalendarEvent reminders.
+   * Called reactively by NotificationProvider when events list or prefs change.
+   */
+  rescheduleAllCalendarEvents: async (
+    events: CalendarEventRow[],
+    enabled: boolean,
+    leadMinutes: number
+  ): Promise<void> => {
+    try {
+      const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const existingEventNotifs = allNotifications.filter(
+        (n) => n.identifier.startsWith('event_')
+      );
+      const existingIds = new Set(existingEventNotifs.map((n) => n.identifier));
+
+      if (!enabled) {
+        for (const notification of existingEventNotifs) {
+          await NotificationService.cancelNotification(notification.identifier);
+        }
+        return;
+      }
+
+      const desiredIds = new Set<string>();
+
+      for (const ev of events) {
+        const ids = await NotificationService.scheduleCalendarEventReminders(ev, leadMinutes);
+        ids.forEach((id) => desiredIds.add(id));
+      }
+
+      // Cancel orphaned event notifications
+      for (const existingId of existingIds) {
+        if (!desiredIds.has(existingId)) {
+          await NotificationService.cancelNotification(existingId);
+        }
+      }
+    } catch (err) {
+      console.error('Error in rescheduleAllCalendarEvents:', err);
+    }
+  },
+};

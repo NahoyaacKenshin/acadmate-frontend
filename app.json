@@ -4,38 +4,79 @@
     "slug": "acadmate",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/new-splash-favicon-icon.png",
     "scheme": "acadmate",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/new-splash-favicon-icon.png",
+      "imageWidth": 100,
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAFA",
+      "dark": {
+        "image": "./assets/images/new-splash-favicon-icon.png",
+        "backgroundColor": "#090A0F"
+      }
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.acadmate.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0b0f19",
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundColor": "#090A0F",
+        "foregroundImage": "./assets/images/new-splash-favicon-icon.png"
       },
-      "softwareKeyboardLayoutMode": "pan",
+      "splash": {
+        "image": "./assets/images/new-splash-favicon-icon.png",
+        "imageWidth": 100,
+        "resizeMode": "contain",
+        "backgroundColor": "#FAFAFA",
+        "dark": {
+          "image": "./assets/images/new-splash-favicon-icon.png",
+          "backgroundColor": "#090A0F"
+        }
+      },
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "VIBRATE"
+      ],
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.acadmate"
+      "package": "com.acadmate.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/new-splash-favicon-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/new-splash-favicon-icon.png",
+          "imageWidth": 100,
           "resizeMode": "contain",
-          "backgroundColor": "#0b0f19"
+          "backgroundColor": "#FAFAFA",
+          "dark": {
+            "image": "./assets/images/new-splash-favicon-icon.png",
+            "backgroundColor": "#090A0F"
+          }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#6C8EFF"
+        }
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

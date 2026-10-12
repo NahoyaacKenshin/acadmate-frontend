@@ -1,5 +1,6 @@
 import { ENV } from '@/src/config/env';
 import { useAuthStore } from '@/src/features/auth/auth.store';
+import { getValidAccessToken, refreshSharedSession } from '@/src/lib/aiRequest';
 
 const getHeaders = () => {
   const token = useAuthStore.getState().accessToken;
@@ -11,8 +12,28 @@ const getHeaders = () => {
 
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`API Error ${response.status}: ${errorBody}`);
+    let message = 'Server error occurred. Please try again.';
+    try {
+      const errorBody = await response.text();
+      try {
+        const parsed = JSON.parse(errorBody);
+        message = parsed.message || parsed.error || parsed.detail || message;
+      } catch {
+        if (
+          errorBody &&
+          errorBody.length < 150 &&
+          !errorBody.includes('http') &&
+          !errorBody.includes('<!DOCTYPE')
+        ) {
+          message = errorBody;
+        } else {
+          message = `Request failed (${response.status})`;
+        }
+      }
+    } catch {
+      message = `Request failed (${response.status})`;
+    }
+    throw new Error(message);
   }
   
   // If response is 204 No Content, don't try to parse JSON
@@ -76,6 +97,51 @@ export const ApiService = {
       });
       return handleResponse(response);
     },
+    breakdown: async (data: { title: string; description?: string | null; dueDate?: string | null }) => {
+      const url = `${ENV.API_URL}/tasks/breakdown`;
+      const body = JSON.stringify(data);
+
+      const makeRequest = async (token: string | null) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45_000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body,
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      try {
+        let token = await getValidAccessToken();
+        let response = await makeRequest(token);
+
+        if (response.status === 401) {
+          const refreshed = await refreshSharedSession();
+          if (refreshed) {
+            token = await getValidAccessToken();
+            response = await makeRequest(token);
+          }
+        }
+
+        return await handleResponse(response);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error('AI breakdown took too long to respond. Please try again.');
+          (timeoutErr as any).type = 'TIMEOUT';
+          throw timeoutErr;
+        }
+        throw err;
+      }
+    },
   },
 
   // --- Holidays ---
@@ -120,6 +186,14 @@ export const ApiService = {
       });
       return handleResponse(response);
     },
+    update: async (id: string, data: { title?: string; description?: string | null }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
   },
 
   // --- Notebook Sources ---
@@ -131,22 +205,265 @@ export const ApiService = {
       });
       return handleResponse(response);
     },
+    retry: async (notebookId: string, sourceId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/sources/${sourceId}/retry`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    update: async (notebookId: string, sourceId: string, data: { fileName?: string; rawText?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/sources/${sourceId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
   },
 
   // --- Notebook Chat (RAG) ---
   chat: {
-    send: async (notebookId: string, message: string) => {
-      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ message }),
-      });
-      return handleResponse(response);
+    send: async (notebookId: string, message: string, sessionId?: string | null) => {
+      const url = `${ENV.API_URL}/notebooks/${notebookId}/chat`;
+      const body = JSON.stringify({ message, sessionId: sessionId ?? undefined });
+
+      const makeRequest = async (token: string | null) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45_000); // 45s timeout
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body,
+            signal: controller.signal,
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      try {
+        let token = await getValidAccessToken();
+        let response = await makeRequest(token);
+
+        if (response.status === 401) {
+          const refreshed = await refreshSharedSession();
+          if (refreshed) {
+            token = await getValidAccessToken();
+            response = await makeRequest(token);
+          }
+        }
+
+        return await handleResponse(response);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error('Notebook chat took too long to respond (timeout). Please try again.');
+          (timeoutErr as any).type = 'TIMEOUT';
+          throw timeoutErr;
+        }
+        throw err;
+      }
     },
     history: async (notebookId: string) => {
       const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history`, {
         method: 'GET',
         headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    getSession: async (notebookId: string, sessionId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history/${sessionId}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    deleteSession: async (notebookId: string, sessionId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/chat/history/${sessionId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+  },
+
+  // --- Flashcards ---
+  flashcards: {
+    list: async (notebookId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/flashcards`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    get: async (deckId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/${deckId}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    generate: async (notebookId: string, options?: { count?: number; title?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/flashcards/generate`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(options || {}),
+      });
+      return handleResponse(response);
+    },
+    createDeck: async (
+      notebookId: string,
+      data: { title: string; description?: string; cards?: Array<{ front: string; back: string }> }
+    ) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/flashcards`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    updateDeck: async (deckId: string, data: { title?: string; description?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/${deckId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    deleteDeck: async (deckId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/${deckId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    addCard: async (deckId: string, data: { front: string; back: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/${deckId}/cards`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    updateCard: async (cardId: string, data: { front?: string; back?: string; isMastered?: boolean }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/cards/${cardId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    deleteCard: async (cardId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/flashcards/cards/${cardId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+  },
+
+  // --- Quizzes ---
+  quizzes: {
+    list: async (notebookId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/quizzes`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    get: async (quizId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/${quizId}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    generate: async (notebookId: string, options?: { count?: number; title?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/quizzes/generate`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(options || {}),
+      });
+      return handleResponse(response);
+    },
+    createQuiz: async (
+      notebookId: string,
+      data: { title: string; description?: string; questions?: any[] }
+    ) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/${notebookId}/quizzes`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    updateQuiz: async (quizId: string, data: { title?: string; description?: string }) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/${quizId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    deleteQuiz: async (quizId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/${quizId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    addQuestion: async (
+      quizId: string,
+      data: { question: string; options: string[]; correctAnswer: number; explanation?: string }
+    ) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/${quizId}/questions`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    updateQuestion: async (
+      questionId: string,
+      data: { question?: string; options?: string[]; correctAnswer?: number; explanation?: string }
+    ) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/questions/${questionId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      return handleResponse(response);
+    },
+    deleteQuestion: async (questionId: string) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response);
+    },
+    submitAttempt: async (quizId: string, answers: number[]) => {
+      const response = await fetch(`${ENV.API_URL}/notebooks/quizzes/${quizId}/attempt`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ answers }),
+      });
+      return handleResponse(response);
+    },
+  },
+
+  // --- User Profile ---
+  profile: {
+    update: async (data: { name?: string; programName?: string | null }) => {
+      const response = await fetch(`${ENV.API_URL}/auth/v1/me`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
       });
       return handleResponse(response);
     },
