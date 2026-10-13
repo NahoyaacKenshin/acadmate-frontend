@@ -32,7 +32,7 @@ interface ThemeState {
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  theme: 'system',
+  theme: 'light',
   systemColorScheme: getNativeSystemScheme(),
   isHydrated: false,
 
@@ -58,8 +58,8 @@ export const useThemeStore = create<ThemeState>((set) => ({
     } catch {
       // ignore
     }
-    set({ theme: 'system', systemColorScheme: systemScheme, isHydrated: true });
-    syncUniwindTheme('system');
+    set({ theme: 'light', systemColorScheme: systemScheme, isHydrated: true });
+    syncUniwindTheme('light');
   },
 }));
 

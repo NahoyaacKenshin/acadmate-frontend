@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { NotebookCard, Notebook } from '@/src/components/notebook/NotebookCard';
 import { CreateNotebookSheet } from '@/src/components/notebook/CreateNotebookSheet';
 import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { useNotebookStore } from '@/src/store/notebookStore';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useTheme } from '@/src/theme/useTheme';
@@ -83,6 +84,9 @@ export default function NotebookScreen() {
     setIsCreateVisible(true);
   };
 
+  const [notebookToDelete, setNotebookToDelete] = useState<Notebook | null>(null);
+  const [isDeletingNotebook, setIsDeletingNotebook] = useState(false);
+
   const handleCreate = async (title: string, description: string) => {
     try {
       await createNotebook(title, description);
@@ -91,11 +95,20 @@ export default function NotebookScreen() {
     }
   };
 
-  const handleDelete = async (notebook: Notebook) => {
+  const handleDelete = (notebook: Notebook) => {
+    setNotebookToDelete(notebook);
+  };
+
+  const confirmDeleteNotebook = async () => {
+    if (!notebookToDelete) return;
+    setIsDeletingNotebook(true);
     try {
-      await deleteNotebook(notebook.id, powerSync);
+      await deleteNotebook(notebookToDelete.id, powerSync);
+      setNotebookToDelete(null);
     } catch {
       Alert.alert('Error', 'Failed to delete notebook. Please try again.');
+    } finally {
+      setIsDeletingNotebook(false);
     }
   };
 
@@ -508,6 +521,18 @@ export default function NotebookScreen() {
         notebook={editingNotebook}
         onClose={() => setEditingNotebook(null)}
         onSave={handleUpdate}
+      />
+
+      {/* ── Delete Confirmation Modal ── */}
+      <ConfirmModal
+        visible={notebookToDelete !== null}
+        title="Delete Notebook?"
+        description={`Are you sure you want to delete "${notebookToDelete?.title}"? This will also remove all sources, booked study sessions, and AI data inside it.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingNotebook}
+        onConfirm={confirmDeleteNotebook}
+        onCancel={() => setNotebookToDelete(null)}
       />
     </SafeAreaView>
   );

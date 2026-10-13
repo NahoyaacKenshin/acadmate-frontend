@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   useNotebookToolsStore,
   FlashcardDeckSummary,
@@ -79,6 +80,9 @@ export function ToolsTabContent({
   const [activeDeckId, setActiveDeckId] = useState<string | null>(null);
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+  const [deckToDelete, setDeckToDelete] = useState<FlashcardDeckSummary | null>(null);
+  const [quizToDelete, setQuizToDelete] = useState<QuizSummary | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   const styles = createStyles(colors, isDark);
 
@@ -95,24 +99,24 @@ export function ToolsTabContent({
   };
 
   const handleDeleteDeck = (deck: FlashcardDeckSummary) => {
-    Alert.alert('Delete Deck', `Are you sure you want to delete "${deck.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDeck(deck.id, notebookId);
-          } catch (err: any) {
-            const raw = err?.message || '';
-            const msg = raw.includes('Network request failed') || raw.includes('http')
-              ? 'Failed to delete deck. Please check your connection.'
-              : raw || 'Failed to delete deck.';
-            Alert.alert('Error', msg);
-          }
-        },
-      },
-    ]);
+    setDeckToDelete(deck);
+  };
+
+  const confirmDeleteDeck = async () => {
+    if (!deckToDelete) return;
+    setIsDeletingItem(true);
+    try {
+      await deleteDeck(deckToDelete.id, notebookId);
+      setDeckToDelete(null);
+    } catch (err: any) {
+      const raw = err?.message || '';
+      const msg = raw.includes('Network request failed') || raw.includes('http')
+        ? 'Failed to delete deck. Please check your connection.'
+        : raw || 'Failed to delete deck.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsDeletingItem(false);
+    }
   };
 
   const handleOpenQuiz = async (quizId: string) => {
@@ -132,24 +136,24 @@ export function ToolsTabContent({
   };
 
   const handleDeleteQuiz = (quiz: QuizSummary) => {
-    Alert.alert('Delete Quiz', `Are you sure you want to delete "${quiz.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteQuiz(quiz.id, notebookId);
-          } catch (err: any) {
-            const raw = err?.message || '';
-            const msg = raw.includes('Network request failed') || raw.includes('http')
-              ? 'Failed to delete quiz. Please check your connection.'
-              : raw || 'Failed to delete quiz.';
-            Alert.alert('Error', msg);
-          }
-        },
-      },
-    ]);
+    setQuizToDelete(quiz);
+  };
+
+  const confirmDeleteQuiz = async () => {
+    if (!quizToDelete) return;
+    setIsDeletingItem(true);
+    try {
+      await deleteQuiz(quizToDelete.id, notebookId);
+      setQuizToDelete(null);
+    } catch (err: any) {
+      const raw = err?.message || '';
+      const msg = raw.includes('Network request failed') || raw.includes('http')
+        ? 'Failed to delete quiz. Please check your connection.'
+        : raw || 'Failed to delete quiz.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsDeletingItem(false);
+    }
   };
 
   return (
@@ -426,6 +430,29 @@ export function ToolsTabContent({
           isOnline={isOnline}
         />
       )}
+
+      {/* Delete Confirmation Modals */}
+      <ConfirmModal
+        visible={deckToDelete !== null}
+        title="Delete Deck?"
+        description={`Are you sure you want to delete "${deckToDelete?.title}"? All flashcards inside will also be removed.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingItem}
+        onConfirm={confirmDeleteDeck}
+        onCancel={() => setDeckToDelete(null)}
+      />
+
+      <ConfirmModal
+        visible={quizToDelete !== null}
+        title="Delete Quiz?"
+        description={`Are you sure you want to delete "${quizToDelete?.title}"? All questions inside will also be removed.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingItem}
+        onConfirm={confirmDeleteQuiz}
+        onCancel={() => setQuizToDelete(null)}
+      />
     </ScrollView>
   );
 }

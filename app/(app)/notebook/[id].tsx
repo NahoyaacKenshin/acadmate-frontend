@@ -25,6 +25,7 @@ import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import { SourceViewerModal } from '@/src/components/notebook/SourceViewerModal';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useTheme } from '@/src/theme/useTheme';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   ArrowLeft,
   Upload,
@@ -100,6 +101,8 @@ export default function NotebookDetailScreen() {
   const [isEditVisible, setIsEditVisible] = useState(false);
   const [viewingSource, setViewingSource] = useState<Source | null>(null);
   const [editingSource, setEditingSource] = useState<Source | null>(null);
+  const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
+  const [isDeletingSource, setIsDeletingSource] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -161,28 +164,24 @@ export default function NotebookDetailScreen() {
 
   const handleDeleteSource = (source: Source) => {
     if (!id) return;
-    Alert.alert(
-      'Delete Source',
-      `Are you sure you want to delete "${source.fileName}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteSource(id, source.id);
-            } catch (err: any) {
-              const msg =
-                err?.message && !err.message.includes('http')
-                  ? err.message
-                  : 'Failed to remove source. Please try again.';
-              Alert.alert('Error', msg);
-            }
-          },
-        },
-      ]
-    );
+    setSourceToDelete(source);
+  };
+
+  const confirmDeleteSource = async () => {
+    if (!id || !sourceToDelete) return;
+    setIsDeletingSource(true);
+    try {
+      await deleteSource(id, sourceToDelete.id);
+      setSourceToDelete(null);
+    } catch (err: any) {
+      const msg =
+        err?.message && !err.message.includes('http')
+          ? err.message
+          : 'Failed to remove source. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsDeletingSource(false);
+    }
   };
 
   // ─── Retry FAILED source ──────────────────────────────────────────────────
@@ -513,6 +512,18 @@ export default function NotebookDetailScreen() {
         onTabChange={setActiveTab}
         sourcesCount={sources.length}
         toolsCount={toolsCount}
+      />
+
+      {/* ── Delete Source Confirmation Modal ── */}
+      <ConfirmModal
+        visible={sourceToDelete !== null}
+        title="Delete Source?"
+        description={`Are you sure you want to delete "${sourceToDelete?.fileName}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingSource}
+        onConfirm={confirmDeleteSource}
+        onCancel={() => setSourceToDelete(null)}
       />
     </SafeAreaView>
   );

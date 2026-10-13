@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Modal, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, Modal, StyleSheet, TouchableOpacity, Pressable, Text, ActivityIndicator } from 'react-native';
 import { Trash2, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { useTheme } from '@/src/theme/useTheme';
@@ -15,7 +14,9 @@ interface ConfirmModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmVariant;
-  onConfirm: () => void;
+  isLoading?: boolean;
+  asOverlay?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -26,6 +27,8 @@ export function ConfirmModal({
   confirmLabel = 'Delete',
   cancelLabel = 'Cancel',
   variant = 'danger',
+  isLoading = false,
+  asOverlay = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -69,40 +72,62 @@ export function ConfirmModal({
     }
   };
 
-  return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onCancel}>
-      <Pressable style={styles.overlay} onPress={onCancel}>
-        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={StyleSheet.absoluteFill}>
-          <View style={styles.backdrop} />
-        </Animated.View>
+  const content = (
+    <Pressable style={styles.overlay} onPress={isLoading ? undefined : onCancel}>
+      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={StyleSheet.absoluteFill}>
+        <View style={styles.backdrop} />
+      </Animated.View>
 
-        <Animated.View
-          entering={ZoomIn.duration(200)}
-          exiting={ZoomOut.duration(150)}
-          style={styles.modalCard}
-        >
-          <View style={[styles.iconContainer, { backgroundColor: getAccentBg() }]}>
-            {getIcon()}
-          </View>
+      <Animated.View
+        entering={ZoomIn.duration(200)}
+        exiting={ZoomOut.duration(150)}
+        style={styles.modalCard}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: getAccentBg() }]}>
+          {getIcon()}
+        </View>
 
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.description}>{description}</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.description}>{description}</Text>
 
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.7}>
-              <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
-            </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.cancelBtn, isLoading && { opacity: 0.6 }]}
+            onPress={onCancel}
+            activeOpacity={0.7}
+            disabled={isLoading}
+          >
+            <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.confirmBtn, getConfirmBtnStyle()]}
-              onPress={onConfirm}
-              activeOpacity={0.7}
-            >
+          <TouchableOpacity
+            style={[styles.confirmBtn, getConfirmBtnStyle(), isLoading && { opacity: 0.7 }]}
+            onPress={onConfirm}
+            activeOpacity={0.7}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
               <Text style={styles.confirmBtnText}>{confirmLabel}</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </Pressable>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+
+  if (asOverlay) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={isLoading ? undefined : onCancel}>
+      {content}
     </Modal>
   );
 }

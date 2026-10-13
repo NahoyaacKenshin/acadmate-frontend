@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet, Alert, Text } from 'react-native';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
 import { BookOpen, FileText, Trash2, ChevronRight, Pencil, Pin } from 'lucide-react-native';
 import { parseToPHT } from '@/src/utils/philippineTime';
 import { useTheme } from '@/src/theme/useTheme';
@@ -32,19 +32,8 @@ export function NotebookCard({
 }: NotebookCardProps) {
   const { colors, isDark } = useTheme();
 
-  const handleLongPress = () => {
-    Alert.alert(
-      'Delete Notebook',
-      `Are you sure you want to delete "${notebook.title}"? This will also remove all sources, booked study sessions, and AI data inside it.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete(notebook),
-        },
-      ]
-    );
+  const handleDeletePress = () => {
+    onDelete(notebook);
   };
 
   const formatDate = (iso: string) => {
@@ -71,7 +60,7 @@ export function NotebookCard({
         pressed && styles.cardPressed,
       ]}
       onPress={() => onPress(notebook)}
-      onLongPress={handleLongPress}
+      onLongPress={handleDeletePress}
     >
       {/* Left accent stripe */}
       <View style={[styles.accentStripe, { backgroundColor: accentColor }]} />
@@ -198,7 +187,7 @@ export function NotebookCard({
             ]}
             onPress={(e) => {
               e.stopPropagation();
-              handleLongPress();
+              handleDeletePress();
             }}
             hitSlop={8}
             accessibilityLabel="Delete notebook"

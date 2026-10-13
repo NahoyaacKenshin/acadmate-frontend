@@ -22,6 +22,7 @@ import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedul
 import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 
 interface EditClassSheetProps {
@@ -123,6 +124,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Populate form when schedule changes
@@ -424,38 +426,31 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Class Schedule',
-      'Are you sure you want to remove this schedule?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!schedule) return;
-            setIsDeleting(true);
-            try {
-              const idsToDelete = new Set<string>([schedule.id]);
-              for (const s of siblingSchedules) {
-                idsToDelete.add(s.id);
-              }
-              await Promise.all(
-                Array.from(idsToDelete).map((id) =>
-                  powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
-                )
-              );
-              handleClose();
-            } catch (err) {
-              console.error('[EditClass] delete failed:', err);
-              setError('Failed to delete schedule.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    if (!schedule) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!schedule) return;
+    setIsDeleting(true);
+    try {
+      const idsToDelete = new Set<string>([schedule.id]);
+      for (const s of siblingSchedules) {
+        idsToDelete.add(s.id);
+      }
+      await Promise.all(
+        Array.from(idsToDelete).map((id) =>
+          powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
+        )
+      );
+      setShowDeleteConfirm(false);
+      handleClose();
+    } catch (err) {
+      console.error('[EditClass] delete failed:', err);
+      setError('Failed to delete schedule.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -821,6 +816,18 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Class Schedule?"
+        description="Are you sure you want to remove this class schedule? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }

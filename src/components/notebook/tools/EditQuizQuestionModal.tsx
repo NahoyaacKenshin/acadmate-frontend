@@ -16,6 +16,7 @@ import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 import { QuizQuestion } from '@/src/store/notebookToolsStore';
 import { X, Trash2, Check, CheckCircle2 } from 'lucide-react-native';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 interface EditQuizQuestionModalProps {
   visible: boolean;
@@ -39,6 +40,7 @@ export function EditQuizQuestionModal({
   const [explanation, setExplanation] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (question) {
@@ -85,28 +87,25 @@ export function EditQuizQuestionModal({
   const handleDelete = () => {
     Keyboard.dismiss();
     if (!question || !onDelete) return;
-    Alert.alert('Delete Question', 'Are you sure you want to delete this question?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setIsDeleting(true);
-          try {
-            await onDelete(question.id);
-            onClose();
-          } catch (err: any) {
-            const raw = err?.message || '';
-            const msg = raw.includes('Network request failed') || raw.includes('http')
-              ? 'Failed to delete question. Please check your connection.'
-              : raw || 'Failed to delete question.';
-            Alert.alert('Error', msg);
-          } finally {
-            setIsDeleting(false);
-          }
-        },
-      },
-    ]);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!question || !onDelete) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(question.id);
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (err: any) {
+      const raw = err?.message || '';
+      const msg = raw.includes('Network request failed') || raw.includes('http')
+        ? 'Failed to delete question. Please check your connection.'
+        : raw || 'Failed to delete question.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const isEditing = !!question;
@@ -234,6 +233,18 @@ export function EditQuizQuestionModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Question?"
+        description="Are you sure you want to delete this question? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }

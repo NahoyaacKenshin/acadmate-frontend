@@ -41,6 +41,7 @@ import {
   parseToPHTDate,
 } from '@/src/utils/philippineTime';
 import { parseDateLocal } from '@/src/utils/scheduleUtils';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 export interface EditStudySessionSheetProps {
   visible: boolean;
@@ -95,6 +96,7 @@ export function EditStudySessionSheet({
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load notebooks if empty
@@ -331,43 +333,35 @@ export function EditStudySessionSheet({
 
   const handleDelete = () => {
     if (!session) return;
+    setShowDeleteConfirm(true);
+  };
 
-    Alert.alert(
-      'Delete Study Session',
-      'Are you sure you want to delete this study session? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [session.id]);
-              await NotificationService.cancelNotification(session.id);
+  const confirmDelete = async () => {
+    if (!session) return;
+    setIsDeleting(true);
+    try {
+      await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [session.id]);
+      await NotificationService.cancelNotification(session.id);
 
-              const oldNotebookId = session.location?.replace(/^study_session:/, '');
-              if (oldNotebookId) {
-                const oldStartEpoch = parseToPHTDate(session.start_date)?.getTime();
-                if (oldStartEpoch) {
-                  await NotificationService.cancelNotification(
-                    `study_${oldNotebookId}_${oldStartEpoch}`
-                  );
-                }
-              }
+      const oldNotebookId = session.location?.replace(/^study_session:/, '');
+      if (oldNotebookId) {
+        const oldStartEpoch = parseToPHTDate(session.start_date)?.getTime();
+        if (oldStartEpoch) {
+          await NotificationService.cancelNotification(
+            `study_${oldNotebookId}_${oldStartEpoch}`
+          );
+        }
+      }
 
-              onDelete?.(session);
-              handleClose();
-            } catch (err) {
-              console.error('[EditStudySession] Failed to delete session:', err);
-              setError('Failed to delete study session.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+      setShowDeleteConfirm(false);
+      onDelete?.(session);
+      handleClose();
+    } catch (err) {
+      console.error('[EditStudySession] Failed to delete session:', err);
+      setError('Failed to delete study session.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -681,6 +675,18 @@ export function EditStudySessionSheet({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Study Session?"
+        description="Are you sure you want to delete this study session? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }

@@ -18,6 +18,7 @@ import { useAuthStore } from '@/src/features/auth/auth.store';
 import { parseDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle, cleanupOrphanedExamSchedules } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -44,6 +45,7 @@ export function AddExamWeekModal({
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [activePickerField, setActivePickerField] = useState<'startDate' | 'endDate' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const powerSync = usePowerSync();
@@ -169,35 +171,26 @@ export function AddExamWeekModal({
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!initialData?.id) return;
-    Alert.alert(
-      category === 'EXAM' ? 'Delete Exam Period' : 'Delete Period',
-      category === 'EXAM'
-        ? 'Are you sure you want to delete this exam period? All exam schedules within this period will also be deleted.'
-        : 'Are you sure you want to delete this period?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-              await powerSync.execute(`DELETE FROM ExamWeek WHERE id = ?`, [initialData.id]);
-              await cleanupOrphanedExamSchedules(powerSync);
-              setTitle('');
-              onClose();
-            } catch (err: any) {
-              setError(err?.message || 'Failed to delete period.');
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!initialData?.id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await powerSync.execute(`DELETE FROM ExamWeek WHERE id = ?`, [initialData.id]);
+      await cleanupOrphanedExamSchedules(powerSync);
+      setTitle('');
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete period.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getHeaderTitle = () => {
@@ -381,6 +374,22 @@ export function AddExamWeekModal({
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title={category === 'EXAM' ? 'Delete Exam Period?' : 'Delete Period?'}
+        description={
+          category === 'EXAM'
+            ? 'Are you sure you want to delete this exam period? All exam schedules within this period will also be deleted.'
+            : 'Are you sure you want to delete this period? This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isLoading}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }

@@ -32,6 +32,7 @@ import { ChatHistoryDrawer } from '@/src/components/notebook/chat/ChatHistoryDra
 import { useSystemStore } from '@/src/store/systemStore';
 import { useChatStore } from '@/src/store/chatStore';
 import { useTheme } from '@/src/theme/useTheme';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 // ── Prompt chip suggestion data ─────────────────────────────────────────────
 const SUGGESTION_CHIPS = [
@@ -63,6 +64,8 @@ export default function NotebookChatScreen() {
   } = useChatStore();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<any | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -130,17 +133,23 @@ export default function NotebookChatScreen() {
   const handleDeleteSession = useCallback(
     (session: any) => {
       if (!notebookId || !session?.id) return;
-      Alert.alert('Delete Conversation', 'Are you sure you want to delete this session?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteSession(notebookId, session.id),
-        },
-      ]);
+      setSessionToDelete(session);
     },
-    [notebookId, deleteSession]
+    [notebookId]
   );
+
+  const confirmDeleteSession = useCallback(async () => {
+    if (!notebookId || !sessionToDelete?.id) return;
+    setIsDeletingSession(true);
+    try {
+      await deleteSession(notebookId, sessionToDelete.id);
+      setSessionToDelete(null);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to delete conversation.');
+    } finally {
+      setIsDeletingSession(false);
+    }
+  }, [notebookId, sessionToDelete, deleteSession]);
 
   // Format sessions for drawer
   const formattedSessions = sessions.map((s: any) => ({
@@ -455,6 +464,18 @@ export default function NotebookChatScreen() {
         onNewChat={handleNewChat}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
+      />
+
+      {/* Delete Session Confirmation Modal */}
+      <ConfirmModal
+        visible={sessionToDelete !== null}
+        title="Delete Conversation?"
+        description="Are you sure you want to delete this session? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingSession}
+        onConfirm={confirmDeleteSession}
+        onCancel={() => setSessionToDelete(null)}
       />
     </SafeAreaView>
   );

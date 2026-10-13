@@ -16,6 +16,7 @@ import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 import { Flashcard } from '@/src/store/notebookToolsStore';
 import { X, Trash2, Check } from 'lucide-react-native';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 interface EditFlashcardModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function EditFlashcardModal({
   const [back, setBack] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (card) {
@@ -70,28 +72,25 @@ export function EditFlashcardModal({
   const handleDelete = () => {
     Keyboard.dismiss();
     if (!card || !onDelete) return;
-    Alert.alert('Delete Card', 'Are you sure you want to delete this flashcard?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setIsDeleting(true);
-          try {
-            await onDelete(card.id);
-            onClose();
-          } catch (err: any) {
-            const raw = err?.message || '';
-            const msg = raw.includes('Network request failed') || raw.includes('http')
-              ? 'Failed to delete card. Please check your connection.'
-              : raw || 'Failed to delete card.';
-            Alert.alert('Error', msg);
-          } finally {
-            setIsDeleting(false);
-          }
-        },
-      },
-    ]);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!card || !onDelete) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(card.id);
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (err: any) {
+      const raw = err?.message || '';
+      const msg = raw.includes('Network request failed') || raw.includes('http')
+        ? 'Failed to delete card. Please check your connection.'
+        : raw || 'Failed to delete card.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const isEditing = !!card;
@@ -186,6 +185,18 @@ export function EditFlashcardModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Flashcard?"
+        description="Are you sure you want to delete this flashcard? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }
