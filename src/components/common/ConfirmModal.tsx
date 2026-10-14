@@ -232,16 +232,16 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       justifyContent: 'center',
     },
     confirmBtnDanger: {
-      backgroundColor: '#EF4444',
+      backgroundColor: isDark ? '#EF4444' : '#DC2626',
     },
     confirmBtnWarning: {
-      backgroundColor: '#F59E0B',
+      backgroundColor: isDark ? '#F59E0B' : '#B45309',
     },
     confirmBtnInfo: {
       backgroundColor: colors.primary,
     },
     confirmBtnSuccess: {
-      backgroundColor: '#10B981',
+      backgroundColor: isDark ? '#10B981' : '#047857',
     },
     confirmBtnText: {
       color: '#FFFFFF',

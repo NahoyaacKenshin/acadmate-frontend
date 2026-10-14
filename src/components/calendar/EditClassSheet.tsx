@@ -508,7 +508,10 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
               >
                 <View style={styles.subjectPickerInner}>
                   {selectedSubject ? (
-                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    <>
+                      <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color || '#6366F1' }]} />
+                      <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    </>
                   ) : (
                     <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
                   )}
@@ -527,13 +530,14 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
                             setIsCreatingSubject(false);
                           }}
                         >
+                          <View style={[styles.subjectDot, { backgroundColor: s.color || '#6366F1' }]} />
                           <Text style={styles.pickerItemText}>{s.name}</Text>
                         </Pressable>
                         <Pressable
                           style={styles.deleteSubjectBtn}
                           onPress={() => handleDeleteSubject(s.id)}
                         >
-                          <X size={16} color={colors.mutedForeground} />
+                          <X size={16} color={isDark ? '#EF4444' : '#DC2626'} />
                         </Pressable>
                       </View>
                     ))}
@@ -946,7 +950,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: '600',
       includeFontPadding: false,
     },
-    label: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, marginBottom: 8, includeFontPadding: false },
+    label: { fontSize: 13, fontWeight: '600', color: colors.foreground, marginBottom: 8, includeFontPadding: false },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     pill: {
       paddingHorizontal: 12,
@@ -960,7 +964,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     pillWide: { flex: 1 },
     pillSelected: { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)', borderColor: '#6366F1' },
-    pillText: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, includeFontPadding: false },
+    pillText: { fontSize: 13, fontWeight: '600', color: colors.foreground, includeFontPadding: false },
     pillTextSelected: { color: '#6366F1' },
     timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
     timeField: { flex: 1 },
@@ -1015,7 +1019,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
-    pickerItemText: { color: colors.foreground, fontSize: 14, marginLeft: 8 },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      marginLeft: 8,
+      includeFontPadding: false,
+    },
     deleteSubjectBtn: {
       padding: 12,
     },

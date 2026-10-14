@@ -111,8 +111,8 @@ export function StudySessionDetailModal({
                   },
                 ]}
               >
-                <BookOpen size={12} color={CALENDAR_THEME.STUDY_SESSION} />
-                <Text style={styles.badgeText}>STUDY SESSION</Text>
+                <BookOpen size={12} color={isDark ? '#8B5CF6' : '#6D28D9'} />
+                <Text style={[styles.badgeText, { color: isDark ? '#8B5CF6' : '#6D28D9' }]}>STUDY SESSION</Text>
               </View>
             </View>
 
@@ -141,7 +141,7 @@ export function StudySessionDetailModal({
                   hitSlop={8}
                   accessibilityLabel="Delete study session"
                 >
-                  <Trash2 size={15} color="#EF4444" />
+                  <Trash2 size={15} color={isDark ? '#EF4444' : '#DC2626'} />
                 </Pressable>
               ) : null}
 

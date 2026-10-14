@@ -185,14 +185,14 @@ export function ClassDetailModal({
                 ]}
               >
                 {isF2F ? (
-                  <Users size={11} color="#10B981" />
+                  <Users size={11} color={isDark ? '#10B981' : '#047857'} />
                 ) : (
                   <Radio size={11} color={classColor} />
                 )}
                 <Text
                   style={[
                     styles.modalityBadgeText,
-                    { color: isF2F ? '#10B981' : classColor },
+                    { color: isF2F ? (isDark ? '#10B981' : '#047857') : classColor },
                   ]}
                 >
                   {isF2F ? 'F2F' : isOnline ? 'Online' : schedule.modality}

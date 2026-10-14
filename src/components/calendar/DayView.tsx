@@ -220,7 +220,7 @@ function EventCard({
 }) {
   const { colors, isDark } = useTheme();
   const accentColor = isExam
-    ? '#F59E0B'
+    ? (isDark ? '#F59E0B' : '#B45309')
     : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
         ? CALENDAR_THEME.EVENT
         : event.color);
@@ -245,9 +245,9 @@ function EventCard({
           </Text>
           <View style={styles.eventTopRight}>
             {isExam ? (
-              <View style={[styles.badge, { backgroundColor: 'rgba(245, 158, 11, 0.18)' }]}>
-                <GraduationCap size={10} color="#F59E0B" />
-                <Text style={[styles.badgeText, { color: '#F59E0B' }]}>EXAM</Text>
+              <View style={[styles.badge, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(180, 83, 9, 0.12)' }]}>
+                <GraduationCap size={10} color={isDark ? '#F59E0B' : '#B45309'} />
+                <Text style={[styles.badgeText, { color: isDark ? '#F59E0B' : '#B45309' }]}>EXAM</Text>
               </View>
             ) : null}
             {onEditPress ? (
@@ -318,6 +318,8 @@ function StudySessionCard({
   onEditPress?: () => void;
 }) {
   const { colors, isDark } = useTheme();
+  const studyColor = isDark ? '#8B5CF6' : '#6D28D9';
+  const tagBg = isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(109, 40, 217, 0.12)';
   const displayTitle = (event.title || '').replace(/^Study Session:\s*/i, '').replace(/^Study:\s*/i, '').trim() || 'Study Session';
 
   return (
@@ -332,7 +334,7 @@ function StudySessionCard({
       ]}
       onPress={onPress}
     >
-      <View style={[styles.eventColorBar, { backgroundColor: CALENDAR_THEME.STUDY_SESSION }]} />
+      <View style={[styles.eventColorBar, { backgroundColor: studyColor }]} />
       <View style={styles.eventBody}>
         <View style={styles.eventTopRow}>
           <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
@@ -343,12 +345,12 @@ function StudySessionCard({
               style={[
                 styles.badge,
                 {
-                  backgroundColor: isDark ? 'rgba(139, 92, 246, 0.18)' : '#F3E8FF',
+                  backgroundColor: tagBg,
                 },
               ]}
             >
-              <BookOpen size={10} color={CALENDAR_THEME.STUDY_SESSION} />
-              <Text style={[styles.badgeText, { color: CALENDAR_THEME.STUDY_SESSION }]}>STUDY</Text>
+              <BookOpen size={10} color={studyColor} />
+              <Text style={[styles.badgeText, { color: studyColor }]}>STUDY</Text>
             </View>
             {onEditPress ? (
               <Pressable
@@ -632,7 +634,12 @@ export function DayView({
     return hd ? isSameDay(hd, selectedDate) : false;
   });
 
-  const hasAnything = daySchedules.length > 0 || dayEvents.length > 0 || dayTasks.length > 0 || dayHoliday || activePeriods.length > 0 || dayStudySessions.length > 0;
+  const hasDayContent =
+    daySchedules.length > 0 ||
+    dayExams.length > 0 ||
+    dayGeneralEvents.length > 0 ||
+    dayStudySessions.length > 0 ||
+    dayTasks.length > 0;
 
   // Day header label
   const dateLabel = isToday
@@ -640,7 +647,11 @@ export function DayView({
     : `${DAYS_FULL[dayOfWeek]}, ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}`;
 
   // Empty state message
-  const emptySubtitle = isToday
+  const emptySubtitle = isExamPeriodActive && dayExams.length === 0
+    ? 'No exams scheduled for this day — tap + to add'
+    : isExamBlocked
+    ? 'Classes suspended for this day'
+    : isToday
     ? 'Enjoy your free day — tap + to add something'
     : isPast
     ? 'Nothing was scheduled for this day'
@@ -656,58 +667,91 @@ export function DayView({
       <Text style={[styles.dayHeader, { color: colors.foreground }]}>{dateLabel}</Text>
 
       {/* Exam Period banners (amber) */}
-      {activeExamPeriods.map((ew) => (
-        <Pressable
-          key={ew.id}
-          style={[styles.holidayBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)' }]}
-          onPress={() => onExamWeekPress?.(ew)}
-        >
-          <GraduationCap size={15} color="#F59E0B" />
-          <Text style={[styles.holidayText, { color: '#F59E0B' }]} numberOfLines={1} ellipsizeMode="tail">
-            Exam Period — {getCleanPeriodTitle(ew.title)}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#F59E0B', fontWeight: '600', marginLeft: 'auto', flexShrink: 0 }}>Edit</Text>
-        </Pressable>
-      ))}
+      {activeExamPeriods.map((ew) => {
+        const examAccent = isDark ? '#F59E0B' : '#B45309';
+        const examBg = isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)';
+        const examBorder = isDark ? 'rgba(245, 158, 11, 0.32)' : 'rgba(180, 83, 9, 0.28)';
+        const editBg = isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(180, 83, 9, 0.12)';
+        const editBorder = isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(180, 83, 9, 0.25)';
+        return (
+          <Pressable
+            key={ew.id}
+            style={[styles.holidayBanner, { backgroundColor: examBg, borderColor: examBorder }]}
+            onPress={() => onExamWeekPress?.(ew)}
+          >
+            <GraduationCap size={15} color={examAccent} />
+            <Text style={[styles.holidayText, { color: examAccent }]} numberOfLines={1} ellipsizeMode="tail">
+              Exam Period — {getCleanPeriodTitle(ew.title)}
+            </Text>
+            <View style={[styles.periodEditPill, { backgroundColor: editBg, borderColor: editBorder }]}>
+              <Pencil size={10} color={examAccent} />
+              <Text style={[styles.periodEditText, { color: examAccent }]}>Edit</Text>
+            </View>
+          </Pressable>
+        );
+      })}
 
       {/* User Holiday banners (unified crimson red) - ZERO EMOTES */}
-      {activeHolidayPeriods.map((ew) => (
-        <Pressable
-          key={ew.id}
-          style={[styles.holidayBanner, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
-          onPress={() => onExamWeekPress?.(ew)}
-        >
-          <CalendarDays size={15} color="#EF4444" />
-          <Text style={[styles.holidayText, { color: '#EF4444' }]} numberOfLines={1} ellipsizeMode="tail">
-            Holiday — {getCleanPeriodTitle(ew.title)}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '600', marginLeft: 'auto', flexShrink: 0 }}>Edit</Text>
-        </Pressable>
-      ))}
+      {activeHolidayPeriods.map((ew) => {
+        const redAccent = isDark ? '#EF4444' : '#DC2626';
+        const redBg = isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)';
+        const redBorder = isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)';
+        const editBg = isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(220, 38, 38, 0.12)';
+        const editBorder = isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(220, 38, 38, 0.25)';
+        return (
+          <Pressable
+            key={ew.id}
+            style={[styles.holidayBanner, { backgroundColor: redBg, borderColor: redBorder }]}
+            onPress={() => onExamWeekPress?.(ew)}
+          >
+            <CalendarDays size={15} color={redAccent} />
+            <Text style={[styles.holidayText, { color: redAccent }]} numberOfLines={1} ellipsizeMode="tail">
+              Holiday — {getCleanPeriodTitle(ew.title)}
+            </Text>
+            <View style={[styles.periodEditPill, { backgroundColor: editBg, borderColor: editBorder }]}>
+              <Pencil size={10} color={redAccent} />
+              <Text style={[styles.periodEditText, { color: redAccent }]}>Edit</Text>
+            </View>
+          </Pressable>
+        );
+      })}
 
       {/* Suspension banners (unified crimson red) - ZERO EMOTES */}
-      {activeSuspensions.map((ew) => (
-        <Pressable
-          key={ew.id}
-          style={[styles.holidayBanner, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
-          onPress={() => onExamWeekPress?.(ew)}
-        >
-          <AlertTriangle size={15} color="#EF4444" />
-          <Text style={[styles.holidayText, { color: '#EF4444' }]} numberOfLines={1} ellipsizeMode="tail">
-            Class Suspension — {getCleanPeriodTitle(ew.title)}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '600', marginLeft: 'auto', flexShrink: 0 }}>Edit</Text>
-        </Pressable>
-      ))}
+      {activeSuspensions.map((ew) => {
+        const redAccent = isDark ? '#EF4444' : '#DC2626';
+        const redBg = isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)';
+        const redBorder = isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)';
+        const editBg = isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(220, 38, 38, 0.12)';
+        const editBorder = isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(220, 38, 38, 0.25)';
+        return (
+          <Pressable
+            key={ew.id}
+            style={[styles.holidayBanner, { backgroundColor: redBg, borderColor: redBorder }]}
+            onPress={() => onExamWeekPress?.(ew)}
+          >
+            <AlertTriangle size={15} color={redAccent} />
+            <Text style={[styles.holidayText, { color: redAccent }]} numberOfLines={1} ellipsizeMode="tail">
+              Class Suspension — {getCleanPeriodTitle(ew.title)}
+            </Text>
+            <View style={[styles.periodEditPill, { backgroundColor: editBg, borderColor: editBorder }]}>
+              <Pencil size={10} color={redAccent} />
+              <Text style={[styles.periodEditText, { color: redAccent }]}>Edit</Text>
+            </View>
+          </Pressable>
+        );
+      })}
 
       {/* Philippine Holiday / Suspension banner */}
       {dayHoliday ? (
         <View style={[
           styles.holidayBanner,
-          { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' },
+          {
+            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
+            borderColor: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
+          },
         ]}>
-          <CalendarDays size={15} color="#EF4444" />
-          <Text style={[styles.holidayText, { color: '#EF4444' }]} numberOfLines={1} ellipsizeMode="tail">
+          <CalendarDays size={15} color={isDark ? '#EF4444' : '#DC2626'} />
+          <Text style={[styles.holidayText, { color: isDark ? '#EF4444' : '#DC2626' }]} numberOfLines={1} ellipsizeMode="tail">
             {dayHoliday.type === 'SUSPENSION' || dayHoliday.name.toLowerCase().includes('suspension')
               ? 'Class Suspension'
               : dayHoliday.type === 'REGULAR'
@@ -800,8 +844,19 @@ export function DayView({
       ) : null}
 
       {/* Empty state */}
-      {!hasAnything ? (
+      {!hasDayContent ? (
         <View style={styles.emptyState}>
+          <View
+            style={[
+              styles.emptyIconWrap,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <CalendarDays size={26} color={colors.mutedForeground} />
+          </View>
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Nothing scheduled</Text>
           <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>{emptySubtitle}</Text>
         </View>
@@ -1092,5 +1147,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     lineHeight: 18,
     includeFontPadding: false,
+  },
+  periodEditPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
+  periodEditText: {
+    fontFamily: 'Inter',
+    fontSize: 11,
+    fontWeight: '700',
+    includeFontPadding: false,
+    flexShrink: 0,
   },
 });

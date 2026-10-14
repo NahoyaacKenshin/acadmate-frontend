@@ -401,7 +401,7 @@ export function StudySchedulerModal({
             {/* Session Duration */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>DURATION</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>DURATION</Text>
                 <Text style={[styles.endInfoText, { color: colors.mutedForeground }]}>
                   Ends at {formatTime12PHT(endDate)}
                 </Text>
@@ -427,7 +427,7 @@ export function StudySchedulerModal({
                         style={[
                           styles.durationPillText,
                           {
-                            color: isSelected ? '#6366F1' : colors.mutedForeground,
+                            color: isSelected ? '#6366F1' : colors.foreground,
                             fontWeight: isSelected ? '700' : '600',
                           },
                         ]}

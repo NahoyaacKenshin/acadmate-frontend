@@ -1335,7 +1335,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 8,
       includeFontPadding: false,
     },
@@ -1359,7 +1359,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     pillText: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       includeFontPadding: false,
       flexShrink: 0,
     },

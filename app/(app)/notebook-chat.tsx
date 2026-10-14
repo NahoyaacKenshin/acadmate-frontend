@@ -396,6 +396,7 @@ export default function NotebookChatScreen() {
           <FlatList
             ref={flatListRef}
             data={messages}
+            extraData={[isDark, colors]}
             keyExtractor={(m) => m.id}
             renderItem={renderItem}
             ListEmptyComponent={<EmptyState />}

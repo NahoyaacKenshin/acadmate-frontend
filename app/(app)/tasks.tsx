@@ -251,7 +251,7 @@ export default function TasksScreen() {
           style={styles.header}
           onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
         >
-          <Text style={styles.headerTitle}>Tasks</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Tasks</Text>
           <ActionMenuButton
             isOpen={isActionMenuOpen}
             onPress={toggleActionMenu}
@@ -277,9 +277,9 @@ export default function TasksScreen() {
             <View style={styles.progressHeader}>
               <View style={styles.progressTitleRow}>
                 <CheckCircle2 size={15} color="#10B981" />
-                <Text style={styles.progressTitle}>Progress</Text>
+                <Text style={[styles.progressTitle, { color: colors.foreground }]}>Progress</Text>
               </View>
-              <Text style={styles.progressStats}>
+              <Text style={[styles.progressStats, { color: colors.mutedForeground }]}>
                 {completedTasks} of {totalTasks} completed ({progressPercent}%)
               </Text>
             </View>
@@ -299,7 +299,13 @@ export default function TasksScreen() {
                 style={[styles.filterPill, isActive && styles.filterPillActive]}
                 onPress={() => setActiveFilter(tab.key)}
               >
-                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: isActive ? '#ffffff' : colors.foreground },
+                    isActive && styles.filterPillTextActive,
+                  ]}
+                >
                   {tab.label}
                 </Text>
               </Pressable>
@@ -325,6 +331,7 @@ export default function TasksScreen() {
                 <Text
                   style={[
                     styles.subjectPillText,
+                    { color: selectedSubjectId === null ? '#6366F1' : colors.foreground },
                     selectedSubjectId === null && styles.subjectPillTextActive,
                   ]}
                   numberOfLines={1}
@@ -352,6 +359,7 @@ export default function TasksScreen() {
                     <Text
                       style={[
                         styles.subjectPillText,
+                        { color: isSubActive ? '#6366F1' : colors.foreground },
                         isSubActive && styles.subjectPillTextActive,
                       ]}
                       numberOfLines={1}
@@ -381,7 +389,7 @@ export default function TasksScreen() {
                 <Inbox size={28} color={colors.mutedForeground} />
               )}
             </View>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: colors.foreground }]}>
               {activeFilter === 'pending'
                 ? 'No pending tasks'
                 : activeFilter === 'overdue'
@@ -390,7 +398,7 @@ export default function TasksScreen() {
                 ? 'No completed tasks yet'
                 : 'No tasks found'}
             </Text>
-            <Text style={styles.emptySubText}>
+            <Text style={[styles.emptySubText, { color: colors.mutedForeground }]}>
               {activeFilter === 'pending' || activeFilter === 'all'
                 ? 'Tap + above to create a task or scan a document.'
                 : 'Keep up the good work!'}
@@ -401,6 +409,7 @@ export default function TasksScreen() {
             sections={timelineSections}
             keyExtractor={(item) => item.id}
             stickySectionHeadersEnabled={false}
+            extraData={[isDark, colors]}
             renderItem={({ item }) => (
               <TaskListItem
                 task={mapToListItem(item)}
@@ -409,35 +418,41 @@ export default function TasksScreen() {
                 onPress={() => handlePressTask(item)}
               />
             )}
-            renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeaderLeft}>
-                  <View style={[styles.sectionIndicator, { backgroundColor: section.badgeColor }]} />
-                  <Text style={styles.sectionTitle}>{section.title}</Text>
-                  <View style={[styles.sectionBadge, { backgroundColor: section.badgeColor + '20' }]}>
-                    <Text style={[styles.sectionBadgeText, { color: section.badgeColor }]}>
-                      {section.totalCount ?? section.data.length}
-                    </Text>
+            renderSectionHeader={({ section }) => {
+              const isToday = section.key === 'today' || section.title === 'Due Today';
+              const badgeAccent = isToday && !isDark ? '#D97706' : section.badgeColor;
+              const badgeTextAccent = isToday && !isDark ? '#B45309' : section.badgeColor;
+
+              return (
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <View style={[styles.sectionIndicator, { backgroundColor: badgeAccent }]} />
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{section.title}</Text>
+                    <View style={[styles.sectionBadge, { backgroundColor: badgeAccent + (isDark ? '25' : '18') }]}>
+                      <Text style={[styles.sectionBadgeText, { color: badgeTextAccent }]}>
+                        {section.totalCount ?? section.data.length}
+                      </Text>
+                    </View>
                   </View>
+                  {section.collapsible && (
+                    <Pressable
+                      style={styles.collapseBtn}
+                      onPress={() => setIsCompletedCollapsed((prev) => !prev)}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.collapseBtnText, { color: colors.mutedForeground }]}>
+                        {isCompletedCollapsed ? 'Show' : 'Hide'}
+                      </Text>
+                      <ChevronDown
+                        size={14}
+                        color={colors.mutedForeground}
+                        style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
+                      />
+                    </Pressable>
+                  )}
                 </View>
-                {section.collapsible && (
-                  <Pressable
-                    style={styles.collapseBtn}
-                    onPress={() => setIsCompletedCollapsed((prev) => !prev)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.collapseBtnText}>
-                      {isCompletedCollapsed ? 'Show' : 'Hide'}
-                    </Text>
-                    <ChevronDown
-                      size={14}
-                      color={colors.mutedForeground}
-                      style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
-                    />
-                  </Pressable>
-                )}
-              </View>
-            )}
+              );
+            }}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             windowSize={7}
@@ -629,8 +644,8 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     subjectPillText: {
       fontFamily: 'Inter',
       fontSize: 12,
-      fontWeight: '500',
-      color: colors.mutedForeground,
+      fontWeight: '600',
+      color: colors.foreground,
       includeFontPadding: false,
       flexShrink: 0,
     },

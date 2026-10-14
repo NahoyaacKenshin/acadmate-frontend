@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Pressable, StyleSheet, Vibration } from 'react-native';
-import { Text } from '../ui/text';
+import { View, Pressable, StyleSheet, Vibration, Text } from 'react-native';
 import { Check, Trash, AlertTriangle, Clock, Calendar, FileText } from 'lucide-react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { isOverduePHT, isTodayPHT, isTomorrowPHT, formatTimePHT } from '@/src/utils/philippineTime';
@@ -60,43 +59,53 @@ export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListIt
 
   const renderDueBadge = () => {
     if (task.completed) {
+      const completedColor = isDark ? '#10B981' : '#059669';
       return (
         <View style={styles.badgeCompleted}>
-          <Check size={10} color="#10B981" strokeWidth={3} />
-          <Text style={styles.badgeTextCompleted}>Done</Text>
+          <Check size={10} color={completedColor} strokeWidth={3} />
+          <Text style={[styles.badgeTextCompleted, { color: completedColor }]}>Done</Text>
         </View>
       );
     }
 
     if (!task.dueDateIso) {
-      return <Text style={styles.dueDateNone}>No due date</Text>;
+      return <Text style={[styles.dueDateNone, { color: colors.mutedForeground }]}>No due date</Text>;
     }
 
     if (isOverduePHT(task.dueDateIso)) {
+      const overdueColor = isDark ? '#EF4444' : '#DC2626';
       return (
         <View style={styles.badgeOverdue}>
-          <AlertTriangle size={11} color="#EF4444" />
-          <Text style={styles.badgeTextOverdue}>Overdue · {task.dueDate}</Text>
+          <AlertTriangle size={11} color={overdueColor} />
+          <Text style={[styles.badgeTextOverdue, { color: overdueColor }]}>
+            Overdue · {task.dueDate}
+          </Text>
         </View>
       );
     }
 
     if (isTodayPHT(task.dueDateIso)) {
       const timeStr = formatTimePHT(task.dueDateIso);
+      const todayColor = isDark ? '#F59E0B' : '#B45309';
       return (
         <View style={styles.badgeToday}>
-          <Clock size={11} color="#F59E0B" />
-          <Text style={styles.badgeTextToday}>Due Today{timeStr ? ` · ${timeStr}` : ''}</Text>
+          <Clock size={11} color={todayColor} />
+          <Text style={[styles.badgeTextToday, { color: todayColor }]}>
+            Due Today{timeStr ? ` · ${timeStr}` : ''}
+          </Text>
         </View>
       );
     }
 
     if (isTomorrowPHT(task.dueDateIso)) {
       const timeStr = formatTimePHT(task.dueDateIso);
+      const tomorrowColor = isDark ? '#60A5FA' : '#2563EB';
       return (
         <View style={styles.badgeTomorrow}>
-          <Clock size={11} color="#F59E0B" />
-          <Text style={styles.badgeTextTomorrow}>Due Tomorrow{timeStr ? ` · ${timeStr}` : ''}</Text>
+          <Clock size={11} color={tomorrowColor} />
+          <Text style={[styles.badgeTextTomorrow, { color: tomorrowColor }]}>
+            Due Tomorrow{timeStr ? ` · ${timeStr}` : ''}
+          </Text>
         </View>
       );
     }
@@ -104,7 +113,7 @@ export function TaskListItem({ task, onComplete, onDelete, onPress }: TaskListIt
     return (
       <View style={styles.badgeUpcoming}>
         <Calendar size={11} color={colors.mutedForeground} />
-        <Text style={styles.badgeTextUpcoming}>{task.dueDate}</Text>
+        <Text style={[styles.badgeTextUpcoming, { color: colors.mutedForeground }]}>{task.dueDate}</Text>
       </View>
     );
   };
@@ -308,7 +317,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       includeFontPadding: false,
       flexShrink: 0,
       paddingRight: 6,
@@ -317,7 +326,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(217, 119, 6, 0.12)',
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 6,
@@ -327,7 +336,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
-      color: '#F59E0B',
+      color: isDark ? '#F59E0B' : '#B45309',
       includeFontPadding: false,
       flexShrink: 0,
       paddingRight: 4,
@@ -336,7 +345,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.16)' : 'rgba(37, 99, 235, 0.1)',
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 6,
@@ -346,7 +355,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
-      color: '#F59E0B',
+      color: isDark ? '#60A5FA' : '#2563EB',
       includeFontPadding: false,
       flexShrink: 0,
       paddingRight: 4,

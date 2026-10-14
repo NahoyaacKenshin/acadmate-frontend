@@ -8,8 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
+  Text,
 } from 'react-native';
-import { Text } from '@/src/components/ui/text';
 import {
   Sparkles,
   FileText,

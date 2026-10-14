@@ -388,9 +388,9 @@ export function EditStudySessionSheet({
                 disabled={isDeleting || isLoading}
               >
                 {isDeleting ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
+                  <ActivityIndicator size="small" color={isDark ? '#EF4444' : '#DC2626'} />
                 ) : (
-                  <Trash2 size={18} color="#EF4444" />
+                  <Trash2 size={18} color={isDark ? '#EF4444' : '#DC2626'} />
                 )}
               </Pressable>
               <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
@@ -787,7 +787,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     errorText: {
       fontSize: 13,
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       flex: 1,
       fontWeight: '500',
       includeFontPadding: false,
@@ -809,7 +809,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 11,
       fontWeight: '700',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       letterSpacing: 1.5,
       includeFontPadding: false,
     },

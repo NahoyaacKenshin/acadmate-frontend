@@ -512,16 +512,16 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       justifyContent: 'center',
     },
     categoryPillExam: {
-      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
-      borderColor: '#F59E0B',
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.12)',
+      borderColor: isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(180, 83, 9, 0.35)',
     },
     categoryPillHoliday: {
-      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
-      borderColor: '#EF4444',
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(220, 38, 38, 0.35)',
     },
     categoryPillSuspension: {
-      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
-      borderColor: '#EF4444',
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(220, 38, 38, 0.35)',
     },
     categoryText: {
       fontSize: 12,
@@ -531,21 +531,21 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     categoryTextExam: {
-      color: '#F59E0B',
+      color: isDark ? '#F59E0B' : '#B45309',
       fontWeight: '700',
     },
     categoryTextHoliday: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontWeight: '700',
     },
     categoryTextSuspension: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontWeight: '700',
     },
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 8,
       includeFontPadding: false,
     },
@@ -604,7 +604,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       alignItems: 'center',
     },
     deleteButtonText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontWeight: '700',
       fontSize: 14,
       includeFontPadding: false,

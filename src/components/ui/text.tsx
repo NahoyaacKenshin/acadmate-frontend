@@ -96,7 +96,7 @@ function Text({
       className={cn(textVariants({ variant }), textClass, className)}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
-      style={[{ color: defaultColor, fontFamily: 'Inter' }, style]}
+      style={[{ color: defaultColor, fontFamily: 'Inter', includeFontPadding: false }, style]}
       {...props}
     />
   );

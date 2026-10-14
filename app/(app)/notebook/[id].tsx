@@ -406,6 +406,7 @@ export default function NotebookDetailScreen() {
       ) : (
         <FlatList
           data={sources}
+          extraData={[isDark, colors]}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={<ListHeader />}
           ListEmptyComponent={<EmptyState />}

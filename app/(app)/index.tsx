@@ -374,12 +374,17 @@ function EventTimelineItem({
       Boolean(event.title?.toLowerCase().includes('exam')) ||
       isExamEvent(event));
   const accentColor = isStudy
-    ? CALENDAR_THEME.STUDY_SESSION
+    ? (isDark ? '#8B5CF6' : '#6D28D9')
     : isExam
-    ? '#F59E0B'
+    ? (isDark ? '#F59E0B' : '#B45309')
     : (event.color === '#6366F1' || !event.color
         ? CALENDAR_THEME.EVENT
         : event.color);
+  const tagBg = isStudy
+    ? (isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(109, 40, 217, 0.12)')
+    : isExam
+    ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(180, 83, 9, 0.12)')
+    : `${accentColor}18`;
 
   let timeDisplay = 'All day';
   if (event.all_day !== 1 && event.start_date) {
@@ -409,7 +414,7 @@ function EventTimelineItem({
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
           <View style={styles.timelineActionsRow}>
-            <View style={[styles.eventTag, { backgroundColor: accentColor + '18' }]}>
+            <View style={[styles.eventTag, { backgroundColor: tagBg }]}>
               {isStudy ? (
                 <BookOpen size={9} color={accentColor} />
               ) : isExam ? (
@@ -474,7 +479,8 @@ function StudySessionTimelineItem({
   onEditPress?: () => void;
 }) {
   const { colors, isDark } = useTheme();
-  const accentColor = CALENDAR_THEME.STUDY_SESSION;
+  const accentColor = isDark ? '#8B5CF6' : '#6D28D9';
+  const tagBg = isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(109, 40, 217, 0.12)';
 
   let timeDisplay = 'All day';
   if (session.all_day !== 1 && session.start_date) {
@@ -508,7 +514,7 @@ function StudySessionTimelineItem({
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
           <View style={styles.timelineActionsRow}>
-            <View style={[styles.eventTag, { backgroundColor: `${accentColor}18` }]}>
+            <View style={[styles.eventTag, { backgroundColor: tagBg }]}>
               <BookOpen size={9} color={accentColor} />
               <Text style={[styles.modalityText, { color: accentColor }]}>Study</Text>
             </View>
@@ -626,6 +632,31 @@ function StudentHomeScreen() {
 
   // Dynamic reactive connection & sync status
   const networkStatus = useNetworkSyncStatus();
+
+  const syncStatusColors = useMemo(() => {
+    if (networkStatus === 'online') {
+      return {
+        text: isDark ? '#10B981' : '#047857',
+        icon: isDark ? '#10B981' : '#047857',
+        bg: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.12)',
+        border: isDark ? 'rgba(16, 185, 129, 0.32)' : 'rgba(4, 120, 87, 0.28)',
+      };
+    }
+    if (networkStatus === 'syncing') {
+      return {
+        text: isDark ? '#818CF8' : '#4F46E5',
+        icon: isDark ? '#818CF8' : '#4F46E5',
+        bg: isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.12)',
+        border: isDark ? 'rgba(99, 102, 241, 0.32)' : 'rgba(79, 70, 229, 0.28)',
+      };
+    }
+    return {
+      text: isDark ? '#F59E0B' : '#B45309',
+      icon: isDark ? '#F59E0B' : '#B45309',
+      bg: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.12)',
+      border: isDark ? 'rgba(245, 158, 11, 0.32)' : 'rgba(180, 83, 9, 0.28)',
+    };
+  }, [networkStatus, isDark]);
 
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
@@ -816,7 +847,7 @@ function StudentHomeScreen() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. Check holidays & suspensions (Crimson Red #EF4444)
+    // 1. Check holidays & suspensions (Crimson Red #EF4444 / #DC2626)
     const dayHol = holidays.find((h) => {
       const hd = parseDateLocal(h.date) ?? new Date(h.date);
       return (
@@ -828,14 +859,15 @@ function StudentHomeScreen() {
     if (dayHol) {
       const isSuspension =
         dayHol.type === 'SUSPENSION' || dayHol.name?.toLowerCase().includes('suspension');
+      const accent = isDark ? '#EF4444' : '#DC2626';
       return {
         type: isSuspension ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
         categoryLabel: isSuspension ? 'Class Suspension' : 'Holiday',
         title: getCleanPeriodTitle(dayHol.name ?? ''),
-        color: '#EF4444',
-        bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-        border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
-        badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+        color: accent,
+        bg: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
+        border: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
+        badgeBg: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.14)',
       };
     }
 
@@ -847,25 +879,27 @@ function StudentHomeScreen() {
       if (today >= ewStart && today <= ewEnd) {
         const cat = getPeriodCategory(ew);
         if (cat === 'EXAM') {
+          const accent = isDark ? '#F59E0B' : '#B45309';
           return {
             type: 'EXAM' as const,
             categoryLabel: 'Exam Period',
             title: getCleanPeriodTitle(ew.title),
-            color: '#F59E0B',
-            bg: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-            border: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
-            badgeBg: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.12)',
+            color: accent,
+            bg: isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)',
+            border: isDark ? 'rgba(245, 158, 11, 0.32)' : 'rgba(217, 119, 6, 0.28)',
+            badgeBg: isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(245, 158, 11, 0.14)',
           };
         } else {
           const isSusp = cat === 'SUSPENSION';
+          const accent = isDark ? '#EF4444' : '#DC2626';
           return {
             type: isSusp ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
             categoryLabel: isSusp ? 'Class Suspension' : 'Holiday',
             title: getCleanPeriodTitle(ew.title),
-            color: '#EF4444',
-            bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-            border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
-            badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+            color: accent,
+            bg: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
+            border: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
+            badgeBg: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.14)',
           };
         }
       }
@@ -909,40 +943,23 @@ function StudentHomeScreen() {
           <View
             style={[
               styles.onlinePill,
-              networkStatus === 'online'
-                ? {
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-                    borderColor: isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)',
-                  }
-                : networkStatus === 'syncing'
-                ? {
-                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
-                    borderColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.2)',
-                  }
-                : {
-                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                    borderColor: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
-                  },
+              {
+                backgroundColor: syncStatusColors.bg,
+                borderColor: syncStatusColors.border,
+              },
             ]}
           >
             {networkStatus === 'online' ? (
-              <Wifi size={12} color="#10B981" />
+              <Wifi size={12} color={syncStatusColors.icon} />
             ) : networkStatus === 'syncing' ? (
-              <RotateCw size={12} color="#6366F1" />
+              <RotateCw size={12} color={syncStatusColors.icon} />
             ) : (
-              <WifiOff size={12} color="#F59E0B" />
+              <WifiOff size={12} color={syncStatusColors.icon} />
             )}
             <Text
               style={[
                 styles.onlineText,
-                {
-                  color:
-                    networkStatus === 'online'
-                      ? '#10B981'
-                      : networkStatus === 'syncing'
-                      ? '#6366F1'
-                      : '#F59E0B',
-                },
+                { color: syncStatusColors.text },
               ]}
             >
               {networkStatus === 'online' ? 'Online' : networkStatus === 'syncing' ? 'Syncing...' : 'Offline'}
@@ -984,11 +1001,11 @@ function StudentHomeScreen() {
             >
               <View style={[styles.periodIconWrap, { backgroundColor: todayPeriodInfo.badgeBg }]}>
                 {todayPeriodInfo.type === 'EXAM' ? (
-                  <GraduationCap size={18} color="#F59E0B" />
+                  <GraduationCap size={18} color={todayPeriodInfo.color} />
                 ) : todayPeriodInfo.type === 'SUSPENSION' ? (
-                  <AlertTriangle size={18} color="#EF4444" />
+                  <AlertTriangle size={18} color={todayPeriodInfo.color} />
                 ) : (
-                  <Calendar size={18} color="#EF4444" />
+                  <Calendar size={18} color={todayPeriodInfo.color} />
                 )}
               </View>
 
@@ -1325,6 +1342,7 @@ const styles = StyleSheet.create({
   heroLeft: {
     flex: 1,
     marginRight: 12,
+    minWidth: 0,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -1369,8 +1387,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 4,
     flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   onlineText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0,
@@ -1792,6 +1812,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   periodChevronWrap: {
     paddingLeft: 4,

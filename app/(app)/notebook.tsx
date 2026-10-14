@@ -454,6 +454,7 @@ export default function NotebookScreen() {
       ) : (
         <FlatList
           data={pinnedSection.length > 0 ? pinnedSection : filteredNotebooks}
+          extraData={[isDark, colors]}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyState}

@@ -262,8 +262,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
             <View style={styles.headerActions}>
               <Pressable onPress={handleDelete} style={styles.deleteBtn} hitSlop={8} disabled={isDeleting}>
                 {isDeleting
-                  ? <ActivityIndicator size="small" color="#EF4444" />
-                  : <Trash2 size={18} color="#EF4444" />
+                  ? <ActivityIndicator size="small" color={isDark ? '#EF4444' : '#DC2626'} />
+                  : <Trash2 size={18} color={isDark ? '#EF4444' : '#DC2626'} />
                 }
               </Pressable>
               <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
@@ -274,7 +274,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
 
           {error && (
             <View style={styles.errorBanner}>
-              <AlertCircle size={15} color="#EF4444" />
+              <AlertCircle size={15} color={isDark ? '#EF4444' : '#DC2626'} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -383,8 +383,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                       style={styles.resetBtn}
                       hitSlop={8}
                     >
-                      <X size={12} color="#EF4444" />
-                      <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
+                      <X size={12} color={isDark ? '#EF4444' : '#DC2626'} />
+                      <Text style={[styles.resetBtnText, { color: isDark ? '#EF4444' : '#DC2626' }]}>Clear</Text>
                     </Pressable>
                   )}
                 </View>
@@ -552,7 +552,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 8,
     },
     errorText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 13,
       flex: 1,
       includeFontPadding: false,
@@ -606,7 +606,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 8,
       includeFontPadding: false,
     },

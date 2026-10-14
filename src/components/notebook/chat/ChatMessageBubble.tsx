@@ -108,8 +108,8 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
             <View style={styles.metaRow}>
               {copied && (
                 <View style={styles.copiedBadge}>
-                  <Copy size={9} color="#10B981" />
-                  <Text style={styles.copiedText}>Copied</Text>
+                  <Copy size={9} color={isDark ? '#10B981' : '#047857'} />
+                  <Text style={[styles.copiedText, { color: isDark ? '#10B981' : '#047857' }]}>Copied</Text>
                 </View>
               )}
               <Text style={[styles.timestamp, styles.timestampUser]}>
@@ -142,8 +142,8 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
                 onPress={onRetry}
                 hitSlop={8}
               >
-                <RotateCcw size={12} color="#EF4444" />
-                <Text style={styles.retryText}>Retry</Text>
+                <RotateCcw size={12} color={isDark ? '#EF4444' : '#DC2626'} />
+                <Text style={[styles.retryText, { color: isDark ? '#EF4444' : '#DC2626' }]}>Retry</Text>
               </Pressable>
             )}
 
@@ -156,8 +156,8 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
               >
                 {copied ? (
                   <View style={styles.copiedBadge}>
-                    <Copy size={9} color="#10B981" />
-                    <Text style={styles.copiedText}>Copied</Text>
+                    <Copy size={9} color={isDark ? '#10B981' : '#047857'} />
+                    <Text style={[styles.copiedText, { color: isDark ? '#10B981' : '#047857' }]}>Copied</Text>
                   </View>
                 ) : (
                   <Copy size={11} color={colors.mutedForeground} />
