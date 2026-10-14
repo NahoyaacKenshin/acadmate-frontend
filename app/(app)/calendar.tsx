@@ -494,9 +494,11 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   headerTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 28,
     lineHeight: 36,
     fontWeight: '700',
     letterSpacing: -0.6,
+    includeFontPadding: false,
   },
 });

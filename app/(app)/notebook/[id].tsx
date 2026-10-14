@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -103,6 +102,11 @@ export default function NotebookDetailScreen() {
   const [editingSource, setEditingSource] = useState<Source | null>(null);
   const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
   const [isDeletingSource, setIsDeletingSource] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant?: 'warning' | 'danger' | 'info';
+  } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -178,7 +182,7 @@ export default function NotebookDetailScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to remove source. Please try again.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Error', description: msg, variant: 'danger' });
     } finally {
       setIsDeletingSource(false);
     }
@@ -197,7 +201,7 @@ export default function NotebookDetailScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to retry source processing. Please check your network connection.';
-      Alert.alert('Retry Failed', msg);
+      setDialogNotice({ title: 'Retry Failed', description: msg, variant: 'danger' });
     }
   };
 
@@ -211,7 +215,7 @@ export default function NotebookDetailScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to update notebook. Please try again.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Error', description: msg, variant: 'danger' });
       throw err;
     }
   };
@@ -524,6 +528,18 @@ export default function NotebookDetailScreen() {
         isLoading={isDeletingSource}
         onConfirm={confirmDeleteSource}
         onCancel={() => setSourceToDelete(null)}
+      />
+
+      {/* ── Notice Modal ── */}
+      <ConfirmModal
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'danger'}
+        confirmLabel="Got It"
+        showCancel={false}
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
       />
     </SafeAreaView>
   );

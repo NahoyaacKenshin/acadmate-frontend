@@ -131,6 +131,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       }));
     }
 
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) {
+      return;
+    }
+
     if (!silent) set({ isLoading: true, error: null });
 
     try {
@@ -140,6 +145,30 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
         decksByNotebook: { ...state.decksByNotebook, [notebookId]: decks },
       }));
       await NotebookStorage.saveFlashcardDecks(notebookId, decks);
+
+      // Pre-cache individual deck details if cards are included or in background
+      for (const d of decks) {
+        if (d.cards && Array.isArray(d.cards)) {
+          set((state) => ({
+            deckDetails: { ...state.deckDetails, [d.id]: d },
+          }));
+          await NotebookStorage.saveFlashcardDeckDetail(d.id, d);
+        } else {
+          NotebookStorage.loadFlashcardDeckDetail(d.id).then(async (existing) => {
+            if (!existing && useSystemStore.getState().isOnline) {
+              try {
+                const detailRes = await ApiService.flashcards.get(d.id);
+                if (detailRes?.data) {
+                  set((state) => ({
+                    deckDetails: { ...state.deckDetails, [d.id]: detailRes.data },
+                  }));
+                  await NotebookStorage.saveFlashcardDeckDetail(d.id, detailRes.data);
+                }
+              } catch {}
+            }
+          });
+        }
+      }
     } catch (err: any) {
       console.warn('[NotebookToolsStore] fetchDecks offline/error:', err.message);
       if (!cached) {
@@ -151,12 +180,21 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   },
 
   fetchDeckDetail: async (deckId: string) => {
-    // 1. Offline cache
-    const cached = await NotebookStorage.loadFlashcardDeckDetail(deckId);
+    // 1. Check in-memory state or offline cache first
+    const inMemory = get().deckDetails[deckId];
+    const cached = inMemory || (await NotebookStorage.loadFlashcardDeckDetail(deckId));
     if (cached) {
       set((state) => ({
         deckDetails: { ...state.deckDetails, [deckId]: cached },
       }));
+    }
+
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) {
+      if (cached) {
+        return cached;
+      }
+      throw new Error('This flashcard deck is not available offline. Please connect to the internet to load it.');
     }
 
     try {
@@ -443,6 +481,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       }));
     }
 
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) {
+      return;
+    }
+
     if (!silent) set({ isLoading: true, error: null });
 
     try {
@@ -452,6 +495,30 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
         quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: quizzes },
       }));
       await NotebookStorage.saveQuizzes(notebookId, quizzes);
+
+      // Pre-cache individual quiz details if questions are included or in background
+      for (const q of quizzes) {
+        if (q.questions && Array.isArray(q.questions)) {
+          set((state) => ({
+            quizDetails: { ...state.quizDetails, [q.id]: q },
+          }));
+          await NotebookStorage.saveQuizDetail(q.id, q);
+        } else {
+          NotebookStorage.loadQuizDetail(q.id).then(async (existing) => {
+            if (!existing && useSystemStore.getState().isOnline) {
+              try {
+                const detailRes = await ApiService.quizzes.get(q.id);
+                if (detailRes?.data) {
+                  set((state) => ({
+                    quizDetails: { ...state.quizDetails, [q.id]: detailRes.data },
+                  }));
+                  await NotebookStorage.saveQuizDetail(q.id, detailRes.data);
+                }
+              } catch {}
+            }
+          });
+        }
+      }
     } catch (err: any) {
       console.warn('[NotebookToolsStore] fetchQuizzes offline/error:', err.message);
       if (!cached) {
@@ -463,11 +530,20 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   },
 
   fetchQuizDetail: async (quizId: string) => {
-    const cached = await NotebookStorage.loadQuizDetail(quizId);
+    const inMemory = get().quizDetails[quizId];
+    const cached = inMemory || (await NotebookStorage.loadQuizDetail(quizId));
     if (cached) {
       set((state) => ({
         quizDetails: { ...state.quizDetails, [quizId]: cached },
       }));
+    }
+
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) {
+      if (cached) {
+        return cached;
+      }
+      throw new Error('This quiz is not available offline. Please connect to the internet to load it.');
     }
 
     try {

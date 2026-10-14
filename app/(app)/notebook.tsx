@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Platform,
   TextInput,
   Text,
@@ -61,6 +60,8 @@ export default function NotebookScreen() {
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { anim: menuAnim } = useActionMenu();
 
@@ -78,7 +79,7 @@ export default function NotebookScreen() {
 
   const handleOpenCreate = () => {
     if (!isOnline) {
-      Alert.alert('Offline Mode', 'Creating new notebooks requires an active internet connection.');
+      setOfflineNoticeVisible(true);
       return;
     }
     setIsCreateVisible(true);
@@ -91,7 +92,7 @@ export default function NotebookScreen() {
     try {
       await createNotebook(title, description);
     } catch {
-      Alert.alert('Error', 'Failed to create notebook. Please try again.');
+      setErrorMessage('Failed to create notebook. Please try again.');
     }
   };
 
@@ -106,7 +107,7 @@ export default function NotebookScreen() {
       await deleteNotebook(notebookToDelete.id, powerSync);
       setNotebookToDelete(null);
     } catch {
-      Alert.alert('Error', 'Failed to delete notebook. Please try again.');
+      setErrorMessage('Failed to delete notebook. Please try again.');
     } finally {
       setIsDeletingNotebook(false);
     }
@@ -120,7 +121,7 @@ export default function NotebookScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to update notebook. Please try again.';
-      Alert.alert('Error', msg);
+      setErrorMessage(msg);
       throw err;
     }
   };
@@ -533,6 +534,30 @@ export default function NotebookScreen() {
         isLoading={isDeletingNotebook}
         onConfirm={confirmDeleteNotebook}
         onCancel={() => setNotebookToDelete(null)}
+      />
+
+      {/* ── Offline Notice Modal ── */}
+      <ConfirmModal
+        visible={offlineNoticeVisible}
+        title="Offline Mode"
+        description="Creating new notebooks requires an active internet connection."
+        confirmLabel="Got It"
+        showCancel={false}
+        variant="warning"
+        onConfirm={() => setOfflineNoticeVisible(false)}
+        onCancel={() => setOfflineNoticeVisible(false)}
+      />
+
+      {/* ── Error Notice Modal ── */}
+      <ConfirmModal
+        visible={errorMessage !== null}
+        title="Error"
+        description={errorMessage || ''}
+        confirmLabel="OK"
+        showCancel={false}
+        variant="danger"
+        onConfirm={() => setErrorMessage(null)}
+        onCancel={() => setErrorMessage(null)}
       />
     </SafeAreaView>
   );

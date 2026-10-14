@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
 import { ArrowLeft, Save, FileText } from 'lucide-react-native';
 import { Source } from './SourceListItem';
 import { useTheme } from '@/src/theme/useTheme';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 interface EditSourceModalProps {
   visible: boolean;
@@ -29,6 +29,11 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
   const [fileName, setFileName] = useState('');
   const [rawText, setRawText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant: 'warning' | 'danger' | 'info';
+  } | null>(null);
 
   // Sync state whenever a source is passed in
   useEffect(() => {
@@ -42,7 +47,11 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
     if (!source) return;
     const trimmedName = fileName.trim();
     if (!trimmedName) {
-      Alert.alert('Validation', 'File name cannot be empty.');
+      setDialogNotice({
+        title: 'Validation',
+        description: 'File name cannot be empty.',
+        variant: 'warning',
+      });
       return;
     }
     setIsSaving(true);
@@ -53,7 +62,11 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
       });
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save changes. Please try again.');
+      setDialogNotice({
+        title: 'Save Failed',
+        description: err?.message || 'Failed to save changes. Please try again.',
+        variant: 'danger',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -172,6 +185,18 @@ export function EditSourceModal({ visible, source, onClose, onSave }: EditSource
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        <ConfirmModal
+          visible={dialogNotice !== null}
+          title={dialogNotice?.title || ''}
+          description={dialogNotice?.description || ''}
+          variant={dialogNotice?.variant || 'info'}
+          confirmLabel="Got It"
+          showCancel={false}
+          asOverlay
+          onConfirm={() => setDialogNotice(null)}
+          onCancel={() => setDialogNotice(null)}
+        />
       </SafeAreaView>
     </Modal>
   );

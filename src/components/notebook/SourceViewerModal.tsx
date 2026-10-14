@@ -5,7 +5,6 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/ui/text';
@@ -46,7 +45,6 @@ export function SourceViewerModal({ visible, source, onClose }: SourceViewerModa
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      Alert.alert('Copied', 'Extracted study content ready in memory.');
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

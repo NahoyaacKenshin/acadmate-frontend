@@ -102,7 +102,9 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
             onLongPress={handleLongPress}
             delayLongPress={400}
           >
-            <Text style={styles.contentUser}>{message.content}</Text>
+            <Text style={styles.contentUser} textBreakStrategy="simple">
+              {message.content}
+            </Text>
             <View style={styles.metaRow}>
               {copied && (
                 <View style={styles.copiedBadge}>
@@ -255,6 +257,7 @@ const styles = StyleSheet.create({
   },
   // ── Content ─────────────────────────────────────────────────────────────
   contentUser: {
+    fontFamily: 'Inter',
     fontSize: 14,
     lineHeight: 21,
     color: '#ffffff',
@@ -278,6 +281,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   copiedText: {
+    fontFamily: 'Inter',
     fontSize: 10,
     color: '#10B981',
     fontWeight: '600',
@@ -285,6 +289,7 @@ const styles = StyleSheet.create({
   },
   // ── Timestamp ───────────────────────────────────────────────────────────
   timestamp: {
+    fontFamily: 'Inter',
     fontSize: 10,
     includeFontPadding: false,
   },
@@ -307,6 +312,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   retryText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '700',
     color: '#EF4444',

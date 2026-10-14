@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Image } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, Animated, StyleSheet, Image, Text } from 'react-native';
 import { useTheme } from '@/src/theme/useTheme';
 
 export function ChatTypingIndicator() {
@@ -125,6 +124,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   label: {
+    fontFamily: 'Inter',
     fontSize: 13,
     fontStyle: 'italic',
     includeFontPadding: false,

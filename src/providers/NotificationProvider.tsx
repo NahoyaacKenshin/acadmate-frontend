@@ -7,7 +7,6 @@ import { NotificationService, isExamEvent } from '../services/notificationServic
 import { useNotificationStore } from '../store/notificationStore';
 import { useUserStore, computeCurrentSet } from '../store/userStore';
 import { useNotificationDeepLink } from '../hooks/useNotificationDeepLink';
-import { InAppNotificationBanner } from '../components/common/InAppNotificationBanner';
 
 const NotificationContext = createContext<void | null>(null);
 
@@ -124,7 +123,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   return (
     <NotificationContext.Provider value={undefined}>
       {children}
-      <InAppNotificationBanner />
     </NotificationContext.Provider>
   );
 }

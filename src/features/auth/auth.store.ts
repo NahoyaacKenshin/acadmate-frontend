@@ -142,7 +142,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (payload?.sub) {
           restoredUser = {
             id: payload.sub,
-            role: (payload.role as 'USER' | 'ADMIN') || 'USER',
             email: null,
             name: null,
           };

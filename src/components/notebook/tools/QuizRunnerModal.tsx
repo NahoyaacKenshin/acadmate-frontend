@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
   StatusBar,
   Text as RNText,
@@ -16,6 +15,7 @@ import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 import { QuizDetail, QuizQuestion, QuizResult } from '@/src/store/notebookToolsStore';
 import { EditQuizQuestionModal } from './EditQuizQuestionModal';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   ArrowLeft,
   PenLine,
@@ -56,6 +56,8 @@ export function QuizRunnerModal({
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<QuizResult | null>(null);
+  const [confirmUnansweredVisible, setConfirmUnansweredVisible] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // Edit / Add modal
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -175,14 +177,7 @@ export function QuizRunnerModal({
     // Check if unanswered
     const unansweredCount = questions.filter((_, idx) => selectedAnswers[idx] === undefined).length;
     if (unansweredCount > 0) {
-      Alert.alert(
-        'Unanswered Questions',
-        `You have ${unansweredCount} unanswered question(s). Are you sure you want to submit?`,
-        [
-          { text: 'Keep Answering', style: 'cancel' },
-          { text: 'Submit Anyway', onPress: () => finalizeSubmission() },
-        ]
-      );
+      setConfirmUnansweredVisible(true);
       return;
     }
     finalizeSubmission();
@@ -223,7 +218,7 @@ export function QuizRunnerModal({
         });
       }
     } catch (err: any) {
-      Alert.alert('Submission Error', err?.message || 'Failed to submit quiz attempt.');
+      setSubmissionError(err?.message || 'Failed to submit quiz attempt.');
     } finally {
       setIsSubmitting(false);
     }
@@ -516,6 +511,33 @@ export function QuizRunnerModal({
               return Math.min(prevIdx, Math.max(0, remainingLen - 1));
             });
           }}
+        />
+
+        <ConfirmModal
+          visible={confirmUnansweredVisible}
+          title="Unanswered Questions"
+          description={`You have ${questions.filter((_, idx) => selectedAnswers[idx] === undefined).length} unanswered question(s). Are you sure you want to submit?`}
+          variant="warning"
+          confirmLabel="Submit Anyway"
+          cancelLabel="Keep Answering"
+          asOverlay
+          onConfirm={() => {
+            setConfirmUnansweredVisible(false);
+            finalizeSubmission();
+          }}
+          onCancel={() => setConfirmUnansweredVisible(false)}
+        />
+
+        <ConfirmModal
+          visible={submissionError !== null}
+          title="Submission Error"
+          description={submissionError || ''}
+          variant="danger"
+          confirmLabel="Got It"
+          showCancel={false}
+          asOverlay
+          onConfirm={() => setSubmissionError(null)}
+          onCancel={() => setSubmissionError(null)}
         />
       </SafeAreaView>
     </Modal>

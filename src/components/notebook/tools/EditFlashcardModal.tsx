@@ -6,7 +6,6 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -39,6 +38,11 @@ export function EditFlashcardModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant: 'warning' | 'danger' | 'info';
+  } | null>(null);
 
   useEffect(() => {
     if (card) {
@@ -55,7 +59,11 @@ export function EditFlashcardModal({
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!front.trim() || !back.trim()) {
-      Alert.alert('Required Fields', 'Both Front (Term/Question) and Back (Definition/Answer) are required.');
+      setDialogNotice({
+        title: 'Required Fields',
+        description: 'Both Front (Term/Question) and Back (Definition/Answer) are required.',
+        variant: 'warning',
+      });
       return;
     }
     setIsSaving(true);
@@ -63,7 +71,11 @@ export function EditFlashcardModal({
       await onSave({ front: front.trim(), back: back.trim() });
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save card.');
+      setDialogNotice({
+        title: 'Save Failed',
+        description: err?.message || 'Failed to save card.',
+        variant: 'danger',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -87,7 +99,11 @@ export function EditFlashcardModal({
       const msg = raw.includes('Network request failed') || raw.includes('http')
         ? 'Failed to delete card. Please check your connection.'
         : raw || 'Failed to delete card.';
-      Alert.alert('Error', msg);
+      setDialogNotice({
+        title: 'Delete Failed',
+        description: msg,
+        variant: 'danger',
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -196,6 +212,18 @@ export function EditFlashcardModal({
         isLoading={isDeleting}
         onConfirm={confirmDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmModal
+        asOverlay
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'info'}
+        confirmLabel="Got It"
+        showCancel={false}
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
       />
     </Modal>
   );

@@ -218,6 +218,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       gap: 8,
     },
     title: {
+      fontFamily: 'Inter',
       fontSize: 15,
       fontWeight: '600',
       color: colors.foreground,
@@ -240,6 +241,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     subjectText: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
       color: colors.mutedForeground,
@@ -251,6 +253,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       gap: 6,
     },
     descText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       color: colors.mutedForeground,
       flex: 1,
@@ -266,6 +269,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       marginTop: 2,
     },
     dueDateNone: {
+      fontFamily: 'Inter',
       fontSize: 11,
       color: colors.mutedForeground,
       fontStyle: 'italic',
@@ -282,6 +286,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     badgeTextCompleted: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
       color: '#10B981',
@@ -300,6 +305,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     badgeTextOverdue: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
       color: '#EF4444',
@@ -318,6 +324,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     badgeTextToday: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
       color: '#F59E0B',
@@ -336,6 +343,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     badgeTextTomorrow: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '600',
       color: '#F59E0B',
@@ -354,6 +362,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     badgeTextUpcoming: {
+      fontFamily: 'Inter',
       fontSize: 11,
       fontWeight: '500',
       color: colors.mutedForeground,

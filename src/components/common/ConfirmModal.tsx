@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Modal, StyleSheet, TouchableOpacity, Pressable, Text, ActivityIndicator } from 'react-native';
-import { Trash2, AlertTriangle, AlertCircle } from 'lucide-react-native';
+import { Trash2, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
-export type ConfirmVariant = 'danger' | 'warning' | 'info';
+export type ConfirmVariant = 'danger' | 'warning' | 'info' | 'success';
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -16,6 +16,7 @@ interface ConfirmModalProps {
   variant?: ConfirmVariant;
   isLoading?: boolean;
   asOverlay?: boolean;
+  showCancel?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
@@ -29,6 +30,7 @@ export function ConfirmModal({
   variant = 'danger',
   isLoading = false,
   asOverlay = false,
+  showCancel = true,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -43,8 +45,9 @@ export function ConfirmModal({
         return <Trash2 size={24} color="#EF4444" />;
       case 'warning':
         return <AlertTriangle size={24} color="#F59E0B" />;
+      case 'success':
+        return <CheckCircle2 size={24} color="#10B981" />;
       case 'info':
-        return <AlertCircle size={24} color={colors.primary} />;
       default:
         return <AlertCircle size={24} color={colors.primary} />;
     }
@@ -56,7 +59,10 @@ export function ConfirmModal({
         return isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)';
       case 'warning':
         return isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)';
+      case 'success':
+        return isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)';
       case 'info':
+      default:
         return isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.1)';
     }
   };
@@ -67,7 +73,10 @@ export function ConfirmModal({
         return styles.confirmBtnDanger;
       case 'warning':
         return styles.confirmBtnWarning;
+      case 'success':
+        return styles.confirmBtnSuccess;
       case 'info':
+      default:
         return styles.confirmBtnInfo;
     }
   };
@@ -91,17 +100,24 @@ export function ConfirmModal({
         <Text style={styles.description}>{description}</Text>
 
         <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.cancelBtn, isLoading && { opacity: 0.6 }]}
-            onPress={onCancel}
-            activeOpacity={0.7}
-            disabled={isLoading}
-          >
-            <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
-          </TouchableOpacity>
+          {showCancel && (
+            <TouchableOpacity
+              style={[styles.cancelBtn, isLoading && { opacity: 0.6 }]}
+              onPress={onCancel}
+              activeOpacity={0.7}
+              disabled={isLoading}
+            >
+              <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
-            style={[styles.confirmBtn, getConfirmBtnStyle(), isLoading && { opacity: 0.7 }]}
+            style={[
+              styles.confirmBtn,
+              getConfirmBtnStyle(),
+              !showCancel && { flex: 1 },
+              isLoading && { opacity: 0.7 },
+            ]}
             onPress={onConfirm}
             activeOpacity={0.7}
             disabled={isLoading}
@@ -223,6 +239,9 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     confirmBtnInfo: {
       backgroundColor: colors.primary,
+    },
+    confirmBtnSuccess: {
+      backgroundColor: '#10B981',
     },
     confirmBtnText: {
       color: '#FFFFFF',

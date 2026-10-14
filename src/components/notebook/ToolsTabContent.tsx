@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
@@ -83,16 +82,34 @@ export function ToolsTabContent({
   const [deckToDelete, setDeckToDelete] = useState<FlashcardDeckSummary | null>(null);
   const [quizToDelete, setQuizToDelete] = useState<QuizSummary | null>(null);
   const [isDeletingItem, setIsDeletingItem] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant?: 'warning' | 'danger' | 'info';
+  } | null>(null);
 
   const styles = createStyles(colors, isDark);
 
   const handleOpenDeck = async (deckId: string) => {
+    // If deck details are already in memory, open instantly
+    if (deckDetails[deckId]) {
+      setActiveDeckId(deckId);
+      if (isOnline) {
+        fetchDeckDetail(deckId).catch(() => {});
+      }
+      return;
+    }
+
     setLoadingItemId(deckId);
     try {
       await fetchDeckDetail(deckId);
       setActiveDeckId(deckId);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not load deck details.');
+      const raw = err?.message || '';
+      const msg = raw.includes('Network request failed') || raw.includes('http')
+        ? 'Could not load deck. Please check your connection.'
+        : raw || 'Could not load deck details.';
+      setDialogNotice({ title: 'Study Session', description: msg, variant: 'warning' });
     } finally {
       setLoadingItemId(null);
     }
@@ -113,13 +130,22 @@ export function ToolsTabContent({
       const msg = raw.includes('Network request failed') || raw.includes('http')
         ? 'Failed to delete deck. Please check your connection.'
         : raw || 'Failed to delete deck.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Delete Failed', description: msg, variant: 'danger' });
     } finally {
       setIsDeletingItem(false);
     }
   };
 
   const handleOpenQuiz = async (quizId: string) => {
+    // If quiz details are already in memory, open instantly
+    if (quizDetails[quizId]) {
+      setActiveQuizId(quizId);
+      if (isOnline) {
+        fetchQuizDetail(quizId).catch(() => {});
+      }
+      return;
+    }
+
     setLoadingItemId(quizId);
     try {
       await fetchQuizDetail(quizId);
@@ -127,9 +153,9 @@ export function ToolsTabContent({
     } catch (err: any) {
       const raw = err?.message || '';
       const msg = raw.includes('Network request failed') || raw.includes('http')
-        ? 'Could not load quiz details. Please check your connection.'
+        ? 'Could not load quiz. Please check your connection.'
         : raw || 'Could not load quiz details.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Quiz Session', description: msg, variant: 'warning' });
     } finally {
       setLoadingItemId(null);
     }
@@ -150,7 +176,7 @@ export function ToolsTabContent({
       const msg = raw.includes('Network request failed') || raw.includes('http')
         ? 'Failed to delete quiz. Please check your connection.'
         : raw || 'Failed to delete quiz.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Delete Failed', description: msg, variant: 'danger' });
     } finally {
       setIsDeletingItem(false);
     }
@@ -452,6 +478,18 @@ export function ToolsTabContent({
         isLoading={isDeletingItem}
         onConfirm={confirmDeleteQuiz}
         onCancel={() => setQuizToDelete(null)}
+      />
+
+      {/* Notice Modal */}
+      <ConfirmModal
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'danger'}
+        confirmLabel="Got It"
+        showCancel={false}
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
       />
     </ScrollView>
   );

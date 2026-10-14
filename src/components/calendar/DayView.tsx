@@ -819,10 +819,12 @@ const styles = StyleSheet.create({
     paddingBottom: 130,
   },
   dayHeader: {
+    fontFamily: 'Inter-Bold',
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 12,
     letterSpacing: -0.3,
+    includeFontPadding: false,
   },
   holidayBanner: {
     flexDirection: 'row',
@@ -835,6 +837,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   holidayText: {
+    fontFamily: 'Inter',
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
@@ -847,6 +850,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -890,6 +894,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   eventTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
@@ -906,10 +911,12 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   metaText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     includeFontPadding: false,
   },
   setTypeTag: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     color: '#6366F1',
@@ -966,9 +973,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   taskTitle: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
+    includeFontPadding: false,
   },
   taskTitleDone: {
     textDecorationLine: 'line-through',
@@ -988,6 +997,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskDueLabel: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     color: '#F59E0B',
@@ -1006,6 +1016,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   badgeCompletedText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     color: '#10B981',
@@ -1029,6 +1040,7 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   subjectPillText: {
+    fontFamily: 'Inter',
     fontSize: 10,
     fontWeight: '600',
     includeFontPadding: false,
@@ -1044,6 +1056,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   badgeText: {
+    fontFamily: 'Inter',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -1067,13 +1080,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   emptyTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 17,
     fontWeight: '700',
+    includeFontPadding: false,
   },
   emptySubtitle: {
+    fontFamily: 'Inter',
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 32,
     lineHeight: 18,
+    includeFontPadding: false,
   },
 });

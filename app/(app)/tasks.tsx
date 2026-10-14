@@ -510,6 +510,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingBottom: 8,
     },
     headerTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 28,
       lineHeight: 34,
       fontWeight: '700',
@@ -537,12 +538,14 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       gap: 6,
     },
     progressTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 13,
       fontWeight: '700',
       color: colors.foreground,
       includeFontPadding: false,
     },
     progressStats: {
+      fontFamily: 'Inter',
       fontSize: 12,
       color: colors.mutedForeground,
       fontWeight: '500',
@@ -581,6 +584,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderColor: '#6366F1',
     },
     filterPillText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       fontWeight: '600',
       color: colors.mutedForeground,
@@ -590,6 +594,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       textAlign: 'center',
     },
     filterPillTextActive: {
+      fontFamily: 'Inter-Bold',
       color: '#ffffff',
       fontWeight: '700',
     },
@@ -622,6 +627,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 4,
     },
     subjectPillText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       fontWeight: '500',
       color: colors.mutedForeground,
@@ -629,6 +635,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     subjectPillTextActive: {
+      fontFamily: 'Inter-Bold',
       color: '#6366F1',
       fontWeight: '700',
     },
@@ -656,6 +663,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     sectionTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 14,
       fontWeight: '700',
       color: colors.foreground,
@@ -671,6 +679,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     sectionBadgeText: {
+      fontFamily: 'Inter-Bold',
       fontSize: 11,
       fontWeight: '700',
       includeFontPadding: false,
@@ -684,6 +693,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingLeft: 8,
     },
     collapseBtnText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       color: colors.mutedForeground,
       fontWeight: '600',
@@ -715,6 +725,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       marginBottom: 16,
     },
     emptyText: {
+      fontFamily: 'Inter-Bold',
       fontSize: 16,
       fontWeight: '700',
       color: colors.foreground,
@@ -724,6 +735,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 4,
     },
     emptySubText: {
+      fontFamily: 'Inter',
       fontSize: 13,
       color: colors.mutedForeground,
       textAlign: 'center',

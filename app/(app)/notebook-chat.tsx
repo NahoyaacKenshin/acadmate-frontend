@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   BackHandler,
   Animated,
   Platform,
@@ -66,6 +65,8 @@ export default function NotebookChatScreen() {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<any | null>(null);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
+  const [isNewChatModalVisible, setIsNewChatModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -145,7 +146,7 @@ export default function NotebookChatScreen() {
       await deleteSession(notebookId, sessionToDelete.id);
       setSessionToDelete(null);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to delete conversation.');
+      setErrorMessage(err?.message || 'Failed to delete conversation.');
     } finally {
       setIsDeletingSession(false);
     }
@@ -201,18 +202,8 @@ export default function NotebookChatScreen() {
   // ── New chat ──────────────────────────────────────────────────────────────
   const handleNewChat = useCallback(() => {
     if (messages.length === 0 && !sessionId) return;
-    Alert.alert(
-      'Start New Topic?',
-      'Your current conversation is automatically saved in your Chat History.',
-      [
-        { text: 'Keep Chatting', style: 'cancel' },
-        {
-          text: 'Start New',
-          onPress: () => clearMessages(),
-        },
-      ]
-    );
-  }, [messages, sessionId, clearMessages]);
+    setIsNewChatModalVisible(true);
+  }, [messages, sessionId]);
 
   // ── Suggestion chip handler ───────────────────────────────────────────────
   const handleChipPress = (chip: string) => {
@@ -477,6 +468,33 @@ export default function NotebookChatScreen() {
         onConfirm={confirmDeleteSession}
         onCancel={() => setSessionToDelete(null)}
       />
+
+      {/* Start New Topic Confirmation Modal */}
+      <ConfirmModal
+        visible={isNewChatModalVisible}
+        title="Start New Topic?"
+        description="Your current conversation is automatically saved in your Chat History."
+        confirmLabel="Start New"
+        cancelLabel="Keep Chatting"
+        variant="info"
+        onConfirm={() => {
+          setIsNewChatModalVisible(false);
+          clearMessages();
+        }}
+        onCancel={() => setIsNewChatModalVisible(false)}
+      />
+
+      {/* Error Notice Modal */}
+      <ConfirmModal
+        visible={errorMessage !== null}
+        title="Error"
+        description={errorMessage || ''}
+        confirmLabel="Got It"
+        showCancel={false}
+        variant="danger"
+        onConfirm={() => setErrorMessage(null)}
+        onCancel={() => setErrorMessage(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -516,6 +534,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerSub: {
+    fontFamily: 'Inter-Bold',
     fontSize: 14,
     fontWeight: '700',
     flex: 1,
@@ -532,6 +551,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   onlineLabel: {
+    fontFamily: 'Inter',
     fontSize: 10,
     fontWeight: '600',
     includeFontPadding: false,
@@ -610,12 +630,14 @@ const styles = StyleSheet.create({
     height: 44,
   },
   emptyTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
     includeFontPadding: false,
   },
   emptySub: {
+    fontFamily: 'Inter',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
@@ -643,6 +665,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   chipText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: '500',
     includeFontPadding: false,
@@ -655,6 +678,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   offlineHintText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     color: '#EF4444',
     textAlign: 'center',
@@ -671,6 +695,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   offlineNoticeText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     includeFontPadding: false,
   },

@@ -127,6 +127,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   titleText: {
+    fontFamily: 'Inter-Bold',
     fontSize: SCREEN_WIDTH < 380 ? 25 : 28,
     fontWeight: '700',
     letterSpacing: -0.6,
@@ -134,6 +135,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   subtitleText: {
+    fontFamily: 'Inter',
     fontSize: 14.5,
     marginTop: 6,
     lineHeight: 20,

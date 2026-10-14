@@ -1,12 +1,11 @@
-import React from 'react';
 import {
   View,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
 } from 'react-native';
-import { Text } from '@/src/components/ui/text';
 import { Citation } from './ChatMessageCitations';
 import { FileText, Image as ImageIcon, File, X, Layers } from 'lucide-react-native';
 import { useTheme } from '@/src/theme/useTheme';
@@ -201,12 +200,14 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   fileName: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 20,
     includeFontPadding: false,
   },
   fileType: {
+    fontFamily: 'Inter',
     fontSize: 12,
     includeFontPadding: false,
   },
@@ -237,11 +238,13 @@ const styles = StyleSheet.create({
     height: 28,
   },
   metaLabel: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     includeFontPadding: false,
   },
   metaValue: {
+    fontFamily: 'Inter-Bold',
     fontSize: 13,
     fontWeight: '700',
     includeFontPadding: false,
@@ -263,6 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   simPct: {
+    fontFamily: 'Inter-Bold',
     fontSize: 12,
     fontWeight: '700',
     minWidth: 32,
@@ -270,6 +274,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   snippetLabel: {
+    fontFamily: 'Inter-Bold',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
@@ -286,6 +291,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   snippetText: {
+    fontFamily: 'Inter',
     fontSize: 13,
     lineHeight: 20,
     includeFontPadding: false,
@@ -297,6 +303,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneBtnText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '700',
     color: '#6366F1',

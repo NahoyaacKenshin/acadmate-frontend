@@ -8,12 +8,12 @@ import {
   Modal,
   Vibration,
   BackHandler,
-  Alert,
   Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   BookOpen,
   Clock,
@@ -633,6 +633,7 @@ function StudentHomeScreen() {
   const [viewingEvent, setViewingEvent] = useState<CalendarEventRow | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
   const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const getNotebookIdFromSession = useCallback((e: CalendarEventRow): string | null => {
     if (e.location && e.location.startsWith('study_session:')) {
@@ -691,14 +692,7 @@ function StudentHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-        Alert.alert(
-          'Exit AcadMate',
-          'Are you sure you want to exit?',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => {} },
-            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
-          ]
-        );
+        setShowExitConfirm(true);
         return true;
       });
       return () => handler.remove();
@@ -1258,6 +1252,18 @@ function StudentHomeScreen() {
         session={editingStudySession}
         onClose={() => setEditingStudySession(null)}
       />
+
+      {/* Exit App Confirmation Modal */}
+      <ConfirmModal
+        visible={showExitConfirm}
+        title="Exit AcadMate"
+        description="Are you sure you want to exit the app?"
+        confirmLabel="Exit"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => BackHandler.exitApp()}
+        onCancel={() => setShowExitConfirm(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1300,17 +1306,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   greetingText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
+    includeFontPadding: false,
   },
   dateDot: {
+    fontFamily: 'Inter',
     fontSize: 12,
+    includeFontPadding: false,
   },
   dateSubtitle: {
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: '500',
+    includeFontPadding: false,
   },
   nameText: {
     fontSize: 28,
@@ -1372,6 +1384,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   statLabel: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '500',
     textAlign: 'center',
@@ -1431,6 +1444,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   urgentTitle: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: -0.2,
@@ -1457,6 +1471,7 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   urgentSubject: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
@@ -1472,6 +1487,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   urgentBadgeText: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     fontWeight: '600',
     includeFontPadding: false,
@@ -1503,9 +1519,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyCardText: {
+    fontFamily: 'Inter',
     fontSize: 13,
     flex: 1,
     lineHeight: 18,
+    includeFontPadding: false,
   },
 
   // Timeline
@@ -1568,6 +1586,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   modalityText: {
+    fontFamily: 'Inter',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.2,
@@ -1579,13 +1598,17 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   timelineLabel: {
+    fontFamily: 'Inter',
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   timelineTime: {
+    fontFamily: 'Inter',
     fontSize: 11.5,
     fontWeight: '600',
+    includeFontPadding: false,
   },
   timelineMetaRow: {
     flexDirection: 'row',
@@ -1594,10 +1617,13 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   timelineSub: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     flex: 1,
+    includeFontPadding: false,
   },
   timelineSetLabel: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '700',
     paddingHorizontal: 6,
@@ -1606,6 +1632,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignSelf: 'flex-start',
     marginTop: 2,
+    includeFontPadding: false,
   },
 
   // Pinned Notebooks
@@ -1638,9 +1665,11 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   pinnedCardTitle: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   pinnedCardMeta: {
     flexDirection: 'row',
@@ -1648,7 +1677,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   pinnedCardSub: {
+    fontFamily: 'Inter',
     fontSize: 11,
+    includeFontPadding: false,
   },
 
   pinnedEmptyCard: {
@@ -1661,12 +1692,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pinnedEmptyTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 13,
     fontWeight: '700',
+    includeFontPadding: false,
   },
   pinnedEmptySub: {
+    fontFamily: 'Inter',
     fontSize: 12,
     lineHeight: 17,
+    includeFontPadding: false,
   },
 
   bottomPad: {
@@ -1705,6 +1740,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   periodTagText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -1712,17 +1748,20 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   periodDot: {
+    fontFamily: 'Inter',
     fontSize: 10,
     flexShrink: 0,
     includeFontPadding: false,
   },
   periodSubAction: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     fontWeight: '500',
     flexShrink: 0,
     includeFontPadding: false,
   },
   periodBannerMainText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,

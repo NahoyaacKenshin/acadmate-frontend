@@ -5,7 +5,6 @@ import {
   TextInput,
   View,
   Pressable,
-  Alert,
   StyleSheet,
   Text,
 } from 'react-native';
@@ -97,7 +96,6 @@ export function SignupForm() {
         'Unable to connect to Google. Please check your internet connection and try again.'
       );
       setError(message);
-      Alert.alert('Sign-Up Error', message);
     } finally {
       setGoogleLoading(false);
     }
@@ -279,6 +277,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   fieldLabel: {
+    fontFamily: 'Inter',
     fontSize: 13.5,
     fontWeight: '600',
     letterSpacing: -0.1,
@@ -341,6 +340,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   submitText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
@@ -357,16 +357,19 @@ const styles = StyleSheet.create({
     height: 1,
   },
   dividerText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 1,
     includeFontPadding: false,
   },
   footerText: {
+    fontFamily: 'Inter',
     fontSize: 14,
     includeFontPadding: false,
   },
   footerLink: {
+    fontFamily: 'Inter-Bold',
     fontWeight: '700',
     includeFontPadding: false,
   },

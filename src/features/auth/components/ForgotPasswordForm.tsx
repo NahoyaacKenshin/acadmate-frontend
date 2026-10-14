@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   fieldLabel: {
+    fontFamily: 'Inter',
     fontSize: 13.5,
     fontWeight: '600',
     letterSpacing: -0.1,
@@ -232,6 +233,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
@@ -243,6 +245,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   backBtnText: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     includeFontPadding: false,

@@ -6,8 +6,8 @@ import {
   FlatList,
   StyleSheet,
   Platform,
+  Text,
 } from 'react-native';
-import { Text } from '@/src/components/ui/text';
 import { X, MessageSquare, Plus, Clock } from 'lucide-react-native';
 import { ChatMessage } from './ChatMessageBubble';
 import { useTheme } from '@/src/theme/useTheme';
@@ -313,6 +313,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   title: {
+    fontFamily: 'Inter-Bold',
     fontSize: 17,
     fontWeight: '700',
     includeFontPadding: false,
@@ -335,6 +336,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   newChatText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 14,
     fontWeight: '700',
     color: '#6366F1',
@@ -345,6 +347,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionLabel: {
+    fontFamily: 'Inter-Bold',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
@@ -382,6 +385,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   sessionPreview: {
+    fontFamily: 'Inter',
     fontSize: 13,
     lineHeight: 18,
     includeFontPadding: false,
@@ -392,11 +396,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sessionDate: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '500',
     includeFontPadding: false,
   },
   sessionCount: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '500',
     includeFontPadding: false,
@@ -411,12 +417,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 15,
     fontWeight: '700',
     marginTop: 6,
     includeFontPadding: false,
   },
   emptySub: {
+    fontFamily: 'Inter',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
@@ -429,6 +437,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   activePillText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 9,
     fontWeight: '700',
     color: '#6366F1',

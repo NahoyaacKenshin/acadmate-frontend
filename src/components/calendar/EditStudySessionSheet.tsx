@@ -9,7 +9,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, {
@@ -240,7 +239,7 @@ export function EditStudySessionSheet({
           const updated = new Date(endDate);
           updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
           if (updated <= startDate) {
-            Alert.alert('Invalid End Time', 'End time must be after the start time.');
+            setError('End time must be after start time.');
             return;
           }
           setEndDate(updated);

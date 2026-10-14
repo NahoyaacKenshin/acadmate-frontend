@@ -6,7 +6,6 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -41,6 +40,11 @@ export function EditQuizQuestionModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant: 'warning' | 'danger' | 'info';
+  } | null>(null);
 
   useEffect(() => {
     if (question) {
@@ -61,11 +65,19 @@ export function EditQuizQuestionModal({
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!questionText.trim()) {
-      Alert.alert('Required', 'Please enter a question.');
+      setDialogNotice({
+        title: 'Question Required',
+        description: 'Please enter a question.',
+        variant: 'warning',
+      });
       return;
     }
     if (options.some((opt) => !opt.trim())) {
-      Alert.alert('Required', 'Please provide text for all 4 choices.');
+      setDialogNotice({
+        title: 'Choices Required',
+        description: 'Please provide text for all 4 choices.',
+        variant: 'warning',
+      });
       return;
     }
     setIsSaving(true);
@@ -78,7 +90,11 @@ export function EditQuizQuestionModal({
       });
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save question.');
+      setDialogNotice({
+        title: 'Save Failed',
+        description: err?.message || 'Failed to save question.',
+        variant: 'danger',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -102,7 +118,11 @@ export function EditQuizQuestionModal({
       const msg = raw.includes('Network request failed') || raw.includes('http')
         ? 'Failed to delete question. Please check your connection.'
         : raw || 'Failed to delete question.';
-      Alert.alert('Error', msg);
+      setDialogNotice({
+        title: 'Delete Failed',
+        description: msg,
+        variant: 'danger',
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -244,6 +264,18 @@ export function EditQuizQuestionModal({
         isLoading={isDeleting}
         onConfirm={confirmDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmModal
+        asOverlay
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'info'}
+        confirmLabel="Got It"
+        showCancel={false}
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
       />
     </Modal>
   );
