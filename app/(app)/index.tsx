@@ -9,6 +9,7 @@ import {
   Vibration,
   BackHandler,
   Text,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -634,6 +635,7 @@ function StudentHomeScreen() {
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
   const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getNotebookIdFromSession = useCallback((e: CalendarEventRow): string | null => {
     if (e.location && e.location.startsWith('study_session:')) {
@@ -713,7 +715,23 @@ function StudentHomeScreen() {
   const { holidays = [] } = useHolidays();
   const { semesterRules = [] } = useSemesterRules();
 
-  const { notebooks, pinnedIds } = useNotebookStore();
+  const { notebooks, pinnedIds, fetchNotebooks, loadPinnedIds } = useNotebookStore();
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        fetchNotebooks(true),
+        loadPinnedIds(),
+      ]);
+    } catch (err) {
+      console.warn('[Home] Refresh error:', err);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 400);
+    }
+  }, [fetchNotebooks, loadPinnedIds]);
 
   // Urgent tasks: incomplete, due today or overdue — max 3
   const urgentTasks = useMemo<TaskRow[]>(() => {
@@ -862,6 +880,15 @@ function StudentHomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#6366F1"
+            colors={['#6366F1']}
+            progressBackgroundColor={isDark ? '#12141D' : '#FFFFFF'}
+          />
+        }
       >
         {/* ── Hero Header ── */}
         <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
