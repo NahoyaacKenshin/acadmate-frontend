@@ -1,12 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, Modal, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import { Text } from '@/src/components/ui/text';
-import { Trash2, AlertTriangle, AlertCircle } from 'lucide-react-native';
+import { View, Modal, StyleSheet, TouchableOpacity, Pressable, Text, ActivityIndicator } from 'react-native';
+import { Trash2, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
-export type ConfirmVariant = 'danger' | 'warning' | 'info';
+export type ConfirmVariant = 'danger' | 'warning' | 'info' | 'success';
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -15,7 +14,10 @@ interface ConfirmModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmVariant;
-  onConfirm: () => void;
+  isLoading?: boolean;
+  asOverlay?: boolean;
+  showCancel?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -26,6 +28,9 @@ export function ConfirmModal({
   confirmLabel = 'Delete',
   cancelLabel = 'Cancel',
   variant = 'danger',
+  isLoading = false,
+  asOverlay = false,
+  showCancel = true,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -40,8 +45,9 @@ export function ConfirmModal({
         return <Trash2 size={24} color="#EF4444" />;
       case 'warning':
         return <AlertTriangle size={24} color="#F59E0B" />;
+      case 'success':
+        return <CheckCircle2 size={24} color="#10B981" />;
       case 'info':
-        return <AlertCircle size={24} color={colors.primary} />;
       default:
         return <AlertCircle size={24} color={colors.primary} />;
     }
@@ -53,7 +59,10 @@ export function ConfirmModal({
         return isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)';
       case 'warning':
         return isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)';
+      case 'success':
+        return isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)';
       case 'info':
+      default:
         return isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.1)';
     }
   };
@@ -64,45 +73,77 @@ export function ConfirmModal({
         return styles.confirmBtnDanger;
       case 'warning':
         return styles.confirmBtnWarning;
+      case 'success':
+        return styles.confirmBtnSuccess;
       case 'info':
+      default:
         return styles.confirmBtnInfo;
     }
   };
 
-  return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onCancel}>
-      <Pressable style={styles.overlay} onPress={onCancel}>
-        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={StyleSheet.absoluteFill}>
-          <View style={styles.backdrop} />
-        </Animated.View>
+  const content = (
+    <Pressable style={styles.overlay} onPress={isLoading ? undefined : onCancel}>
+      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={StyleSheet.absoluteFill}>
+        <View style={styles.backdrop} />
+      </Animated.View>
 
-        <Animated.View
-          entering={ZoomIn.duration(200)}
-          exiting={ZoomOut.duration(150)}
-          style={styles.modalCard}
-        >
-          <View style={[styles.iconContainer, { backgroundColor: getAccentBg() }]}>
-            {getIcon()}
-          </View>
+      <Animated.View
+        entering={ZoomIn.duration(200)}
+        exiting={ZoomOut.duration(150)}
+        style={styles.modalCard}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: getAccentBg() }]}>
+          {getIcon()}
+        </View>
 
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.description}>{description}</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.description}>{description}</Text>
 
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.7}>
+        <View style={styles.buttonRow}>
+          {showCancel && (
+            <TouchableOpacity
+              style={[styles.cancelBtn, isLoading && { opacity: 0.6 }]}
+              onPress={onCancel}
+              activeOpacity={0.7}
+              disabled={isLoading}
+            >
               <Text style={styles.cancelBtnText}>{cancelLabel}</Text>
             </TouchableOpacity>
+          )}
 
-            <TouchableOpacity
-              style={[styles.confirmBtn, getConfirmBtnStyle()]}
-              onPress={onConfirm}
-              activeOpacity={0.7}
-            >
+          <TouchableOpacity
+            style={[
+              styles.confirmBtn,
+              getConfirmBtnStyle(),
+              !showCancel && { flex: 1 },
+              isLoading && { opacity: 0.7 },
+            ]}
+            onPress={onConfirm}
+            activeOpacity={0.7}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
               <Text style={styles.confirmBtnText}>{confirmLabel}</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </Pressable>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+
+  if (asOverlay) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={isLoading ? undefined : onCancel}>
+      {content}
     </Modal>
   );
 }
@@ -191,13 +232,16 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       justifyContent: 'center',
     },
     confirmBtnDanger: {
-      backgroundColor: '#EF4444',
+      backgroundColor: isDark ? '#EF4444' : '#DC2626',
     },
     confirmBtnWarning: {
-      backgroundColor: '#F59E0B',
+      backgroundColor: isDark ? '#F59E0B' : '#B45309',
     },
     confirmBtnInfo: {
       backgroundColor: colors.primary,
+    },
+    confirmBtnSuccess: {
+      backgroundColor: isDark ? '#10B981' : '#047857',
     },
     confirmBtnText: {
       color: '#FFFFFF',

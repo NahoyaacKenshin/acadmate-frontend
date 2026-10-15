@@ -2,6 +2,13 @@ import React from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { X, BookOpen, CalendarDays, GraduationCap, Pencil } from 'lucide-react-native';
 import { useTheme } from '@/src/theme/useTheme';
+import {
+  formatDatePHT,
+  formatTime12PHT,
+  isSameDayPHT,
+  parseToPHTDate,
+  toPhilippineDateOnly,
+} from '@/src/utils/philippineTime';
 
 // ── Types (mirroring backend ParsedScheduleResult) ───────────────────────────
 
@@ -114,6 +121,14 @@ export function ClassScheduleRow({
 }: ClassRowProps) {
   const { colors, isDark } = useTheme();
 
+  const daysText = (() => {
+    if (item.daysOfWeek && item.daysOfWeek.length > 0) {
+      const sorted = [...item.daysOfWeek].sort((a, b) => a - b);
+      return sorted.map((d) => DAY_LABELS[d] ?? '').filter(Boolean).join(', ');
+    }
+    return DAY_LABELS[item.dayOfWeek] ?? '';
+  })();
+
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
       <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
@@ -130,7 +145,7 @@ export function ClassScheduleRow({
           )}
         </View>
         <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-          {DAY_LABELS[item.dayOfWeek]} · {to12h(item.startTime)} – {to12h(item.endTime)}
+          {daysText} · {to12h(item.startTime)} – {to12h(item.endTime)}
           {item.modality ? `  ·  ${item.modality}` : ''}
           {item.room && item.room.trim().toLowerCase() !== item.modality?.toLowerCase() && !/^(online|virtual|n\/?a|none)$/i.test(item.room.trim()) ? `  ·  ${item.room}` : ''}
         </Text>
@@ -143,18 +158,68 @@ export function ClassScheduleRow({
         )}
       </Pressable>
 
-      <Pressable
-        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
-        onPress={onRemove}
-        hitSlop={8}
-      >
-        <X size={16} color={colors.mutedForeground} />
-      </Pressable>
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 // ── CalendarEvent row ─────────────────────────────────────────────────────────
+
+export function formatEventDateTime(
+  startDateIso: string,
+  endDateIso?: string | null,
+  allDay?: boolean
+): string {
+  if (!startDateIso) return '';
+  const hasTime = !allDay && startDateIso.includes('T') && !startDateIso.includes('T00:00:00');
+
+  if (allDay) {
+    const isMultiDay =
+      endDateIso &&
+      toPhilippineDateOnly(endDateIso) !== toPhilippineDateOnly(startDateIso);
+    return isMultiDay
+      ? `All Day  ·  ${formatDatePHT(startDateIso)} – ${formatDatePHT(endDateIso)}`
+      : `All Day  ·  ${formatDatePHT(startDateIso)}`;
+  }
+
+  if (hasTime) {
+    if (endDateIso && endDateIso.includes('T') && !endDateIso.includes('T00:00:00')) {
+      const phtStart = parseToPHTDate(startDateIso) ?? new Date(startDateIso);
+      const isSameDay = isSameDayPHT(endDateIso, phtStart);
+      if (isSameDay) {
+        return `${formatDatePHT(startDateIso)}  ·  ${formatTime12PHT(startDateIso)} – ${formatTime12PHT(endDateIso)}`;
+      }
+      return `${formatDatePHT(startDateIso)} ${formatTime12PHT(startDateIso)} – ${formatDatePHT(endDateIso)} ${formatTime12PHT(endDateIso)}`;
+    }
+    return `${formatDatePHT(startDateIso)}  ·  ${formatTime12PHT(startDateIso)}`;
+  }
+
+  const isMultiDay =
+    endDateIso &&
+    toPhilippineDateOnly(endDateIso) !== toPhilippineDateOnly(startDateIso);
+  if (isMultiDay) {
+    return `${formatDatePHT(startDateIso)} – ${formatDatePHT(endDateIso)}`;
+  }
+
+  return formatDatePHT(startDateIso);
+}
 
 interface EventRowProps {
   item: ParsedCalendarEvent;
@@ -174,19 +239,29 @@ export function CalendarEventRow({ item, onRemove, onEdit }: EventRowProps) {
       <Pressable style={styles.content} onPress={onEdit}>
         <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
         <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
-          {item.allDay ? 'All Day  ·  ' : ''}{formatDate(item.startDate)}
-          {item.endDate && item.endDate !== item.startDate ? ` – ${formatDate(item.endDate)}` : ''}
+          {formatEventDateTime(item.startDate, item.endDate, item.allDay)}
           {item.location ? `  ·  ${item.location}` : ''}
         </Text>
       </Pressable>
 
-      <Pressable
-        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
-        onPress={onRemove}
-        hitSlop={8}
-      >
-        <X size={16} color={colors.mutedForeground} />
-      </Pressable>
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
     </View>
   );
 }

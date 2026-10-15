@@ -8,12 +8,13 @@ import {
   Modal,
   Vibration,
   BackHandler,
-  Alert,
   Text,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   BookOpen,
   Clock,
@@ -373,12 +374,17 @@ function EventTimelineItem({
       Boolean(event.title?.toLowerCase().includes('exam')) ||
       isExamEvent(event));
   const accentColor = isStudy
-    ? CALENDAR_THEME.STUDY_SESSION
+    ? (isDark ? '#8B5CF6' : '#6D28D9')
     : isExam
-    ? '#F59E0B'
+    ? (isDark ? '#F59E0B' : '#B45309')
     : (event.color === '#6366F1' || !event.color
         ? CALENDAR_THEME.EVENT
         : event.color);
+  const tagBg = isStudy
+    ? (isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(109, 40, 217, 0.12)')
+    : isExam
+    ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(180, 83, 9, 0.12)')
+    : `${accentColor}18`;
 
   let timeDisplay = 'All day';
   if (event.all_day !== 1 && event.start_date) {
@@ -408,7 +414,7 @@ function EventTimelineItem({
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
           <View style={styles.timelineActionsRow}>
-            <View style={[styles.eventTag, { backgroundColor: accentColor + '18' }]}>
+            <View style={[styles.eventTag, { backgroundColor: tagBg }]}>
               {isStudy ? (
                 <BookOpen size={9} color={accentColor} />
               ) : isExam ? (
@@ -473,7 +479,8 @@ function StudySessionTimelineItem({
   onEditPress?: () => void;
 }) {
   const { colors, isDark } = useTheme();
-  const accentColor = CALENDAR_THEME.STUDY_SESSION;
+  const accentColor = isDark ? '#8B5CF6' : '#6D28D9';
+  const tagBg = isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(109, 40, 217, 0.12)';
 
   let timeDisplay = 'All day';
   if (session.all_day !== 1 && session.start_date) {
@@ -507,7 +514,7 @@ function StudySessionTimelineItem({
         <View style={styles.timelineTopRow}>
           <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
           <View style={styles.timelineActionsRow}>
-            <View style={[styles.eventTag, { backgroundColor: `${accentColor}18` }]}>
+            <View style={[styles.eventTag, { backgroundColor: tagBg }]}>
               <BookOpen size={9} color={accentColor} />
               <Text style={[styles.modalityText, { color: accentColor }]}>Study</Text>
             </View>
@@ -626,6 +633,31 @@ function StudentHomeScreen() {
   // Dynamic reactive connection & sync status
   const networkStatus = useNetworkSyncStatus();
 
+  const syncStatusColors = useMemo(() => {
+    if (networkStatus === 'online') {
+      return {
+        text: isDark ? '#10B981' : '#047857',
+        icon: isDark ? '#10B981' : '#047857',
+        bg: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.12)',
+        border: isDark ? 'rgba(16, 185, 129, 0.32)' : 'rgba(4, 120, 87, 0.28)',
+      };
+    }
+    if (networkStatus === 'syncing') {
+      return {
+        text: isDark ? '#818CF8' : '#4F46E5',
+        icon: isDark ? '#818CF8' : '#4F46E5',
+        bg: isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.12)',
+        border: isDark ? 'rgba(99, 102, 241, 0.32)' : 'rgba(79, 70, 229, 0.28)',
+      };
+    }
+    return {
+      text: isDark ? '#F59E0B' : '#B45309',
+      icon: isDark ? '#F59E0B' : '#B45309',
+      bg: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.12)',
+      border: isDark ? 'rgba(245, 158, 11, 0.32)' : 'rgba(180, 83, 9, 0.28)',
+    };
+  }, [networkStatus, isDark]);
+
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
   const [viewingClass, setViewingClass] = useState<ClassScheduleRow | null>(null);
@@ -633,6 +665,8 @@ function StudentHomeScreen() {
   const [viewingEvent, setViewingEvent] = useState<CalendarEventRow | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEventRow | null>(null);
   const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getNotebookIdFromSession = useCallback((e: CalendarEventRow): string | null => {
     if (e.location && e.location.startsWith('study_session:')) {
@@ -691,14 +725,7 @@ function StudentHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-        Alert.alert(
-          'Exit AcadMate',
-          'Are you sure you want to exit?',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => {} },
-            { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
-          ]
-        );
+        setShowExitConfirm(true);
         return true;
       });
       return () => handler.remove();
@@ -719,7 +746,23 @@ function StudentHomeScreen() {
   const { holidays = [] } = useHolidays();
   const { semesterRules = [] } = useSemesterRules();
 
-  const { notebooks, pinnedIds } = useNotebookStore();
+  const { notebooks, pinnedIds, fetchNotebooks, loadPinnedIds } = useNotebookStore();
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        fetchNotebooks(true),
+        loadPinnedIds(),
+      ]);
+    } catch (err) {
+      console.warn('[Home] Refresh error:', err);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 400);
+    }
+  }, [fetchNotebooks, loadPinnedIds]);
 
   // Urgent tasks: incomplete, due today or overdue — max 3
   const urgentTasks = useMemo<TaskRow[]>(() => {
@@ -804,7 +847,7 @@ function StudentHomeScreen() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. Check holidays & suspensions (Crimson Red #EF4444)
+    // 1. Check holidays & suspensions (Crimson Red #EF4444 / #DC2626)
     const dayHol = holidays.find((h) => {
       const hd = parseDateLocal(h.date) ?? new Date(h.date);
       return (
@@ -816,14 +859,15 @@ function StudentHomeScreen() {
     if (dayHol) {
       const isSuspension =
         dayHol.type === 'SUSPENSION' || dayHol.name?.toLowerCase().includes('suspension');
+      const accent = isDark ? '#EF4444' : '#DC2626';
       return {
         type: isSuspension ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
         categoryLabel: isSuspension ? 'Class Suspension' : 'Holiday',
         title: getCleanPeriodTitle(dayHol.name ?? ''),
-        color: '#EF4444',
-        bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-        border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
-        badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+        color: accent,
+        bg: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
+        border: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
+        badgeBg: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.14)',
       };
     }
 
@@ -835,25 +879,27 @@ function StudentHomeScreen() {
       if (today >= ewStart && today <= ewEnd) {
         const cat = getPeriodCategory(ew);
         if (cat === 'EXAM') {
+          const accent = isDark ? '#F59E0B' : '#B45309';
           return {
             type: 'EXAM' as const,
             categoryLabel: 'Exam Period',
             title: getCleanPeriodTitle(ew.title),
-            color: '#F59E0B',
-            bg: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-            border: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
-            badgeBg: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.12)',
+            color: accent,
+            bg: isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)',
+            border: isDark ? 'rgba(245, 158, 11, 0.32)' : 'rgba(217, 119, 6, 0.28)',
+            badgeBg: isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(245, 158, 11, 0.14)',
           };
         } else {
           const isSusp = cat === 'SUSPENSION';
+          const accent = isDark ? '#EF4444' : '#DC2626';
           return {
             type: isSusp ? ('SUSPENSION' as const) : ('HOLIDAY' as const),
             categoryLabel: isSusp ? 'Class Suspension' : 'Holiday',
             title: getCleanPeriodTitle(ew.title),
-            color: '#EF4444',
-            bg: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-            border: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)',
-            badgeBg: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)',
+            color: accent,
+            bg: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
+            border: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
+            badgeBg: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.14)',
           };
         }
       }
@@ -868,6 +914,15 @@ function StudentHomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#6366F1"
+            colors={['#6366F1']}
+            progressBackgroundColor={isDark ? '#12141D' : '#FFFFFF'}
+          />
+        }
       >
         {/* ── Hero Header ── */}
         <Animated.View entering={FadeInDown.springify()} style={styles.hero}>
@@ -888,40 +943,23 @@ function StudentHomeScreen() {
           <View
             style={[
               styles.onlinePill,
-              networkStatus === 'online'
-                ? {
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-                    borderColor: isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)',
-                  }
-                : networkStatus === 'syncing'
-                ? {
-                    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
-                    borderColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.2)',
-                  }
-                : {
-                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                    borderColor: isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.2)',
-                  },
+              {
+                backgroundColor: syncStatusColors.bg,
+                borderColor: syncStatusColors.border,
+              },
             ]}
           >
             {networkStatus === 'online' ? (
-              <Wifi size={12} color="#10B981" />
+              <Wifi size={12} color={syncStatusColors.icon} />
             ) : networkStatus === 'syncing' ? (
-              <RotateCw size={12} color="#6366F1" />
+              <RotateCw size={12} color={syncStatusColors.icon} />
             ) : (
-              <WifiOff size={12} color="#F59E0B" />
+              <WifiOff size={12} color={syncStatusColors.icon} />
             )}
             <Text
               style={[
                 styles.onlineText,
-                {
-                  color:
-                    networkStatus === 'online'
-                      ? '#10B981'
-                      : networkStatus === 'syncing'
-                      ? '#6366F1'
-                      : '#F59E0B',
-                },
+                { color: syncStatusColors.text },
               ]}
             >
               {networkStatus === 'online' ? 'Online' : networkStatus === 'syncing' ? 'Syncing...' : 'Offline'}
@@ -963,26 +1001,46 @@ function StudentHomeScreen() {
             >
               <View style={[styles.periodIconWrap, { backgroundColor: todayPeriodInfo.badgeBg }]}>
                 {todayPeriodInfo.type === 'EXAM' ? (
-                  <GraduationCap size={18} color="#F59E0B" />
+                  <GraduationCap size={18} color={todayPeriodInfo.color} />
                 ) : todayPeriodInfo.type === 'SUSPENSION' ? (
-                  <AlertTriangle size={18} color="#EF4444" />
+                  <AlertTriangle size={18} color={todayPeriodInfo.color} />
                 ) : (
-                  <Calendar size={18} color="#EF4444" />
+                  <Calendar size={18} color={todayPeriodInfo.color} />
                 )}
               </View>
 
               <View style={styles.periodTextContainer}>
                 <View style={styles.periodTagRow}>
-                  <Text style={[styles.periodTagText, { color: todayPeriodInfo.color }]}>
+                  <Text
+                    style={[
+                      styles.periodTagText,
+                      { color: todayPeriodInfo.color, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
                     {todayPeriodInfo.categoryLabel.toUpperCase()}
                   </Text>
-                  <Text style={[styles.periodDot, { color: colors.mutedForeground }]}>·</Text>
-                  <Text style={[styles.periodSubAction, { color: colors.mutedForeground }]}>
+                  <Text
+                    style={[
+                      styles.periodDot,
+                      { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
+                    ·
+                  </Text>
+                  <Text
+                    style={[
+                      styles.periodSubAction,
+                      { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
                     Classes Blocked
                   </Text>
                 </View>
                 <Text
-                  style={[styles.periodBannerMainText, { color: colors.foreground }]}
+                  style={[
+                    styles.periodBannerMainText,
+                    { color: colors.foreground, flexShrink: 1, includeFontPadding: false },
+                  ]}
                   numberOfLines={1}
                 >
                   {todayPeriodInfo.title}
@@ -1258,6 +1316,18 @@ function StudentHomeScreen() {
         session={editingStudySession}
         onClose={() => setEditingStudySession(null)}
       />
+
+      {/* Exit App Confirmation Modal */}
+      <ConfirmModal
+        visible={showExitConfirm}
+        title="Exit AcadMate"
+        description="Are you sure you want to exit the app?"
+        confirmLabel="Exit"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => BackHandler.exitApp()}
+        onCancel={() => setShowExitConfirm(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1292,6 +1362,7 @@ const styles = StyleSheet.create({
   heroLeft: {
     flex: 1,
     marginRight: 12,
+    minWidth: 0,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -1300,17 +1371,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   greetingText: {
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
+    includeFontPadding: false,
   },
   dateDot: {
+    fontFamily: 'Inter',
     fontSize: 12,
+    includeFontPadding: false,
   },
   dateSubtitle: {
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: '500',
+    includeFontPadding: false,
   },
   nameText: {
     fontSize: 28,
@@ -1330,8 +1407,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 4,
     flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   onlineText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0,
@@ -1372,6 +1451,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   statLabel: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '500',
     textAlign: 'center',
@@ -1431,6 +1511,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   urgentTitle: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: -0.2,
@@ -1457,6 +1538,7 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   urgentSubject: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
@@ -1472,6 +1554,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   urgentBadgeText: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     fontWeight: '600',
     includeFontPadding: false,
@@ -1503,9 +1586,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyCardText: {
+    fontFamily: 'Inter',
     fontSize: 13,
     flex: 1,
     lineHeight: 18,
+    includeFontPadding: false,
   },
 
   // Timeline
@@ -1568,24 +1653,28 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   modalityText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.2,
     flexShrink: 0,
     includeFontPadding: false,
-    paddingRight: 4,
+    paddingRight: 6,
   },
   timelineText: {
     gap: 3,
   },
   timelineLabel: {
+    fontFamily: 'Inter',
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   timelineTime: {
+    fontFamily: 'Inter',
     fontSize: 11.5,
     fontWeight: '600',
+    includeFontPadding: false,
   },
   timelineMetaRow: {
     flexDirection: 'row',
@@ -1594,10 +1683,13 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   timelineSub: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     flex: 1,
+    includeFontPadding: false,
   },
   timelineSetLabel: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '700',
     paddingHorizontal: 6,
@@ -1606,6 +1698,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignSelf: 'flex-start',
     marginTop: 2,
+    includeFontPadding: false,
   },
 
   // Pinned Notebooks
@@ -1638,9 +1731,11 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   pinnedCardTitle: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: -0.2,
+    includeFontPadding: false,
   },
   pinnedCardMeta: {
     flexDirection: 'row',
@@ -1648,7 +1743,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   pinnedCardSub: {
+    fontFamily: 'Inter',
     fontSize: 11,
+    includeFontPadding: false,
   },
 
   pinnedEmptyCard: {
@@ -1661,12 +1758,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pinnedEmptyTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 13,
     fontWeight: '700',
+    includeFontPadding: false,
   },
   pinnedEmptySub: {
+    fontFamily: 'Inter',
     fontSize: 12,
     lineHeight: 17,
+    includeFontPadding: false,
   },
 
   bottomPad: {
@@ -1705,27 +1806,33 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   periodTagText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
     flexShrink: 0,
     includeFontPadding: false,
   },
   periodDot: {
+    fontFamily: 'Inter',
     fontSize: 10,
     flexShrink: 0,
     includeFontPadding: false,
   },
   periodSubAction: {
+    fontFamily: 'Inter',
     fontSize: 10.5,
     fontWeight: '500',
     flexShrink: 0,
     includeFontPadding: false,
   },
   periodBannerMainText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
+    flexShrink: 1,
+    includeFontPadding: false,
   },
   periodChevronWrap: {
     paddingLeft: 4,

@@ -49,17 +49,19 @@ export default function TaskUploadScreen() {
     uploadAndScan,
   } = useTaskScanner();
 
-  // Clear any failed attempt error messages whenever the user leaves this screen
+  // Clear any failed attempt error messages and selected file whenever the user leaves this screen
   useFocusEffect(
     useCallback(() => {
       return () => {
         clearError();
+        clearFile();
       };
-    }, [clearError])
+    }, [clearError, clearFile])
   );
 
   const handleBack = () => {
     clearError();
+    clearFile();
     router.back();
   };
 
@@ -67,11 +69,11 @@ export default function TaskUploadScreen() {
     const data = await uploadAndScan(subjects);
     if (!data) return;
     clearError();
-    router.push({
+    clearFile();
+    router.replace({
       pathname: "/(app)/task-confirm" as any,
       params: { payload: JSON.stringify(data) },
     });
-    setTimeout(() => clearFile(), 500);
   };
 
   return (

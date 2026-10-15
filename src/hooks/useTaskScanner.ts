@@ -9,7 +9,6 @@ import { useState, useRef, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Alert } from 'react-native';
 import { ENV } from '@/src/config/env';
 import {
   assertOnline,
@@ -116,10 +115,8 @@ export function useTaskScanner(): UseTaskScannerResult {
     clearError();
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        'Permission needed',
-        'Allow access to your photo library to upload an assignment image.'
-      );
+      setError('Allow access to your photo library to upload an assignment image.');
+      setIsRetryable(false);
       return;
     }
     try {
@@ -155,10 +152,8 @@ export function useTaskScanner(): UseTaskScannerResult {
     clearError();
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        'Permission needed',
-        'Allow access to your camera to capture an assignment or syllabus.'
-      );
+      setError('Allow access to your camera to capture an assignment or syllabus.');
+      setIsRetryable(false);
       return;
     }
     try {

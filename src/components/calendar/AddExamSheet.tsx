@@ -485,6 +485,7 @@ export function AddExamSheet({
               >
                 {selectedSubject ? (
                   <View style={styles.pickerLeft}>
+                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color || '#6366F1' }]} />
                     <Text style={styles.pickerText}>{selectedSubject.name}</Text>
                   </View>
                 ) : (
@@ -516,6 +517,7 @@ export function AddExamSheet({
                             setError(null);
                           }}
                         >
+                          <View style={[styles.subjectDot, { backgroundColor: sub.color || '#6366F1', marginRight: 8 }]} />
                           <Text
                             style={[
                               styles.dropdownItemText,
@@ -618,7 +620,7 @@ export function AddExamSheet({
                 <Text style={styles.label}>End Date & Time (Optional)</Text>
                 {endDate && (
                   <Pressable onPress={() => setEndDate(null)} style={styles.clearBtn} hitSlop={8}>
-                    <X size={12} color="#EF4444" />
+                    <X size={12} color={isDark ? '#EF4444' : '#DC2626'} />
                     <Text style={styles.clearBtnText}>Clear</Text>
                   </Pressable>
                 )}
@@ -783,7 +785,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 8,
     },
     errorText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 13,
       flex: 1,
       includeFontPadding: false,
@@ -805,7 +807,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       includeFontPadding: false,
     },
     termRangeBadge: {
@@ -923,7 +925,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     newSubjectTitle: {
       fontSize: 12,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 6,
       includeFontPadding: false,
     },
@@ -1002,7 +1004,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       gap: 4,
     },
     clearBtnText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 11,
       fontWeight: '600',
       includeFontPadding: false,

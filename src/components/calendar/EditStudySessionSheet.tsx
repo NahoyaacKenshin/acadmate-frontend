@@ -9,7 +9,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, {
@@ -41,6 +40,7 @@ import {
   parseToPHTDate,
 } from '@/src/utils/philippineTime';
 import { parseDateLocal } from '@/src/utils/scheduleUtils';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 export interface EditStudySessionSheetProps {
   visible: boolean;
@@ -95,6 +95,7 @@ export function EditStudySessionSheet({
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load notebooks if empty
@@ -238,7 +239,7 @@ export function EditStudySessionSheet({
           const updated = new Date(endDate);
           updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
           if (updated <= startDate) {
-            Alert.alert('Invalid End Time', 'End time must be after the start time.');
+            setError('End time must be after start time.');
             return;
           }
           setEndDate(updated);
@@ -331,43 +332,35 @@ export function EditStudySessionSheet({
 
   const handleDelete = () => {
     if (!session) return;
+    setShowDeleteConfirm(true);
+  };
 
-    Alert.alert(
-      'Delete Study Session',
-      'Are you sure you want to delete this study session? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [session.id]);
-              await NotificationService.cancelNotification(session.id);
+  const confirmDelete = async () => {
+    if (!session) return;
+    setIsDeleting(true);
+    try {
+      await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [session.id]);
+      await NotificationService.cancelNotification(session.id);
 
-              const oldNotebookId = session.location?.replace(/^study_session:/, '');
-              if (oldNotebookId) {
-                const oldStartEpoch = parseToPHTDate(session.start_date)?.getTime();
-                if (oldStartEpoch) {
-                  await NotificationService.cancelNotification(
-                    `study_${oldNotebookId}_${oldStartEpoch}`
-                  );
-                }
-              }
+      const oldNotebookId = session.location?.replace(/^study_session:/, '');
+      if (oldNotebookId) {
+        const oldStartEpoch = parseToPHTDate(session.start_date)?.getTime();
+        if (oldStartEpoch) {
+          await NotificationService.cancelNotification(
+            `study_${oldNotebookId}_${oldStartEpoch}`
+          );
+        }
+      }
 
-              onDelete?.(session);
-              handleClose();
-            } catch (err) {
-              console.error('[EditStudySession] Failed to delete session:', err);
-              setError('Failed to delete study session.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+      setShowDeleteConfirm(false);
+      onDelete?.(session);
+      handleClose();
+    } catch (err) {
+      console.error('[EditStudySession] Failed to delete session:', err);
+      setError('Failed to delete study session.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -395,9 +388,9 @@ export function EditStudySessionSheet({
                 disabled={isDeleting || isLoading}
               >
                 {isDeleting ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
+                  <ActivityIndicator size="small" color={isDark ? '#EF4444' : '#DC2626'} />
                 ) : (
-                  <Trash2 size={18} color="#EF4444" />
+                  <Trash2 size={18} color={isDark ? '#EF4444' : '#DC2626'} />
                 )}
               </Pressable>
               <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
@@ -681,6 +674,18 @@ export function EditStudySessionSheet({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Study Session?"
+        description="Are you sure you want to delete this study session? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }
@@ -782,7 +787,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     errorText: {
       fontSize: 13,
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       flex: 1,
       fontWeight: '500',
       includeFontPadding: false,
@@ -804,7 +809,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 11,
       fontWeight: '700',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       letterSpacing: 1.5,
       includeFontPadding: false,
     },

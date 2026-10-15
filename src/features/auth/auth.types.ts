@@ -3,7 +3,7 @@ export type AuthUser = {
   name: string | null;
   email: string | null;
   avatarUrl?: string | null;
-  role: 'USER' | 'ADMIN';
+  role?: string | null;
   emailVerified?: string | null;
   programName?: string | null;
   studentSet?: 'A' | 'B' | 'Standard' | null;

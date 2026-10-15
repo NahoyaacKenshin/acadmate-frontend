@@ -21,6 +21,7 @@ import { toPhilippineISO, parseDateLocal, parseToPHTDate, CALENDAR_THEME } from 
 import { isExamEvent } from '@/src/services/notificationService';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 interface EditEventSheetProps {
   visible: boolean;
@@ -78,6 +79,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   const [datePickerStep, setDatePickerStep] = useState<DatePickerStep>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Populate form when event changes without date drifting
@@ -217,30 +219,23 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      isExam ? 'Delete Exam' : 'Delete Event',
-      `Are you sure you want to delete this ${isExam ? 'exam' : 'event'}? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!event) return;
-            setIsDeleting(true);
-            try {
-              await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [event.id]);
-              handleClose();
-            } catch (err) {
-              console.error('[EditEvent] delete failed:', err);
-              setError('Failed to delete.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    if (!event) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!event) return;
+    setIsDeleting(true);
+    try {
+      await powerSync.execute('DELETE FROM CalendarEvent WHERE id = ?', [event.id]);
+      setShowDeleteConfirm(false);
+      handleClose();
+    } catch (err) {
+      console.error('[EditEvent] delete failed:', err);
+      setError('Failed to delete.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -267,8 +262,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
             <View style={styles.headerActions}>
               <Pressable onPress={handleDelete} style={styles.deleteBtn} hitSlop={8} disabled={isDeleting}>
                 {isDeleting
-                  ? <ActivityIndicator size="small" color="#EF4444" />
-                  : <Trash2 size={18} color="#EF4444" />
+                  ? <ActivityIndicator size="small" color={isDark ? '#EF4444' : '#DC2626'} />
+                  : <Trash2 size={18} color={isDark ? '#EF4444' : '#DC2626'} />
                 }
               </Pressable>
               <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
@@ -279,7 +274,7 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
 
           {error && (
             <View style={styles.errorBanner}>
-              <AlertCircle size={15} color="#EF4444" />
+              <AlertCircle size={15} color={isDark ? '#EF4444' : '#DC2626'} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -388,8 +383,8 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
                       style={styles.resetBtn}
                       hitSlop={8}
                     >
-                      <X size={12} color="#EF4444" />
-                      <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
+                      <X size={12} color={isDark ? '#EF4444' : '#DC2626'} />
+                      <Text style={[styles.resetBtnText, { color: isDark ? '#EF4444' : '#DC2626' }]}>Clear</Text>
                     </Pressable>
                   )}
                 </View>
@@ -455,6 +450,18 @@ export function EditEventSheet({ visible, event, onClose }: EditEventSheetProps)
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title={isExam ? 'Delete Exam?' : 'Delete Event?'}
+        description={`Are you sure you want to delete this ${isExam ? 'exam' : 'event'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }
@@ -545,7 +552,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 8,
     },
     errorText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 13,
       flex: 1,
       includeFontPadding: false,
@@ -599,7 +606,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 8,
       includeFontPadding: false,
     },

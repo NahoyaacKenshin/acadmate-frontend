@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
-import { Text } from '@/src/components/ui/text';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
 import { FileText, Image as ImageIcon, File, BookOpen, ChevronDown } from 'lucide-react-native';
 import { useTheme } from '@/src/theme/useTheme';
 
@@ -131,6 +130,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   toggleText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     color: '#6366F1',
@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   chipText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
@@ -168,6 +169,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chunkBadgeText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '700',
     includeFontPadding: false,

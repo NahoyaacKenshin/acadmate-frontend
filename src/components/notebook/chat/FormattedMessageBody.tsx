@@ -380,21 +380,25 @@ export function FormattedMessageBody({ content }: FormattedMessageBodyProps) {
 
   const markdownStyles = {
     body: {
+      fontFamily: 'Inter',
       color: colors.foreground,
       fontSize: 14,
       lineHeight: 21,
     },
     text: {
+      fontFamily: 'Inter',
       color: colors.foreground,
       fontSize: 14,
       lineHeight: 21,
     },
     textgroup: {
+      fontFamily: 'Inter',
       color: colors.foreground,
       fontSize: 14,
       lineHeight: 21,
     },
     paragraph: {
+      fontFamily: 'Inter',
       color: colors.foreground,
       fontSize: 14,
       lineHeight: 21,

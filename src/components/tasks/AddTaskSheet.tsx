@@ -279,8 +279,8 @@ export function AddTaskSheet({ visible, subjects, onClose, onOpenScanner }: AddT
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <X size={12} color="#EF4444" />
-                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
+                    <X size={12} color={isDark ? '#EF4444' : '#DC2626'} />
+                    <Text style={[styles.resetBtnText, { color: isDark ? '#EF4444' : '#DC2626' }]}>Clear</Text>
                   </Pressable>
                 )}
               </View>
@@ -432,9 +432,9 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.14)' : 'rgba(239, 68, 68, 0.08)',
       borderWidth: 1,
-      borderColor: 'rgba(239, 68, 68, 0.3)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(220, 38, 38, 0.28)',
       marginHorizontal: 20,
       marginTop: 12,
       paddingHorizontal: 12,
@@ -442,7 +442,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 8,
     },
     errorText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 13,
       flex: 1,
       includeFontPadding: false,
@@ -514,7 +514,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       includeFontPadding: false,
     },
     input: {
-      backgroundColor: colors.background,
+      backgroundColor: isDark ? colors.background : colors.muted,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,
@@ -528,7 +528,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       textAlignVertical: 'top',
     },
     picker: {
-      backgroundColor: colors.background,
+      backgroundColor: isDark ? colors.background : colors.muted,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,
@@ -539,18 +539,22 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       alignItems: 'center',
     },
     pickerText: {
+      flex: 1,
       color: colors.foreground,
       fontSize: 14,
       fontWeight: '500',
       includeFontPadding: false,
+      paddingRight: 8,
     },
     pickerPlaceholder: {
+      flex: 1,
       color: colors.mutedForeground,
       fontSize: 14,
       includeFontPadding: false,
+      paddingRight: 8,
     },
     pickerList: {
-      backgroundColor: colors.card,
+      backgroundColor: isDark ? colors.background : colors.card,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,10 +8,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
 import { Button } from '@/src/components/ui/button';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { X, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NotificationService } from '../../services/notificationService';
@@ -28,6 +28,15 @@ interface StudySchedulerModalProps {
   notebookTitle: string;
 }
 
+const DURATION_OPTIONS = [
+  { label: '30m', minutes: 30 },
+  { label: '45m', minutes: 45 },
+  { label: '1h', minutes: 60 },
+  { label: '1.5h', minutes: 90 },
+  { label: '2h', minutes: 120 },
+  { label: 'Custom', minutes: -1 },
+];
+
 export function StudySchedulerModal({
   visible,
   onClose,
@@ -39,10 +48,45 @@ export function StudySchedulerModal({
   const powerSync = usePowerSync();
   const { user } = useAuthStore();
   const [date, setDate] = useState<Date>(new Date());
-  const [leadMinutes, setLeadMinutes] = useState<number>(0);
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000));
+  const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [focusText, setFocusText] = useState(`Review study material for ${notebookTitle}`);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant?: 'warning' | 'danger' | 'info' | 'success';
+    onCloseAction?: () => void;
+  } | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      const now = new Date();
+      setDate(now);
+      setEndDate(new Date(now.getTime() + 60 * 60 * 1000));
+      setDurationMinutes(60);
+      setShowDatePicker(false);
+      setShowTimePicker(false);
+      setShowEndTimePicker(false);
+      setFocusText(`Review study material for ${notebookTitle}`);
+    }
+  }, [visible, notebookTitle]);
+
+  const handleDurationSelect = (mins: number) => {
+    setDurationMinutes(mins);
+    if (mins > 0) {
+      const updatedEnd = new Date(date.getTime() + mins * 60 * 1000);
+      setEndDate(updatedEnd);
+      setShowEndTimePicker(false);
+    } else {
+      // Custom: ensure end is after start
+      if (endDate <= date) {
+        setEndDate(new Date(date.getTime() + 60 * 60 * 1000));
+      }
+    }
+  };
 
   const openDatePicker = () => {
     if (Platform.OS === 'android') {
@@ -55,10 +99,18 @@ export function StudySchedulerModal({
           const updated = new Date(date);
           updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
           setDate(updated);
+
+          // Shift end date accordingly
+          const currentDuration =
+            durationMinutes > 0
+              ? durationMinutes * 60 * 1000
+              : Math.max(endDate.getTime() - date.getTime(), 15 * 60 * 1000);
+          setEndDate(new Date(updated.getTime() + currentDuration));
         },
       });
     } else {
       setShowTimePicker(false);
+      setShowEndTimePicker(false);
       setShowDatePicker(true);
     }
   };
@@ -72,13 +124,49 @@ export function StudySchedulerModal({
         onChange: (event: DateTimePickerEvent, selectedTime?: Date) => {
           if (event.type === 'dismissed' || !selectedTime) return;
           const updated = new Date(date);
-          updated.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+          updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
           setDate(updated);
+
+          // Shift end date accordingly
+          const currentDuration =
+            durationMinutes > 0
+              ? durationMinutes * 60 * 1000
+              : Math.max(endDate.getTime() - date.getTime(), 15 * 60 * 1000);
+          setEndDate(new Date(updated.getTime() + currentDuration));
         },
       });
     } else {
       setShowDatePicker(false);
+      setShowEndTimePicker(false);
       setShowTimePicker(true);
+    }
+  };
+
+  const openCustomEndTimePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: endDate,
+        mode: 'time',
+        is24Hour: false,
+        onChange: (event: DateTimePickerEvent, selectedTime?: Date) => {
+          if (event.type === 'dismissed' || !selectedTime) return;
+          const updated = new Date(endDate);
+          updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+          if (updated <= date) {
+            setDialogNotice({
+              title: 'Invalid End Time',
+              description: 'End time must be after the start time.',
+              variant: 'warning',
+            });
+            return;
+          }
+          setEndDate(updated);
+        },
+      });
+    } else {
+      setShowDatePicker(false);
+      setShowTimePicker(false);
+      setShowEndTimePicker((prev) => !prev);
     }
   };
 
@@ -87,29 +175,56 @@ export function StudySchedulerModal({
       const updated = new Date(date);
       updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
       setDate(updated);
+
+      const currentDuration =
+        durationMinutes > 0
+          ? durationMinutes * 60 * 1000
+          : Math.max(endDate.getTime() - date.getTime(), 15 * 60 * 1000);
+      setEndDate(new Date(updated.getTime() + currentDuration));
     }
   };
 
   const handleTimeChange = (_event: DateTimePickerEvent, selectedTime?: Date) => {
     if (selectedTime) {
       const updated = new Date(date);
-      updated.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
       setDate(updated);
+
+      const currentDuration =
+        durationMinutes > 0
+          ? durationMinutes * 60 * 1000
+          : Math.max(endDate.getTime() - date.getTime(), 15 * 60 * 1000);
+      setEndDate(new Date(updated.getTime() + currentDuration));
     }
   };
 
   const handleSchedule = async () => {
     if (!prefs.studyReminders) {
-      Alert.alert(
-        'Notifications Disabled',
-        'Please enable Notebook Study Reminders in Settings first.'
-      );
+      setDialogNotice({
+        title: 'Notifications Disabled',
+        description: 'Please enable Notebook Study Reminders in Settings first.',
+        variant: 'warning',
+      });
       return;
     }
 
+    if (endDate <= date) {
+      setDialogNotice({
+        title: 'Invalid Duration',
+        description: 'End time must be after the start time.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    const leadMinutes = prefs.studyLeadMinutes ?? 0;
     const alertTime = new Date(date.getTime() - leadMinutes * 60 * 1000);
     if (alertTime.getTime() <= Date.now()) {
-      Alert.alert('Invalid Time', 'The scheduled reminder time must be in the future.');
+      setDialogNotice({
+        title: 'Invalid Time',
+        description: 'The scheduled reminder time must be in the future.',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -124,7 +239,7 @@ export function StudySchedulerModal({
     // Also persist into CalendarEvent SQLite table so it reflects on the Calendar screen
     const eventId = reminderId || `study_${notebookId}_${date.getTime()}`;
     const startISO = toPhilippineISO(date);
-    const endISO = toPhilippineISO(new Date(date.getTime() + 60 * 60 * 1000));
+    const endISO = toPhilippineISO(endDate);
     const now = toPhilippineISO(new Date());
 
     try {
@@ -151,12 +266,12 @@ export function StudySchedulerModal({
       console.error('[StudyScheduler] Failed to insert CalendarEvent:', dbErr);
     }
 
-    const leadText = leadMinutes > 0 ? ` (${leadMinutes} mins lead time)` : '';
-    Alert.alert(
-      'Reminder Scheduled',
-      `Study reminder set for ${formatDatePHT(date)} at ${formatTime12PHT(date)}${leadText}`,
-      [{ text: 'OK', onPress: onClose }]
-    );
+    setDialogNotice({
+      title: 'Session Scheduled',
+      description: `Study session set for ${formatDatePHT(date)} (${formatTime12PHT(date)} - ${formatTime12PHT(endDate)})`,
+      variant: 'success',
+      onCloseAction: onClose,
+    });
   };
 
   return (
@@ -283,22 +398,22 @@ export function StudySchedulerModal({
               </Pressable>
             </View>
 
-            {/* Lead Time Selection */}
+            {/* Session Duration */}
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>REMINDER LEAD TIME</Text>
-              <View style={styles.leadTimeRow}>
-                {[
-                  { label: 'At start', mins: 0 },
-                  { label: '15m before', mins: 15 },
-                  { label: '30m before', mins: 30 },
-                  { label: '1h before', mins: 60 },
-                ].map((item) => {
-                  const isSelected = leadMinutes === item.mins;
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.foreground }]}>DURATION</Text>
+                <Text style={[styles.endInfoText, { color: colors.mutedForeground }]}>
+                  Ends at {formatTime12PHT(endDate)}
+                </Text>
+              </View>
+              <View style={styles.durationRow}>
+                {DURATION_OPTIONS.map((item) => {
+                  const isSelected = durationMinutes === item.minutes;
                   return (
                     <Pressable
-                      key={item.mins}
+                      key={item.label}
                       style={[
-                        styles.leadPill,
+                        styles.durationPill,
                         {
                           backgroundColor: isSelected
                             ? (isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF')
@@ -306,13 +421,14 @@ export function StudySchedulerModal({
                           borderColor: isSelected ? '#6366F1' : colors.border,
                         },
                       ]}
-                      onPress={() => setLeadMinutes(item.mins)}
+                      onPress={() => handleDurationSelect(item.minutes)}
                     >
                       <Text
                         style={[
-                          styles.leadPillText,
+                          styles.durationPillText,
                           {
-                            color: isSelected ? '#6366F1' : colors.mutedForeground,
+                            color: isSelected ? '#6366F1' : colors.foreground,
+                            fontWeight: isSelected ? '700' : '600',
                           },
                         ]}
                       >
@@ -322,6 +438,28 @@ export function StudySchedulerModal({
                   );
                 })}
               </View>
+
+              {/* Custom End Time button if selected */}
+              {durationMinutes === -1 && (
+                <Pressable
+                  style={[
+                    styles.customEndButton,
+                    {
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#F9FAFB',
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={openCustomEndTimePicker}
+                >
+                  <Clock size={16} color="#6366F1" />
+                  <Text style={[styles.customEndLabel, { color: colors.mutedForeground }]}>
+                    Custom End Time:
+                  </Text>
+                  <Text style={[styles.customEndValue, { color: colors.foreground }]}>
+                    {formatTime12PHT(endDate)}
+                  </Text>
+                </Pressable>
+              )}
             </View>
 
             {/* iOS inline spinners */}
@@ -358,6 +496,30 @@ export function StudySchedulerModal({
               </View>
             )}
 
+            {Platform.OS === 'ios' && showEndTimePicker && durationMinutes === -1 && (
+              <View style={{ marginBottom: 12 }}>
+                <DateTimePicker
+                  value={endDate}
+                  mode="time"
+                  display="spinner"
+                  onChange={(_event: DateTimePickerEvent, selectedTime?: Date) => {
+                    if (selectedTime) {
+                      const updated = new Date(endDate);
+                      updated.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+                      if (updated > date) {
+                        setEndDate(updated);
+                      }
+                    }
+                  }}
+                  textColor={colors.foreground}
+                  themeVariant={isDark ? 'dark' : 'light'}
+                />
+                <Button style={{ marginTop: 8 }} onPress={() => setShowEndTimePicker(false)}>
+                  <Text>Done</Text>
+                </Button>
+              </View>
+            )}
+
             {/* CTA */}
             <Button style={styles.ctaBtn} onPress={handleSchedule}>
               <Text style={styles.ctaText}>Set Study Alert</Text>
@@ -365,6 +527,26 @@ export function StudySchedulerModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'info'}
+        confirmLabel="Got It"
+        showCancel={false}
+        asOverlay
+        onConfirm={() => {
+          const action = dialogNotice?.onCloseAction;
+          setDialogNotice(null);
+          if (action) action();
+        }}
+        onCancel={() => {
+          const action = dialogNotice?.onCloseAction;
+          setDialogNotice(null);
+          if (action) action();
+        }}
+      />
     </Modal>
   );
 }
@@ -483,11 +665,22 @@ const styles = StyleSheet.create({
     marginTop: 2,
     includeFontPadding: false,
   },
-  leadTimeRow: {
+  labelRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  leadPill: {
+  endInfoText: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: 'Inter',
+    includeFontPadding: false,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  durationPill: {
     flex: 1,
     height: 38,
     borderRadius: 10,
@@ -496,9 +689,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  leadPillText: {
+  durationPillText: {
     fontSize: 11,
+    fontFamily: 'Inter',
+    includeFontPadding: false,
+    flexShrink: 0,
+  },
+  customEndButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  customEndLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter',
+    includeFontPadding: false,
+  },
+  customEndValue: {
+    fontSize: 13,
     fontWeight: '700',
+    fontFamily: 'Inter-Bold',
     includeFontPadding: false,
   },
   ctaBtn: {

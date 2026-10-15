@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Modal,
@@ -6,7 +6,6 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 import { Sparkles, PenLine, X, HelpCircle, AlertCircle } from 'lucide-react-native';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 interface CreateQuizModalProps {
   visible: boolean;
@@ -37,17 +37,32 @@ export function CreateQuizModal({
 }: CreateQuizModalProps) {
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<'ai' | 'manual'>('ai');
+
+  useEffect(() => {
+    if (visible && !isOnline) {
+      setTab('manual');
+    }
+  }, [visible, isOnline]);
   const [questionCount, setQuestionCount] = useState<number>(10);
   const [customTitle, setCustomTitle] = useState('');
   const [manualDescription, setManualDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant: 'warning' | 'danger' | 'info';
+  } | null>(null);
 
   const styles = createStyles(colors, isDark);
 
   const handleGenerate = async () => {
     Keyboard.dismiss();
     if (!isOnline) {
-      Alert.alert('Offline Mode', 'Generating new quizzes with AI requires an active internet connection.');
+      setDialogNotice({
+        title: 'Offline Mode',
+        description: 'Generating new quizzes with AI requires an active internet connection.',
+        variant: 'warning',
+      });
       return;
     }
     setIsSubmitting(true);
@@ -56,7 +71,11 @@ export function CreateQuizModal({
       setCustomTitle('');
       onClose();
     } catch (err: any) {
-      Alert.alert('Generation Failed', err?.message || 'Could not generate quiz. Please try again.');
+      setDialogNotice({
+        title: 'Generation Failed',
+        description: err?.message || 'Could not generate quiz. Please try again.',
+        variant: 'danger',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -65,7 +84,11 @@ export function CreateQuizModal({
   const handleManualCreate = async () => {
     Keyboard.dismiss();
     if (!customTitle.trim()) {
-      Alert.alert('Required', 'Please enter a title for the quiz.');
+      setDialogNotice({
+        title: 'Title Required',
+        description: 'Please enter a title for the quiz.',
+        variant: 'warning',
+      });
       return;
     }
     setIsSubmitting(true);
@@ -75,7 +98,11 @@ export function CreateQuizModal({
       setManualDescription('');
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create quiz.');
+      setDialogNotice({
+        title: 'Creation Failed',
+        description: err?.message || 'Failed to create quiz.',
+        variant: 'danger',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -257,6 +284,18 @@ export function CreateQuizModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'info'}
+        confirmLabel="Got It"
+        showCancel={false}
+        asOverlay
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
+      />
     </Modal>
   );
 }

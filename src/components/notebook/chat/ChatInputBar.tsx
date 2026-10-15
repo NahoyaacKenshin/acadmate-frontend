@@ -7,7 +7,7 @@ import {
   Platform,
 } from 'react-native';
 import { Text } from '@/src/components/ui/text';
-import { SendHorizontal, WifiOff } from 'lucide-react-native';
+import { SendHorizontal } from 'lucide-react-native';
 import { useTheme } from '@/src/theme/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,28 +36,6 @@ export function ChatInputBar({ onSend, isLoading, isOnline, isKeyboardVisible }:
 
   return (
     <View style={styles.wrapper}>
-      {/* Offline notice */}
-      {!isOnline && (
-        <View
-          style={[
-            styles.offlineBar,
-            {
-              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FEF3C7',
-              borderColor: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FDE68A',
-            },
-          ]}
-        >
-          <WifiOff size={13} color={isDark ? '#F59E0B' : '#D97706'} />
-          <Text
-            style={[
-              styles.offlineText,
-              { color: isDark ? '#F59E0B' : '#D97706' },
-            ]}
-          >
-            AI Chat requires an internet connection.
-          </Text>
-        </View>
-      )}
 
       <View
         style={[
@@ -123,19 +101,6 @@ const styles = StyleSheet.create({
   wrapper: {
     flexShrink: 0,
   },
-  offlineBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  offlineText: {
-    fontSize: 12,
-    fontWeight: '600',
-    includeFontPadding: false,
-  },
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -147,6 +112,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    fontFamily: 'Inter',
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -161,6 +127,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   charCount: {
+    fontFamily: 'Inter',
     position: 'absolute',
     right: 58,
     bottom: Platform.OS === 'ios' ? 36 : 18,

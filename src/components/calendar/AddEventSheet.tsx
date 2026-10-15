@@ -247,7 +247,7 @@ export function AddEventSheet({ visible, initialDate, isExamMode, onClose }: Add
               <Text style={styles.headerTitle}>{isExamMode ? 'New Exam' : 'New Event'}</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color="#94A3B8" />
+              <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -503,7 +503,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 8,
     },
     errorText: {
-      color: '#EF4444',
+      color: isDark ? '#EF4444' : '#DC2626',
       fontSize: 13,
       flex: 1,
     },
@@ -551,7 +551,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: '600',
       includeFontPadding: false,
     },
-    label: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, marginBottom: 8, includeFontPadding: false },
+    label: { fontSize: 13, fontWeight: '600', color: colors.foreground, marginBottom: 8, includeFontPadding: false },
     sublabel: { fontSize: 12, color: colors.mutedForeground, marginTop: 2, includeFontPadding: false },
     toggleRow: {
       flexDirection: 'row',

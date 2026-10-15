@@ -345,6 +345,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   rangeLabel: {
+    fontFamily: 'Inter-Bold',
     flex: 1,
     textAlign: 'center',
     fontSize: 13,
@@ -369,6 +370,7 @@ const styles = StyleSheet.create({
     opacity: 0.38,
   },
   dayName: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '600',
     marginBottom: 4,
@@ -376,6 +378,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   dayNameSelected: {
+    fontFamily: 'Inter-Bold',
     color: '#6366F1',
     fontWeight: '700',
   },
@@ -394,15 +397,18 @@ const styles = StyleSheet.create({
     borderColor: '#6366F1',
   },
   dayNumber: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '500',
     includeFontPadding: false,
   },
   dayNumberSelected: {
+    fontFamily: 'Inter-Bold',
     fontWeight: '700',
     color: '#ffffff',
   },
   dayNumberToday: {
+    fontFamily: 'Inter-Bold',
     fontWeight: '700',
     color: '#6366F1',
   },

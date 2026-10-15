@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,8 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
+  Text,
 } from 'react-native';
-import { Text } from '@/src/components/ui/text';
 import {
   Sparkles,
   FileText,
@@ -67,6 +67,20 @@ export function TaskScanModal({ visible, subjects, onClose }: TaskScanModalProps
   const [scannedTasks, setScannedTasks] = useState<ParsedScannedTask[] | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [openSubjectDropdownId, setOpenSubjectDropdownId] = useState<string | null>(null);
+
+  // Automatically reset all scanning state when modal becomes hidden
+  useEffect(() => {
+    if (!visible) {
+      if (isLoading) {
+        cancelUpload();
+      }
+      clearFile();
+      clearError();
+      setScannedTasks(null);
+      setIsImporting(false);
+      setOpenSubjectDropdownId(null);
+    }
+  }, [visible]);
 
   const handleClose = () => {
     if (isLoading) {

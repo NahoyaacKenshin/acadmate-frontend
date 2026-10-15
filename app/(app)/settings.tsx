@@ -10,12 +10,12 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/src/features/auth/auth.store';
 import { useUserStore, computeCurrentSet, getNextSetFlipMonday } from '@/src/store/userStore';
-import { Text } from '@/src/components/ui/text';
 import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import { useTheme } from '@/src/theme/useTheme';
 import { ThemeMode } from '@/src/theme/tokens';
@@ -78,7 +78,11 @@ function LeadPillsRow({
   const isCustom = !presets.includes(currentMinutes);
 
   return (
-    <View style={styles.leadMinutesRow}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.leadMinutesRow}
+    >
       {presets.map((mins) => {
         const isSel = currentMinutes === mins;
         return (
@@ -135,7 +139,7 @@ function LeadPillsRow({
           {isCustom ? formatLeadMinutes(currentMinutes) : 'Custom'}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -343,7 +347,7 @@ export default function SettingsScreen() {
             ]}
           >
             {userInitials ? (
-              <Text style={styles.avatarText}>{userInitials}</Text>
+              <Text style={[styles.avatarText, { color: '#6366F1' }]}>{userInitials}</Text>
             ) : (
               <User size={22} color="#6366F1" />
             )}
@@ -420,7 +424,7 @@ export default function SettingsScreen() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Pencil size={11} color="#6366F1" />
-              <Text style={styles.editNicknameBtnText}>Edit</Text>
+              <Text style={[styles.editNicknameBtnText, { color: '#6366F1' }]}>Edit</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -863,7 +867,7 @@ export default function SettingsScreen() {
           >
             <View style={styles.deviceNoteHeader}>
               <Smartphone size={15} color="#6366F1" />
-              <Text style={styles.deviceNoteTitle}>Android & HyperOS Optimization Tip</Text>
+              <Text style={[styles.deviceNoteTitle, { color: '#6366F1' }]}>Android & HyperOS Optimization Tip</Text>
             </View>
             <Text style={[styles.deviceNoteText, { color: colors.mutedForeground }]}>
               For Xiaomi, HyperOS, and Oppo users: Turn on "Floating notifications" and "Sound" in your phone's App Notification settings to allow drop-down pop-up banners.
@@ -931,7 +935,7 @@ export default function SettingsScreen() {
             <View style={styles.logoutIconWrap}>
               <LogOut size={18} color="#EF4444" />
             </View>
-            <Text style={styles.logoutTitle}>Sign Out</Text>
+            <Text style={[styles.logoutTitle, { color: '#EF4444' }]}>Sign Out</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -1128,10 +1132,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avatarText: {
+    fontFamily: 'Inter-Bold',
     fontSize: 18,
     fontWeight: '800',
     color: '#6366F1',
     letterSpacing: 0.5,
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   profileInfo: {
     flex: 1,
@@ -1333,21 +1340,23 @@ const styles = StyleSheet.create({
   leadMinutesRow: {
     flexDirection: 'row',
     gap: 6,
+    paddingRight: 16,
   },
   leadMinutesPill: {
-    flex: 1,
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 12,
+    flexShrink: 0,
   },
   leadMinutesText: {
     fontSize: 11,
     fontWeight: '600',
     includeFontPadding: false,
     flexShrink: 0,
+    paddingRight: 2,
   },
   leadMinutesTextActive: {
     fontWeight: '700',
@@ -1435,9 +1444,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoutTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 14,
     fontWeight: '700',
     color: '#EF4444',
+    includeFontPadding: false,
+    flexShrink: 0,
   },
 
   // ── Custom Lead Modal ─────────────────────────────────────────────────────

@@ -167,8 +167,8 @@ export function TaskDetailModal({
                 <Text
                   style={[
                     styles.infoValue,
-                    isOverdue && { color: '#EF4444' },
-                    isTodayDue && { color: '#F59E0B' },
+                    isOverdue && { color: isDark ? '#EF4444' : '#DC2626' },
+                    isTodayDue && { color: isDark ? '#F59E0B' : '#B45309' },
                   ]}
                 >
                   {dueString}

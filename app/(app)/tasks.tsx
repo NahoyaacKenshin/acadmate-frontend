@@ -251,7 +251,7 @@ export default function TasksScreen() {
           style={styles.header}
           onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
         >
-          <Text style={styles.headerTitle}>Tasks</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Tasks</Text>
           <ActionMenuButton
             isOpen={isActionMenuOpen}
             onPress={toggleActionMenu}
@@ -277,9 +277,9 @@ export default function TasksScreen() {
             <View style={styles.progressHeader}>
               <View style={styles.progressTitleRow}>
                 <CheckCircle2 size={15} color="#10B981" />
-                <Text style={styles.progressTitle}>Progress</Text>
+                <Text style={[styles.progressTitle, { color: colors.foreground }]}>Progress</Text>
               </View>
-              <Text style={styles.progressStats}>
+              <Text style={[styles.progressStats, { color: colors.mutedForeground }]}>
                 {completedTasks} of {totalTasks} completed ({progressPercent}%)
               </Text>
             </View>
@@ -299,7 +299,13 @@ export default function TasksScreen() {
                 style={[styles.filterPill, isActive && styles.filterPillActive]}
                 onPress={() => setActiveFilter(tab.key)}
               >
-                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: isActive ? '#ffffff' : colors.foreground },
+                    isActive && styles.filterPillTextActive,
+                  ]}
+                >
                   {tab.label}
                 </Text>
               </Pressable>
@@ -325,9 +331,9 @@ export default function TasksScreen() {
                 <Text
                   style={[
                     styles.subjectPillText,
+                    { color: selectedSubjectId === null ? '#6366F1' : colors.foreground },
                     selectedSubjectId === null && styles.subjectPillTextActive,
                   ]}
-                  numberOfLines={1}
                 >
                   All Subjects
                 </Text>
@@ -352,9 +358,9 @@ export default function TasksScreen() {
                     <Text
                       style={[
                         styles.subjectPillText,
+                        { color: isSubActive ? '#6366F1' : colors.foreground },
                         isSubActive && styles.subjectPillTextActive,
                       ]}
-                      numberOfLines={1}
                     >
                       {sub.name}
                     </Text>
@@ -381,7 +387,7 @@ export default function TasksScreen() {
                 <Inbox size={28} color={colors.mutedForeground} />
               )}
             </View>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: colors.foreground }]}>
               {activeFilter === 'pending'
                 ? 'No pending tasks'
                 : activeFilter === 'overdue'
@@ -390,7 +396,7 @@ export default function TasksScreen() {
                 ? 'No completed tasks yet'
                 : 'No tasks found'}
             </Text>
-            <Text style={styles.emptySubText}>
+            <Text style={[styles.emptySubText, { color: colors.mutedForeground }]}>
               {activeFilter === 'pending' || activeFilter === 'all'
                 ? 'Tap + above to create a task or scan a document.'
                 : 'Keep up the good work!'}
@@ -401,6 +407,7 @@ export default function TasksScreen() {
             sections={timelineSections}
             keyExtractor={(item) => item.id}
             stickySectionHeadersEnabled={false}
+            extraData={[isDark, colors]}
             renderItem={({ item }) => (
               <TaskListItem
                 task={mapToListItem(item)}
@@ -409,35 +416,41 @@ export default function TasksScreen() {
                 onPress={() => handlePressTask(item)}
               />
             )}
-            renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionHeaderLeft}>
-                  <View style={[styles.sectionIndicator, { backgroundColor: section.badgeColor }]} />
-                  <Text style={styles.sectionTitle}>{section.title}</Text>
-                  <View style={[styles.sectionBadge, { backgroundColor: section.badgeColor + '20' }]}>
-                    <Text style={[styles.sectionBadgeText, { color: section.badgeColor }]}>
-                      {section.totalCount ?? section.data.length}
-                    </Text>
+            renderSectionHeader={({ section }) => {
+              const isToday = section.key === 'today' || section.title === 'Due Today';
+              const badgeAccent = isToday && !isDark ? '#D97706' : section.badgeColor;
+              const badgeTextAccent = isToday && !isDark ? '#B45309' : section.badgeColor;
+
+              return (
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <View style={[styles.sectionIndicator, { backgroundColor: badgeAccent }]} />
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{section.title}</Text>
+                    <View style={[styles.sectionBadge, { backgroundColor: badgeAccent + (isDark ? '25' : '18') }]}>
+                      <Text style={[styles.sectionBadgeText, { color: badgeTextAccent }]}>
+                        {section.totalCount ?? section.data.length}
+                      </Text>
+                    </View>
                   </View>
+                  {section.collapsible && (
+                    <Pressable
+                      style={styles.collapseBtn}
+                      onPress={() => setIsCompletedCollapsed((prev) => !prev)}
+                      hitSlop={8}
+                    >
+                      <Text style={[styles.collapseBtnText, { color: colors.mutedForeground }]}>
+                        {isCompletedCollapsed ? 'Show' : 'Hide'}
+                      </Text>
+                      <ChevronDown
+                        size={14}
+                        color={colors.mutedForeground}
+                        style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
+                      />
+                    </Pressable>
+                  )}
                 </View>
-                {section.collapsible && (
-                  <Pressable
-                    style={styles.collapseBtn}
-                    onPress={() => setIsCompletedCollapsed((prev) => !prev)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.collapseBtnText}>
-                      {isCompletedCollapsed ? 'Show' : 'Hide'}
-                    </Text>
-                    <ChevronDown
-                      size={14}
-                      color={colors.mutedForeground}
-                      style={{ transform: [{ rotate: isCompletedCollapsed ? '0deg' : '180deg' }] }}
-                    />
-                  </Pressable>
-                )}
-              </View>
-            )}
+              );
+            }}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             windowSize={7}
@@ -510,6 +523,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingBottom: 8,
     },
     headerTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 28,
       lineHeight: 34,
       fontWeight: '700',
@@ -535,14 +549,19 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      flexShrink: 0,
     },
     progressTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 13,
       fontWeight: '700',
       color: colors.foreground,
       includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 6,
     },
     progressStats: {
+      fontFamily: 'Inter',
       fontSize: 12,
       color: colors.mutedForeground,
       fontWeight: '500',
@@ -581,6 +600,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderColor: '#6366F1',
     },
     filterPillText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       fontWeight: '600',
       color: colors.mutedForeground,
@@ -590,6 +610,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       textAlign: 'center',
     },
     filterPillTextActive: {
+      fontFamily: 'Inter-Bold',
       color: '#ffffff',
       fontWeight: '700',
     },
@@ -622,15 +643,21 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       borderRadius: 4,
     },
     subjectPillText: {
+      fontFamily: 'Inter',
       fontSize: 12,
-      fontWeight: '500',
-      color: colors.mutedForeground,
+      fontWeight: '600',
+      color: colors.foreground,
       includeFontPadding: false,
       flexShrink: 0,
+      paddingRight: 4,
     },
     subjectPillTextActive: {
+      fontFamily: 'Inter-Bold',
       color: '#6366F1',
       fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
     },
     listContent: {
       paddingHorizontal: 16,
@@ -646,7 +673,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     sectionHeaderLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      flex: 1,
+      flexShrink: 0,
     },
     sectionIndicator: {
       width: 4,
@@ -656,13 +683,14 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     sectionTitle: {
+      fontFamily: 'Inter-Bold',
       fontSize: 14,
       fontWeight: '700',
       color: colors.foreground,
       includeFontPadding: false,
       flexShrink: 0,
       marginRight: 8,
-      paddingRight: 6,
+      paddingRight: 8,
     },
     sectionBadge: {
       paddingHorizontal: 7,
@@ -671,6 +699,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexShrink: 0,
     },
     sectionBadgeText: {
+      fontFamily: 'Inter-Bold',
       fontSize: 11,
       fontWeight: '700',
       includeFontPadding: false,
@@ -684,6 +713,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingLeft: 8,
     },
     collapseBtnText: {
+      fontFamily: 'Inter',
       fontSize: 12,
       color: colors.mutedForeground,
       fontWeight: '600',
@@ -715,6 +745,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       marginBottom: 16,
     },
     emptyText: {
+      fontFamily: 'Inter-Bold',
       fontSize: 16,
       fontWeight: '700',
       color: colors.foreground,
@@ -724,6 +755,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 4,
     },
     emptySubText: {
+      fontFamily: 'Inter',
       fontSize: 13,
       color: colors.mutedForeground,
       textAlign: 'center',

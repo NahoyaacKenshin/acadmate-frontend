@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -9,9 +9,10 @@ import {
   Modal,
   Text,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react-native";
 import { ScanAnotherSheet } from "@/src/components/schedule/ScanAnotherSheet";
 import { AILoadingOverlay, TASK_STAGES } from "@/src/components/schedule/AILoadingOverlay";
+import { ConfirmModal } from "@/src/components/common/ConfirmModal";
 import { useSubjects, SubjectRow } from "@/src/hooks/useSubjects";
 import { useTaskScanner, ParsedScannedTask } from "@/src/hooks/useTaskScanner";
 import {
@@ -78,6 +80,75 @@ export default function TaskConfirmScreen() {
   const [activeDateTaskId, setActiveDateTaskId] = useState<string | null>(null);
   const [pendingDate, setPendingDate] = useState<Date>(new Date());
   const [datePickerStep, setDatePickerStep] = useState<"date" | "time" | null>(null);
+
+  // Synchronize review state whenever a new payload is scanned or provided
+  useEffect(() => {
+    setTasks(initialTasks);
+    setIsSaving(false);
+    setShowSuccess(false);
+    setSavedCount(0);
+    setShowScanSheet(false);
+    setActiveSubjectTaskId(null);
+    setActiveDateTaskId(null);
+    setDatePickerStep(null);
+  }, [initialTasks]);
+
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const confirmCancel = useCallback(() => {
+    setShowCancelConfirm(false);
+    scanner.clearFile();
+    scanner.clearError();
+    setTasks([]);
+    router.replace("/(app)/tasks");
+  }, [scanner]);
+
+  const handleCancelOrBack = useCallback(() => {
+    setShowCancelConfirm(true);
+  }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      // If modal sheets or pickers are open, let them handle back press
+      if (
+        activeSubjectTaskId !== null ||
+        activeDateTaskId !== null ||
+        showScanSheet ||
+        showSuccess
+      ) {
+        return false;
+      }
+
+      if (showCancelConfirm) {
+        setShowCancelConfirm(false);
+        return true;
+      }
+
+      setShowCancelConfirm(true);
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+    return () => subscription.remove();
+  }, [
+    activeSubjectTaskId,
+    activeDateTaskId,
+    showScanSheet,
+    showSuccess,
+    showCancelConfirm,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        scanner.clearFile();
+        scanner.clearError();
+      };
+    }, [scanner])
+  );
 
   // ── Derived selection state ──────────────────────────────────────────────────
   const totalCount = tasks.length;
@@ -290,7 +361,7 @@ export default function TaskConfirmScreen() {
         <View style={styles.header}>
           <Pressable
             style={styles.backBtn}
-            onPress={() => router.replace("/(app)/tasks")}
+            onPress={handleCancelOrBack}
             hitSlop={8}
           >
             <ChevronLeft size={20} color={colors.foreground} />
@@ -533,18 +604,44 @@ export default function TaskConfirmScreen() {
           </Pressable>
 
           <Pressable
-            style={styles.scanAnotherBtn}
+            style={[
+              styles.scanAnotherBtn,
+              {
+                backgroundColor: isDark ? "rgba(99, 102, 241, 0.12)" : "rgba(99, 102, 241, 0.08)",
+                borderColor: isDark ? "rgba(99, 102, 241, 0.3)" : "rgba(99, 102, 241, 0.2)",
+              },
+            ]}
             onPress={() => setShowScanSheet(true)}
           >
-            <ScanLine size={16} color="#6366F1" />
-            <Text style={styles.scanAnotherText}>Scan Another File</Text>
+            <ScanLine size={16} color="#6366F1" style={{ flexShrink: 0 }} />
+            <Text
+              style={[
+                styles.scanAnotherText,
+                { color: "#6366F1", flexShrink: 0, includeFontPadding: false },
+              ]}
+            >
+              Scan Another File
+            </Text>
           </Pressable>
 
           <Pressable
-            style={styles.cancelBtn}
-            onPress={() => router.replace("/(app)/tasks")}
+            style={[
+              styles.cancelBtn,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={handleCancelOrBack}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text
+              style={[
+                styles.cancelText,
+                { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+              ]}
+            >
+              Cancel
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -711,6 +808,9 @@ export default function TaskConfirmScreen() {
             <Pressable
               style={styles.successBtn}
               onPress={() => {
+                scanner.clearFile();
+                scanner.clearError();
+                setTasks([]);
                 setShowSuccess(false);
                 router.replace("/(app)/tasks");
               }}
@@ -720,6 +820,18 @@ export default function TaskConfirmScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Cancel Review Confirmation Modal */}
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Discard Scanned Tasks?"
+        description="Are you sure you want to cancel? Any parsed tasks will be discarded."
+        confirmLabel="Discard"
+        cancelLabel="Keep Reviewing"
+        variant="danger"
+        onConfirm={confirmCancel}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </>
   );
 }

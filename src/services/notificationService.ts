@@ -5,17 +5,17 @@ import { TaskRow } from '../hooks/useTasks';
 import { ExamWeekRow } from '../hooks/useExamWeeks';
 import { CalendarEventRow } from '../hooks/useCalendarEvents';
 import { parseDateLocal, toPhilippineISO, getScheduleDays, isStudySessionEvent } from '../utils/scheduleUtils';
-import { parseToEpoch } from '../utils/philippineTime';
+import { parseToEpoch, formatTime12PHT, formatDatePHT } from '../utils/philippineTime';
 
-// Configure notification behavior when app is in foreground
+// Configure notification behavior when app is in foreground (native OS heads-up banner)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: false, // Prevents duplicate native OS heads-up banner while InAppNotificationBanner is active
+    shouldShowAlert: true, // Shows native OS heads-up banner in foreground
     shouldPlaySound: true,
     shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.DEFAULT,
-    shouldShowBanner: false, // Prevents duplicate native OS banner in foreground
-    shouldShowList: true, // Notification is still kept in the OS notification tray/center
+    priority: Notifications.AndroidNotificationPriority.MAX,
+    shouldShowBanner: true, // Shows native OS banner on iOS
+    shouldShowList: true, // Kept in OS notification center
   }),
 });
 
@@ -187,6 +187,13 @@ export const NotificationService = {
       // Map 0-6 to expo-notifications WeeklyTrigger: 1 = Sun, 2 = Mon ... 7 = Sat
       const triggerWeekday = targetDayOfWeek + 1;
       const identifier = `class_${id}_${dow}`;
+      const leadLabel = formatLeadMinutes(leadMinutes);
+      const formattedTime = formatTime12PHT(start_time);
+      const roomText = room ? `Room ${room}` : '';
+      const modalityText = modality ? `(${modality})` : '';
+      const details = [formattedTime ? `Starts at ${formattedTime}` : '', roomText, modalityText]
+        .filter(Boolean)
+        .join(' • ');
 
       try {
         // First cancel existing to prevent duplication
@@ -195,8 +202,10 @@ export const NotificationService = {
         await Notifications.scheduleNotificationAsync({
           identifier,
           content: {
-            title: `Upcoming Class: ${subject_name || 'Class'}`,
-            body: `Starts in ${leadMinutes} mins${room ? ` at Room ${room}` : ''} (${modality})`,
+            title: leadMinutes === 0
+              ? `Class Now: ${subject_name || 'Class'}`
+              : `Class in ${leadLabel}: ${subject_name || 'Class'}`,
+            body: details || (leadMinutes === 0 ? 'Your class is starting now!' : `Starts in ${leadLabel}`),
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -247,9 +256,18 @@ export const NotificationService = {
       const leadLabel = formatLeadMinutes(leadMinutes);
       const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
       const daysCount = leadMinutes / 1440;
+      const dueDateObj = new Date(dueTime);
+      const dueTimeFormatted = formatTime12PHT(dueDateObj);
+      const dueDateFormatted = formatDatePHT(dueDateObj);
+
       const titleText = isDays
-        ? daysCount === 1 ? 'Task Due Tomorrow' : `Task Due in ${daysCount} Days`
-        : `Task Due in ${leadLabel}`;
+        ? daysCount === 1 ? `Task Due Tomorrow: ${title}` : `Task Due in ${daysCount} Days: ${title}`
+        : `Task Due in ${leadLabel}: ${title}`;
+
+      const bodyText = [
+        `Due ${dueDateFormatted} at ${dueTimeFormatted}`,
+        subject_name || '',
+      ].filter(Boolean).join(' • ');
 
       try {
         await NotificationService.cancelNotification(idLead);
@@ -257,7 +275,7 @@ export const NotificationService = {
           identifier: idLead,
           content: {
             title: titleText,
-            body: `"${title}" is due in ${leadLabel}${subject_name ? ` for ${subject_name}` : ''}`,
+            body: bodyText,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -287,13 +305,20 @@ export const NotificationService = {
       const hourBeforeTime = dueTime - 60 * 60 * 1000;
       if (hourBeforeTime > now) {
         const idHour = `task_${id}_hour`;
+        const dueTimeFormatted = formatTime12PHT(new Date(dueTime));
+        const bodyText = [
+          `Due at ${dueTimeFormatted}`,
+          subject_name || '',
+          "Don't forget to submit!",
+        ].filter(Boolean).join(' • ');
+
         try {
           await NotificationService.cancelNotification(idHour);
           await Notifications.scheduleNotificationAsync({
             identifier: idHour,
             content: {
-              title: `Task Due in 1 Hour`,
-              body: `"${title}" is due soon. Make sure to complete it!`,
+              title: `Task Due in 1 Hour: ${title}`,
+              body: bodyText,
               sound: true,
               priority: Notifications.AndroidNotificationPriority.MAX,
               data: {
@@ -322,13 +347,14 @@ export const NotificationService = {
     const hourCutoff = dueTime - 60 * 60 * 1000;
     if (hourCutoff <= now && dueTime > now + 60 * 1000) {
       const idDue = `task_${id}_due`;
+      const dueTimeFormatted = formatTime12PHT(new Date(dueTime));
       try {
         await NotificationService.cancelNotification(idDue);
         await Notifications.scheduleNotificationAsync({
           identifier: idDue,
           content: {
-            title: `Task Due Soon`,
-            body: `"${title}" is due right now!`,
+            title: `Task Due Now: ${title}`,
+            body: `Deadline is ${dueTimeFormatted}${subject_name ? ` • ${subject_name}` : ''}. Submit your work!`,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -367,12 +393,20 @@ export const NotificationService = {
       await NotificationService.cancelNotification(identifier);
 
       if (alertTime.getTime() > Date.now()) {
-        const leadLabel = leadMinutes > 0 ? ` (in ${leadMinutes}m)` : '';
+        const leadLabel = formatLeadMinutes(leadMinutes);
+        const startTimeStr = formatTime12PHT(dateTime);
+        const titleText = leadMinutes === 0
+          ? `Study Session Now: ${notebookTitle}`
+          : `Study Session in ${leadLabel}: ${notebookTitle}`;
+        const bodyText = focusText
+          ? `Starts at ${startTimeStr} • ${focusText}`
+          : `Scheduled for ${startTimeStr}. Get ready to review!`;
+
         await Notifications.scheduleNotificationAsync({
           identifier,
           content: {
-            title: `Study Reminder: ${notebookTitle}${leadLabel}`,
-            body: focusText || `Get ready for your scheduled study session!`,
+            title: titleText,
+            body: bodyText,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -558,8 +592,8 @@ export const NotificationService = {
         await Notifications.scheduleNotificationAsync({
           identifier: id,
           content: {
-            title: `Exam Week Starts Tomorrow`,
-            body: `"${ew.title}" begins tomorrow. Check your schedule and prepare well!`,
+            title: `Exam Week Starts Tomorrow: ${ew.title}`,
+            body: `Begins tomorrow. Check your exam schedule and prepare well!`,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -606,9 +640,19 @@ export const NotificationService = {
       const leadLabel = formatLeadMinutes(leadMinutes);
       const isDays = leadMinutes >= 1440 && leadMinutes % 1440 === 0;
       const daysCount = leadMinutes / 1440;
+      const examDateObj = new Date(examTime);
+      const examTimeFormatted = formatTime12PHT(examDateObj);
+      const examDateFormatted = formatDatePHT(examDateObj);
+
       const titleText = isDays
         ? daysCount === 1 ? `Exam Tomorrow: ${event.title}` : `Exam in ${daysCount} Days: ${event.title}`
         : `Exam in ${leadLabel}: ${event.title}`;
+
+      const bodyText = [
+        `Starts at ${examTimeFormatted} (${examDateFormatted})`,
+        event.location ? `Room ${event.location}` : '',
+        'Review your materials!',
+      ].filter(Boolean).join(' • ');
 
       try {
         await NotificationService.cancelNotification(idLead);
@@ -616,7 +660,7 @@ export const NotificationService = {
           identifier: idLead,
           content: {
             title: titleText,
-            body: `Starts in ${leadLabel}${event.location ? ` in ${event.location}` : ''}. Review your notes!`,
+            body: bodyText,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
@@ -645,13 +689,20 @@ export const NotificationService = {
       const hourBeforeTime = examTime - 60 * 60 * 1000;
       if (hourBeforeTime > now) {
         const idHour = `exam_${event.id}_hour`;
+        const examTimeFormatted = formatTime12PHT(new Date(examTime));
+        const bodyText = [
+          `Starts at ${examTimeFormatted}`,
+          event.location ? `Room ${event.location}` : '',
+          'Good luck!',
+        ].filter(Boolean).join(' • ');
+
         try {
           await NotificationService.cancelNotification(idHour);
           await Notifications.scheduleNotificationAsync({
             identifier: idHour,
             content: {
               title: `Exam in 1 Hour: ${event.title}`,
-              body: `Get ready! Exam begins soon${event.location ? ` in ${event.location}` : ''}.`,
+              body: bodyText,
               sound: true,
               priority: Notifications.AndroidNotificationPriority.MAX,
               data: {
@@ -660,6 +711,7 @@ export const NotificationService = {
                 title: event.title,
                 startDate: event.start_date,
                 location: event.location || '',
+                reminderType: 'hour_before',
               },
             },
             trigger: {
@@ -757,7 +809,7 @@ export const NotificationService = {
             identifier: id,
             content: {
               title: `Today: ${event.title}`,
-              body: event.location ? `At ${event.location}` : 'All-day event today',
+              body: event.location ? `All-day • Location: ${event.location}` : 'All-day event scheduled for today',
               sound: true,
               priority: Notifications.AndroidNotificationPriority.MAX,
               data: { type: 'event', eventId: event.id, title: event.title },
@@ -780,13 +832,20 @@ export const NotificationService = {
       const reminderTime = startEpoch - leadMinutes * 60 * 1000;
       if (reminderTime > now) {
         const id = `event_${event.id}_lead`;
+        const leadLabel = formatLeadMinutes(leadMinutes);
+        const startTimeStr = formatTime12PHT(new Date(startEpoch));
+        const bodyText = [
+          `Starts at ${startTimeStr}`,
+          event.location ? event.location : '',
+        ].filter(Boolean).join(' • ');
+
         try {
           await NotificationService.cancelNotification(id);
           await Notifications.scheduleNotificationAsync({
             identifier: id,
             content: {
-              title: `Event in ${leadMinutes}m: ${event.title}`,
-              body: event.location ? `Location: ${event.location}` : 'Upcoming event',
+              title: leadMinutes === 0 ? `Event Now: ${event.title}` : `Event in ${leadLabel}: ${event.title}`,
+              body: bodyText || (leadMinutes === 0 ? 'Event is starting now!' : `Starts in ${leadLabel}`),
               sound: true,
               priority: Notifications.AndroidNotificationPriority.MAX,
               data: { type: 'event', eventId: event.id, title: event.title, location: event.location || '' },

@@ -22,6 +22,7 @@ import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedul
 import { formatDateLocal, toPhilippineISO, parseDateLocal, parseToPHTDate } from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 
 interface EditClassSheetProps {
@@ -123,6 +124,7 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Populate form when schedule changes
@@ -424,38 +426,31 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Class Schedule',
-      'Are you sure you want to remove this schedule?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!schedule) return;
-            setIsDeleting(true);
-            try {
-              const idsToDelete = new Set<string>([schedule.id]);
-              for (const s of siblingSchedules) {
-                idsToDelete.add(s.id);
-              }
-              await Promise.all(
-                Array.from(idsToDelete).map((id) =>
-                  powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
-                )
-              );
-              handleClose();
-            } catch (err) {
-              console.error('[EditClass] delete failed:', err);
-              setError('Failed to delete schedule.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    if (!schedule) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!schedule) return;
+    setIsDeleting(true);
+    try {
+      const idsToDelete = new Set<string>([schedule.id]);
+      for (const s of siblingSchedules) {
+        idsToDelete.add(s.id);
+      }
+      await Promise.all(
+        Array.from(idsToDelete).map((id) =>
+          powerSync.execute('DELETE FROM ClassSchedule WHERE id = ?', [id])
+        )
+      );
+      setShowDeleteConfirm(false);
+      handleClose();
+    } catch (err) {
+      console.error('[EditClass] delete failed:', err);
+      setError('Failed to delete schedule.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -513,7 +508,10 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
               >
                 <View style={styles.subjectPickerInner}>
                   {selectedSubject ? (
-                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    <>
+                      <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color || '#6366F1' }]} />
+                      <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                    </>
                   ) : (
                     <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
                   )}
@@ -532,13 +530,14 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
                             setIsCreatingSubject(false);
                           }}
                         >
+                          <View style={[styles.subjectDot, { backgroundColor: s.color || '#6366F1' }]} />
                           <Text style={styles.pickerItemText}>{s.name}</Text>
                         </Pressable>
                         <Pressable
                           style={styles.deleteSubjectBtn}
                           onPress={() => handleDeleteSubject(s.id)}
                         >
-                          <X size={16} color={colors.mutedForeground} />
+                          <X size={16} color={isDark ? '#EF4444' : '#DC2626'} />
                         </Pressable>
                       </View>
                     ))}
@@ -821,6 +820,18 @@ export function EditClassSheet({ visible, schedule, onClose }: EditClassSheetPro
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmModal
+        asOverlay
+        visible={showDeleteConfirm}
+        title="Delete Class Schedule?"
+        description="Are you sure you want to remove this class schedule? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }
@@ -939,7 +950,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: '600',
       includeFontPadding: false,
     },
-    label: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, marginBottom: 8, includeFontPadding: false },
+    label: { fontSize: 13, fontWeight: '600', color: colors.foreground, marginBottom: 8, includeFontPadding: false },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     pill: {
       paddingHorizontal: 12,
@@ -953,7 +964,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     pillWide: { flex: 1 },
     pillSelected: { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)', borderColor: '#6366F1' },
-    pillText: { fontSize: 13, fontWeight: '600', color: colors.mutedForeground, includeFontPadding: false },
+    pillText: { fontSize: 13, fontWeight: '600', color: colors.foreground, includeFontPadding: false },
     pillTextSelected: { color: '#6366F1' },
     timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
     timeField: { flex: 1 },
@@ -1008,7 +1019,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
-    pickerItemText: { color: colors.foreground, fontSize: 14, marginLeft: 8 },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      marginLeft: 8,
+      includeFontPadding: false,
+    },
     deleteSubjectBtn: {
       padding: 12,
     },

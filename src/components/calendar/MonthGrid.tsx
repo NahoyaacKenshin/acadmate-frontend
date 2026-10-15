@@ -348,15 +348,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   monthLabel: {
+    fontFamily: 'Inter-Bold',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.3,
+    includeFontPadding: false,
   },
   dayLabelsRow: {
     flexDirection: 'row',
     marginBottom: 4,
   },
   dayLabel: {
+    fontFamily: 'Inter',
     flex: 1,
     textAlign: 'center',
     fontSize: 11,
@@ -391,15 +394,18 @@ const styles = StyleSheet.create({
     borderColor: '#6366F1',
   },
   dayNumber: {
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: '500',
     includeFontPadding: false,
   },
   dayNumberSelected: {
+    fontFamily: 'Inter-Bold',
     fontWeight: '700',
     color: '#ffffff',
   },
   dayNumberToday: {
+    fontFamily: 'Inter-Bold',
     fontWeight: '700',
     color: '#6366F1',
   },

@@ -136,6 +136,18 @@ export const NotebookStorage = {
     return await readJson<any>(`deck_${deckId}.json`);
   },
 
+  removeFlashcardDeckDetail: async (deckId: string): Promise<void> => {
+    try {
+      const path = `${CACHE_DIR}deck_${deckId}.json`;
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        await FileSystem.deleteAsync(path, { idempotent: true });
+      }
+    } catch (err) {
+      console.warn(`[NotebookStorage] Failed to delete deck_${deckId}.json:`, err);
+    }
+  },
+
   // ─── Quizzes per Notebook ────────────────────────────────────────────────────
   saveQuizzes: async (notebookId: string, quizzes: any[]): Promise<void> => {
     await writeJson(`quizzes_${notebookId}.json`, quizzes);
@@ -152,4 +164,75 @@ export const NotebookStorage = {
   loadQuizDetail: async (quizId: string): Promise<any | null> => {
     return await readJson<any>(`quiz_${quizId}.json`);
   },
+
+  removeQuizDetail: async (quizId: string): Promise<void> => {
+    try {
+      const path = `${CACHE_DIR}quiz_${quizId}.json`;
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        await FileSystem.deleteAsync(path, { idempotent: true });
+      }
+    } catch (err) {
+      console.warn(`[NotebookStorage] Failed to delete quiz_${quizId}.json:`, err);
+    }
+  },
+
+  // ─── Pending Tools Sync Queue ────────────────────────────────────────────────
+  savePendingToolsSync: async (queue: PendingToolSyncItem[]): Promise<void> => {
+    await writeJson('pending_tools_sync.json', queue);
+  },
+
+  loadPendingToolsSync: async (): Promise<PendingToolSyncItem[]> => {
+    const list = await readJson<PendingToolSyncItem[]>('pending_tools_sync.json');
+    return Array.isArray(list) ? list : [];
+  },
+
+  enqueuePendingToolSync: async (item: PendingToolSyncItem): Promise<void> => {
+    const current = await NotebookStorage.loadPendingToolsSync();
+    const filtered = current.filter((x) => x.localId !== item.localId);
+    await NotebookStorage.savePendingToolsSync([...filtered, item]);
+  },
+
+  removePendingToolSync: async (localId: string): Promise<void> => {
+    const current = await NotebookStorage.loadPendingToolsSync();
+    const updated = current.filter((x) => {
+      if (x.localId === localId) return false;
+      if (x.type === 'ADD_CARD' && x.deckId === localId) return false;
+      if (x.type === 'ADD_QUESTION' && x.quizId === localId) return false;
+      return true;
+    });
+    await NotebookStorage.savePendingToolsSync(updated);
+  },
 };
+
+export type PendingToolSyncItem =
+  | {
+      type: 'CREATE_DECK';
+      localId: string;
+      notebookId: string;
+      title: string;
+      description?: string;
+    }
+  | {
+      type: 'ADD_CARD';
+      localId: string;
+      deckId: string;
+      front: string;
+      back: string;
+    }
+  | {
+      type: 'CREATE_QUIZ';
+      localId: string;
+      notebookId: string;
+      title: string;
+      description?: string;
+    }
+  | {
+      type: 'ADD_QUESTION';
+      localId: string;
+      quizId: string;
+      question: string;
+      options: string[];
+      correctAnswer: number;
+      explanation?: string;
+    };

@@ -32,6 +32,7 @@ import { EditTaskSheet } from '@/src/components/tasks/EditTaskSheet';
 import { AddExamWeekModal } from '@/src/components/calendar/AddExamWeekModal';
 import { StudySessionDetailModal } from '@/src/components/calendar/StudySessionDetailModal';
 import { EditStudySessionSheet } from '@/src/components/calendar/EditStudySessionSheet';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 
 import { useCalendarEvents, CalendarEventRow } from '@/src/hooks/useCalendarEvents';
 import { useClassSchedules, ClassScheduleRow } from '@/src/hooks/useClassSchedules';
@@ -105,6 +106,8 @@ export default function CalendarScreen() {
   const [editingExamWeek, setEditingExamWeek] = useState<import('@/src/hooks/useExamWeeks').ExamWeekRow | null>(null);
   const [viewingStudySession, setViewingStudySession] = useState<CalendarEventRow | null>(null);
   const [editingStudySession, setEditingStudySession] = useState<CalendarEventRow | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<CalendarEventRow | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   // Data
   const { events } = useCalendarEvents();
@@ -155,13 +158,24 @@ export default function CalendarScreen() {
     }
   };
 
-  const handleDeleteStudySession = async (session: CalendarEventRow) => {
+  const confirmDeleteStudySession = async () => {
+    if (!sessionToDelete) return;
+    setIsDeletingSession(true);
     try {
-      await powerSync.execute(`DELETE FROM CalendarEvent WHERE id = ?`, [session.id]);
-      await NotificationService.cancelNotification(session.id);
-      setViewingStudySession(null);
+      await powerSync.execute(`DELETE FROM CalendarEvent WHERE id = ?`, [sessionToDelete.id]);
+      await NotificationService.cancelNotification(sessionToDelete.id);
+      const oldNotebookId = sessionToDelete.location?.replace(/^study_session:/, '');
+      if (oldNotebookId) {
+        const oldStartEpoch = parseToEpoch(sessionToDelete.start_date);
+        if (oldStartEpoch) {
+          await NotificationService.cancelNotification(`study_${oldNotebookId}_${oldStartEpoch}`);
+        }
+      }
+      setSessionToDelete(null);
     } catch (err) {
       console.error('[Calendar] Failed to delete study session:', err);
+    } finally {
+      setIsDeletingSession(false);
     }
   };
 
@@ -434,13 +448,27 @@ export default function CalendarScreen() {
             setViewingStudySession(null);
             setEditingStudySession(s);
           }}
-          onDelete={handleDeleteStudySession}
+          onDelete={(s) => {
+            setViewingStudySession(null);
+            setSessionToDelete(s);
+          }}
         />
         <EditStudySessionSheet
           visible={editingStudySession !== null}
           session={editingStudySession}
           onClose={() => setEditingStudySession(null)}
-          onDelete={handleDeleteStudySession}
+          onDelete={() => setEditingStudySession(null)}
+        />
+
+        <ConfirmModal
+          visible={sessionToDelete !== null}
+          title="Delete Study Session?"
+          description="Are you sure you want to delete this study session? This action cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          isLoading={isDeletingSession}
+          onConfirm={confirmDeleteStudySession}
+          onCancel={() => setSessionToDelete(null)}
         />
 
       </SafeAreaView>
@@ -466,9 +494,11 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   headerTitle: {
+    fontFamily: 'Inter-Bold',
     fontSize: 28,
     lineHeight: 36,
     fontWeight: '700',
     letterSpacing: -0.6,
+    includeFontPadding: false,
   },
 });

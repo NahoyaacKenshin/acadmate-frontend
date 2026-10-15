@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +24,7 @@ import { EditNotebookSheet } from '@/src/components/notebook/EditNotebookSheet';
 import { SourceViewerModal } from '@/src/components/notebook/SourceViewerModal';
 import { useSystemStore } from '@/src/store/systemStore';
 import { useTheme } from '@/src/theme/useTheme';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   ArrowLeft,
   Upload,
@@ -100,6 +100,13 @@ export default function NotebookDetailScreen() {
   const [isEditVisible, setIsEditVisible] = useState(false);
   const [viewingSource, setViewingSource] = useState<Source | null>(null);
   const [editingSource, setEditingSource] = useState<Source | null>(null);
+  const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
+  const [isDeletingSource, setIsDeletingSource] = useState(false);
+  const [dialogNotice, setDialogNotice] = useState<{
+    title: string;
+    description: string;
+    variant?: 'warning' | 'danger' | 'info';
+  } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(68);
   const pollingStartRef = useRef<number | null>(null);
@@ -161,28 +168,24 @@ export default function NotebookDetailScreen() {
 
   const handleDeleteSource = (source: Source) => {
     if (!id) return;
-    Alert.alert(
-      'Delete Source',
-      `Are you sure you want to delete "${source.fileName}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteSource(id, source.id);
-            } catch (err: any) {
-              const msg =
-                err?.message && !err.message.includes('http')
-                  ? err.message
-                  : 'Failed to remove source. Please try again.';
-              Alert.alert('Error', msg);
-            }
-          },
-        },
-      ]
-    );
+    setSourceToDelete(source);
+  };
+
+  const confirmDeleteSource = async () => {
+    if (!id || !sourceToDelete) return;
+    setIsDeletingSource(true);
+    try {
+      await deleteSource(id, sourceToDelete.id);
+      setSourceToDelete(null);
+    } catch (err: any) {
+      const msg =
+        err?.message && !err.message.includes('http')
+          ? err.message
+          : 'Failed to remove source. Please try again.';
+      setDialogNotice({ title: 'Error', description: msg, variant: 'danger' });
+    } finally {
+      setIsDeletingSource(false);
+    }
   };
 
   // ─── Retry FAILED source ──────────────────────────────────────────────────
@@ -198,7 +201,7 @@ export default function NotebookDetailScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to retry source processing. Please check your network connection.';
-      Alert.alert('Retry Failed', msg);
+      setDialogNotice({ title: 'Retry Failed', description: msg, variant: 'danger' });
     }
   };
 
@@ -212,7 +215,7 @@ export default function NotebookDetailScreen() {
         err?.message && !err.message.includes('http')
           ? err.message
           : 'Failed to update notebook. Please try again.';
-      Alert.alert('Error', msg);
+      setDialogNotice({ title: 'Error', description: msg, variant: 'danger' });
       throw err;
     }
   };
@@ -403,6 +406,7 @@ export default function NotebookDetailScreen() {
       ) : (
         <FlatList
           data={sources}
+          extraData={[isDark, colors]}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={<ListHeader />}
           ListEmptyComponent={<EmptyState />}
@@ -513,6 +517,30 @@ export default function NotebookDetailScreen() {
         onTabChange={setActiveTab}
         sourcesCount={sources.length}
         toolsCount={toolsCount}
+      />
+
+      {/* ── Delete Source Confirmation Modal ── */}
+      <ConfirmModal
+        visible={sourceToDelete !== null}
+        title="Delete Source?"
+        description={`Are you sure you want to delete "${sourceToDelete?.fileName}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingSource}
+        onConfirm={confirmDeleteSource}
+        onCancel={() => setSourceToDelete(null)}
+      />
+
+      {/* ── Notice Modal ── */}
+      <ConfirmModal
+        visible={dialogNotice !== null}
+        title={dialogNotice?.title || ''}
+        description={dialogNotice?.description || ''}
+        variant={dialogNotice?.variant || 'danger'}
+        confirmLabel="Got It"
+        showCancel={false}
+        onConfirm={() => setDialogNotice(null)}
+        onCancel={() => setDialogNotice(null)}
       />
     </SafeAreaView>
   );

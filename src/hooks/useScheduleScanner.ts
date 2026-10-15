@@ -13,7 +13,6 @@ import { useState, useRef, useCallback } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import { Alert } from "react-native";
 import { useAuthStore } from "@/src/features/auth/auth.store";
 import { ENV } from "@/src/config/env";
 import {
@@ -128,10 +127,8 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     clearError();
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow access to your photo library to upload a schedule image."
-      );
+      setError("Allow access to your photo library to upload a schedule image.");
+      setIsRetryable(false);
       return;
     }
     try {
@@ -168,10 +165,8 @@ export function useScheduleScanner(): UseScheduleScannerResult {
     clearError();
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow camera access to take a photo of your schedule."
-      );
+      setError("Allow camera access to take a photo of your schedule.");
+      setIsRetryable(false);
       return;
     }
     try {

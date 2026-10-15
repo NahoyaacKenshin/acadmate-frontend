@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  Alert,
   Platform,
   StatusBar,
   Animated,
@@ -17,6 +16,7 @@ import { Text } from '@/src/components/ui/text';
 import { useTheme } from '@/src/theme/useTheme';
 import { Flashcard, FlashcardDeckDetail } from '@/src/store/notebookToolsStore';
 import { EditFlashcardModal } from './EditFlashcardModal';
+import { ConfirmModal } from '@/src/components/common/ConfirmModal';
 import {
   ArrowLeft,
   RotateCw,
@@ -62,6 +62,7 @@ export function FlashcardStudyModal({
   // Edit/Add modal state
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+  const [allMasteredNotice, setAllMasteredNotice] = useState(false);
 
   const prevDeckIdRef = useRef<string | null>(deck?.id ?? null);
   const prevVisibleRef = useRef<boolean>(false);
@@ -292,7 +293,7 @@ export function FlashcardStudyModal({
     if (onlyUnmastered) {
       const unmastered = deck.cards.filter((c) => !c.isMastered);
       if (unmastered.length === 0) {
-        Alert.alert('All Mastered!', 'You have mastered all cards in this deck!');
+        setAllMasteredNotice(true);
         return;
       }
       setCards(unmastered);
@@ -658,6 +659,18 @@ export function FlashcardStudyModal({
               return Math.min(prevIdx, Math.max(0, remainingLen - 1));
             });
           }}
+        />
+
+        <ConfirmModal
+          visible={allMasteredNotice}
+          title="All Mastered"
+          description="You have mastered all cards in this deck!"
+          variant="success"
+          confirmLabel="Got It"
+          showCancel={false}
+          asOverlay
+          onConfirm={() => setAllMasteredNotice(false)}
+          onCancel={() => setAllMasteredNotice(false)}
         />
       </SafeAreaView>
     </Modal>

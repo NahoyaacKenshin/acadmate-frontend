@@ -102,12 +102,14 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
             onLongPress={handleLongPress}
             delayLongPress={400}
           >
-            <Text style={styles.contentUser}>{message.content}</Text>
+            <Text style={styles.contentUser} textBreakStrategy="simple">
+              {message.content}
+            </Text>
             <View style={styles.metaRow}>
               {copied && (
                 <View style={styles.copiedBadge}>
-                  <Copy size={9} color="#10B981" />
-                  <Text style={styles.copiedText}>Copied</Text>
+                  <Copy size={9} color={isDark ? '#10B981' : '#047857'} />
+                  <Text style={[styles.copiedText, { color: isDark ? '#10B981' : '#047857' }]}>Copied</Text>
                 </View>
               )}
               <Text style={[styles.timestamp, styles.timestampUser]}>
@@ -140,8 +142,8 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
                 onPress={onRetry}
                 hitSlop={8}
               >
-                <RotateCcw size={12} color="#EF4444" />
-                <Text style={styles.retryText}>Retry</Text>
+                <RotateCcw size={12} color={isDark ? '#EF4444' : '#DC2626'} />
+                <Text style={[styles.retryText, { color: isDark ? '#EF4444' : '#DC2626' }]}>Retry</Text>
               </Pressable>
             )}
 
@@ -154,8 +156,8 @@ export function ChatMessageBubble({ message, onRetry }: ChatMessageBubbleProps) 
               >
                 {copied ? (
                   <View style={styles.copiedBadge}>
-                    <Copy size={9} color="#10B981" />
-                    <Text style={styles.copiedText}>Copied</Text>
+                    <Copy size={9} color={isDark ? '#10B981' : '#047857'} />
+                    <Text style={[styles.copiedText, { color: isDark ? '#10B981' : '#047857' }]}>Copied</Text>
                   </View>
                 ) : (
                   <Copy size={11} color={colors.mutedForeground} />
@@ -255,6 +257,7 @@ const styles = StyleSheet.create({
   },
   // ── Content ─────────────────────────────────────────────────────────────
   contentUser: {
+    fontFamily: 'Inter',
     fontSize: 14,
     lineHeight: 21,
     color: '#ffffff',
@@ -278,6 +281,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   copiedText: {
+    fontFamily: 'Inter',
     fontSize: 10,
     color: '#10B981',
     fontWeight: '600',
@@ -285,6 +289,7 @@ const styles = StyleSheet.create({
   },
   // ── Timestamp ───────────────────────────────────────────────────────────
   timestamp: {
+    fontFamily: 'Inter',
     fontSize: 10,
     includeFontPadding: false,
   },
@@ -307,6 +312,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   retryText: {
+    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: '700',
     color: '#EF4444',

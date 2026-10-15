@@ -71,7 +71,7 @@ export function EventDetailModal({
     isExamEvent(event);
 
   const accentColor = isExam
-    ? '#F59E0B'
+    ? (isDark ? '#F59E0B' : '#B45309')
     : (event.color === '#6366F1' || event.color === '#8B5CF6' || !event.color
         ? CALENDAR_THEME.EVENT
         : event.color);
@@ -147,7 +147,7 @@ export function EventDetailModal({
                 ]}
               >
                 {isExam ? (
-                  <GraduationCap size={16} color="#F59E0B" />
+                  <GraduationCap size={16} color={isDark ? '#F59E0B' : '#B45309'} />
                 ) : (
                   <CalendarDays size={16} color={CALENDAR_THEME.EVENT} />
                 )}
@@ -184,7 +184,7 @@ export function EventDetailModal({
                 ]}
               >
                 {isExam ? (
-                  <GraduationCap size={11} color="#F59E0B" />
+                  <GraduationCap size={11} color={isDark ? '#F59E0B' : '#B45309'} />
                 ) : (
                   <CalendarDays size={11} color={CALENDAR_THEME.EVENT} />
                 )}

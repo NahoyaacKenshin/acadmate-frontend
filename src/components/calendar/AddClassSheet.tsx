@@ -408,7 +408,10 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
             >
               <View style={styles.subjectPickerInner}>
                 {selectedSubject ? (
-                  <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                  <>
+                    <View style={[styles.subjectDot, { backgroundColor: selectedSubject.color || '#6366F1' }]} />
+                    <Text style={styles.pickerText}>{selectedSubject.name}</Text>
+                  </>
                 ) : (
                   <Text style={styles.pickerPlaceholder}>Select a subject...</Text>
                 )}
@@ -424,13 +427,14 @@ export function AddClassSheet({ visible, onClose }: AddClassSheetProps) {
                         style={styles.pickerItem}
                         onPress={() => { setSelectedSubjectId(s.id); setShowSubjectPicker(false); setIsCreatingSubject(false); }}
                       >
+                        <View style={[styles.subjectDot, { backgroundColor: s.color || '#6366F1' }]} />
                         <Text style={styles.pickerItemText}>{s.name}</Text>
                       </Pressable>
                       <Pressable
                         style={styles.deleteSubjectBtn}
                         onPress={() => handleDeleteSubject(s.id)}
                       >
-                        <X size={16} color={colors.mutedForeground} />
+                        <X size={16} color={isDark ? '#EF4444' : '#DC2626'} />
                       </Pressable>
                     </View>
                   ))}
@@ -885,7 +889,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     label: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       marginBottom: 8,
       includeFontPadding: false,
     },
@@ -935,7 +939,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     pillText: {
       fontSize: 13,
       fontWeight: '600',
-      color: colors.mutedForeground,
+      color: colors.foreground,
       includeFontPadding: false,
     },
     pillTextSelected: {
@@ -1003,7 +1007,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
-    pickerItemText: { color: colors.foreground, fontSize: 14, marginLeft: 8 },
+    pickerItemText: {
+      color: colors.foreground,
+      fontSize: 14,
+      marginLeft: 8,
+      includeFontPadding: false,
+    },
     deleteSubjectBtn: {
       padding: 12,
     },
