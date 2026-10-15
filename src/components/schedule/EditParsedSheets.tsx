@@ -9,9 +9,21 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Text,
+  Switch,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { X, Clock, Calendar, RotateCcw, GraduationCap, AlertTriangle, BookOpen, CalendarCheck } from 'lucide-react-native';
+import {
+  X,
+  Clock,
+  Calendar,
+  RotateCcw,
+  GraduationCap,
+  AlertTriangle,
+  BookOpen,
+  CalendarCheck,
+  CalendarDays,
+  AlertCircle,
+} from 'lucide-react-native';
 import {
   ParsedClassSchedule,
   ParsedCalendarEvent,
@@ -20,7 +32,14 @@ import {
   ParsedExamEvent,
 } from './ParsedItemRow';
 import { useSubjects } from '@/src/hooks/useSubjects';
-import { formatDateLocal, toPhilippineISO, getPeriodCategory, getCleanPeriodTitle } from '@/src/utils/scheduleUtils';
+import {
+  formatDateLocal,
+  toPhilippineISO,
+  getPeriodCategory,
+  getCleanPeriodTitle,
+  parseToPHTDate,
+  parseDateLocal,
+} from '@/src/utils/scheduleUtils';
 import { useTheme } from '@/src/theme/useTheme';
 import type { ThemeColors } from '@/src/theme/tokens';
 
@@ -75,6 +94,16 @@ function formatDate(date: Date | string | undefined | null): string {
   if (isNaN(d.getTime())) return '';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function formatDateTime(date: Date | null | undefined): string {
+  if (!date) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const h = date.getHours();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${h12}:${pad(date.getMinutes())} ${ampm}`;
 }
 
 function toISODate(date: Date): string {
@@ -470,55 +499,123 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [allTime, setAllTime] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [activePickerField, setActivePickerField] = useState<'startDate' | 'endDate' | null>(null);
 
   useEffect(() => {
     if (item) {
-      setTitle(item.title);
+      setTitle(item.title || '');
       setLocation(item.location || '');
-      setStartDate(item.startDate ? new Date(item.startDate) : new Date());
-      const parsedEnd = item.endDate ? new Date(item.endDate) : null;
-      setEndDate(parsedEnd ?? (item.startDate ? new Date(item.startDate) : new Date()));
+      const parsedStart = parseToPHTDate(item.startDate) ?? parseDateLocal(item.startDate) ?? new Date();
+      const parsedEnd = item.endDate ? (parseToPHTDate(item.endDate) ?? parseDateLocal(item.endDate)) : null;
+      setStartDate(parsedStart);
+      setEndDate(parsedEnd);
+
+      const hasSpecificTime =
+        typeof item.startDate === 'string' &&
+        item.startDate.includes('T') &&
+        !item.startDate.includes('T00:00:00');
+
+      const isAllDay = item.allDay !== undefined ? Boolean(item.allDay) : !hasSpecificTime;
+      setAllTime(isAllDay);
+      setActivePickerField(null);
+      setError(null);
     }
   }, [item]);
 
   const handleClose = () => {
     setActivePickerField(null);
+    setError(null);
     onClose();
   };
 
   const handleSave = () => {
     if (!item) return;
-    if (!endDate) return;
+    if (!title.trim()) {
+      setError('Event title is required.');
+      return;
+    }
+    if (!allTime && endDate && endDate < startDate) {
+      setError('End date & time must be after start date & time.');
+      return;
+    }
+    if (allTime && endDate && endDate < startDate) {
+      setError('End date must be on or after start date.');
+      return;
+    }
+
+    const startISO = allTime
+      ? toPhilippineISO(startDate, '00:00')
+      : toPhilippineISO(startDate);
+    const endISO = endDate
+      ? (allTime ? toPhilippineISO(endDate, '23:59') : toPhilippineISO(endDate))
+      : null;
+
     onSave({
       ...item,
-      title,
+      title: title.trim(),
       location: location.trim() || null,
-      startDate: toISODate(startDate),
-      endDate: endDate ? toISODate(endDate) : null,
+      startDate: startISO,
+      endDate: endISO,
+      allDay: allTime,
     });
     handleClose();
   };
 
   const openPicker = (field: 'startDate' | 'endDate') => {
     if (field === 'endDate' && !startDate) return;
+
     if (Platform.OS === 'android') {
-      const val = field === 'startDate' ? startDate : (endDate ?? startDate);
+      const baseDate = field === 'startDate' ? startDate : (endDate ?? startDate);
       DateTimePickerAndroid.open({
-        value: val,
+        value: baseDate,
         mode: 'date',
-        minimumDate: field === 'startDate' ? undefined : (startDate ?? undefined),
+        minimumDate: field === 'endDate' ? startDate : undefined,
         onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
           if (event.type === 'dismissed' || !selectedDate) return;
-          if (field === 'startDate') {
-            setStartDate(selectedDate);
-            if (endDate && endDate < selectedDate) setEndDate(selectedDate);
-          } else {
-            const safeEnd = startDate && selectedDate < startDate ? startDate : selectedDate;
-            setEndDate(safeEnd);
+          const merged = new Date(selectedDate);
+          merged.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+
+          if (allTime) {
+            if (field === 'startDate') {
+              setStartDate(merged);
+              if (endDate && endDate < merged) setEndDate(merged);
+            } else {
+              const safeEnd = startDate && merged < startDate ? startDate : merged;
+              setEndDate(safeEnd);
+            }
+            return;
           }
+
+          DateTimePickerAndroid.open({
+            value: merged,
+            mode: 'time',
+            is24Hour: false,
+            onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
+              if (timeEvent.type === 'dismissed' || !selectedTime) {
+                if (field === 'startDate') {
+                  setStartDate(merged);
+                  if (endDate && endDate < merged) setEndDate(merged);
+                } else {
+                  const safeEnd = startDate && merged < startDate ? startDate : merged;
+                  setEndDate(safeEnd);
+                }
+                return;
+              }
+              const finalDate = new Date(merged);
+              finalDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+              if (field === 'startDate') {
+                setStartDate(finalDate);
+                if (endDate && endDate < finalDate) setEndDate(finalDate);
+              } else {
+                const safeEnd = startDate && finalDate < startDate ? startDate : finalDate;
+                setEndDate(safeEnd);
+              }
+            },
+          });
         },
       });
     } else {
@@ -547,25 +644,57 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerBadge}>
-                <CalendarCheck size={16} color="#6366F1" />
+                <CalendarDays size={16} color="#6366F1" />
               </View>
-              <Text style={styles.headerTitle}>Edit Parsed Event</Text>
+              <Text style={styles.headerTitle}>Edit Event & Holiday</Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
               <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Event Title</Text>
-            <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Foundation Day" placeholderTextColor={colors.mutedForeground} />
-          </View>
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertCircle size={15} color="#EF4444" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
-          <View style={[styles.formGroup, styles.timeRow]}>
-            <View style={styles.timeField}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Event Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={(t) => {
+                  setTitle(t);
+                  if (error) setError(null);
+                }}
+                placeholder="e.g. Foundation Day"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
+            {/* All Time / All Day toggle */}
+            <View style={[styles.formGroup, styles.toggleRow]}>
+              <View>
+                <Text style={styles.label}>All Time</Text>
+                <Text style={styles.sublabel}>Marks all dates starting from start date</Text>
+              </View>
+              <Switch
+                value={allTime}
+                onValueChange={(val) => {
+                  setAllTime(val);
+                }}
+                trackColor={{ false: colors.border, true: '#6366F1' }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {/* Start Date & Time */}
+            <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.label}>Start Date</Text>
+                <Text style={styles.label}>{allTime ? 'Start Date *' : 'Start Date & Time *'}</Text>
                 <Pressable
                   onPress={() => {
                     const today = new Date();
@@ -580,22 +709,42 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                 </Pressable>
               </View>
               <Pressable style={styles.picker} onPress={() => openPicker('startDate')}>
-                <Text style={styles.pickerText}>{formatDate(startDate)}</Text>
-                <Calendar size={14} color={colors.mutedForeground} />
+                <Text style={startDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {startDate ? (allTime ? formatDate(startDate) : formatDateTime(startDate)) : 'Select start date & time...'}
+                </Text>
+                <Calendar size={15} color={colors.mutedForeground} />
               </Pressable>
+
+              {Platform.OS === 'ios' && activePickerField === 'startDate' && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={startDate}
+                    mode={allTime ? 'date' : 'datetime'}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
-            <View style={styles.timeSeparator}><Text style={styles.timeSeparatorText}>—</Text></View>
-            <View style={styles.timeField}>
+
+            {/* End Date & Time */}
+            <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.label}>End Date</Text>
-                {endDate > startDate && (
+                <Text style={styles.label}>{allTime ? 'End Date (Optional)' : 'End Date & Time (Optional)'}</Text>
+                {endDate && (
                   <Pressable
-                    onPress={() => setEndDate(new Date(startDate))}
+                    onPress={() => setEndDate(null)}
                     style={styles.resetBtn}
                     hitSlop={8}
                   >
-                    <RotateCcw size={10} color={colors.mutedForeground} />
-                    <Text style={styles.resetBtnText}>Reset</Text>
+                    <X size={10} color="#EF4444" />
+                    <Text style={[styles.resetBtnText, { color: '#EF4444' }]}>Clear</Text>
                   </Pressable>
                 )}
               </View>
@@ -604,44 +753,51 @@ export function EditParsedEventSheet({ visible, item, onClose, onSave }: EditPar
                 onPress={() => openPicker('endDate')}
                 disabled={!startDate}
               >
-                <Text style={styles.pickerText}>
-                  {formatDate(endDate)}
+                <Text style={endDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {!startDate
+                    ? 'Select start date first'
+                    : endDate
+                    ? (allTime ? formatDate(endDate) : formatDateTime(endDate))
+                    : allTime
+                    ? 'Select end date...'
+                    : 'Select end date & time...'}
                 </Text>
-                <Calendar size={14} color={!startDate ? colors.mutedForeground : colors.foreground} />
+                <Clock size={15} color={!startDate ? colors.mutedForeground : colors.mutedForeground} />
               </Pressable>
-            </View>
-          </View>
 
-          {Platform.OS === 'ios' && activePickerField && (
-            <View style={styles.iosPickerWrapper}>
-              <DateTimePicker
-                value={
-                  activePickerField === 'startDate'
-                    ? startDate
-                    : (endDate && endDate >= startDate ? endDate : startDate)
-                }
-                mode="date"
-                minimumDate={activePickerField === 'endDate' ? startDate : undefined}
-                display="spinner"
-                onChange={handleDateChange}
-                textColor={colors.foreground}
-                themeVariant={isDark ? 'dark' : 'light'}
-                style={styles.iosPicker}
+              {Platform.OS === 'ios' && activePickerField === 'endDate' && startDate && (
+                <View style={styles.iosPickerWrapper}>
+                  <DateTimePicker
+                    value={endDate && endDate >= startDate ? endDate : startDate}
+                    mode={allTime ? 'date' : 'datetime'}
+                    minimumDate={startDate}
+                    display="spinner"
+                    onChange={handleDateChange}
+                    textColor={colors.foreground}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    style={styles.iosPicker}
+                  />
+                  <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
+                    <Text style={styles.iosDoneBtnText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Location (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Campus Grounds, Online, Auditorium"
+                placeholderTextColor={colors.mutedForeground}
+                value={location}
+                onChangeText={setLocation}
               />
-              <Pressable style={styles.iosDoneBtn} onPress={() => setActivePickerField(null)}>
-                <Text style={styles.iosDoneBtnText}>Done</Text>
-              </Pressable>
             </View>
-          )}
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Location (Optional)</Text>
-            <TextInput style={styles.input} placeholder="Optional" placeholderTextColor={colors.mutedForeground} value={location} onChangeText={setLocation} />
-          </View>
-
-          <Pressable style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
-          </Pressable>
+            <Pressable style={styles.saveButton} onPress={handleSave}>
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -1337,6 +1493,35 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: '600',
       color: colors.foreground,
       marginBottom: 8,
+      includeFontPadding: false,
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    sublabel: {
+      fontSize: 11,
+      color: colors.mutedForeground,
+      marginTop: 2,
+      includeFontPadding: false,
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 16,
+    },
+    errorText: {
+      fontSize: 13,
+      color: '#EF4444',
+      flex: 1,
       includeFontPadding: false,
     },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

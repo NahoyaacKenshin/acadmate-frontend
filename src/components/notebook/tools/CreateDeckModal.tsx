@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Modal,
@@ -37,6 +37,12 @@ export function CreateDeckModal({
 }: CreateDeckModalProps) {
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<'ai' | 'manual'>('ai');
+
+  useEffect(() => {
+    if (visible && !isOnline) {
+      setTab('manual');
+    }
+  }, [visible, isOnline]);
   const [cardCount, setCardCount] = useState<number>(12);
   const [customTitle, setCustomTitle] = useState('');
   const [manualDescription, setManualDescription] = useState('');

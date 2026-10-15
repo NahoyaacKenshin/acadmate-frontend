@@ -1124,6 +1124,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 56,
     gap: 8,
+    width: '100%',
   },
   emptyIconWrap: {
     width: 60,
@@ -1139,6 +1140,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     includeFontPadding: false,
+    textAlign: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    flexShrink: 0,
   },
   emptySubtitle: {
     fontFamily: 'Inter',

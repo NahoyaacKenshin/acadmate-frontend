@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -8,9 +8,10 @@ import {
   Modal,
   Text,
   TextInput,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
@@ -50,6 +51,7 @@ import {
 } from "@/src/components/schedule/EditParsedSheets";
 import { ScanAnotherSheet } from "@/src/components/schedule/ScanAnotherSheet";
 import { AILoadingOverlay } from "@/src/components/schedule/AILoadingOverlay";
+import { ConfirmModal } from "@/src/components/common/ConfirmModal";
 import { useSubjects } from "@/src/hooks/useSubjects";
 import { useScheduleScanner } from "@/src/hooks/useScheduleScanner";
 import { useExamWeeks, type ExamWeekRow as DbExamWeekRow } from "@/src/hooks/useExamWeeks";
@@ -88,6 +90,63 @@ export function normalizeParsedClass(c: ParsedClassSchedule): ParsedClassSchedul
     modality: resolvedModality,
     room: isOnlineIndicated && isRoomOnlyOnlineMarker ? null : cleanRoom,
   };
+}
+
+export function mergeClassSchedules(classes: ParsedClassSchedule[]): ParsedClassSchedule[] {
+  const map = new Map<string, ParsedClassSchedule>();
+
+  for (const c of classes) {
+    const normSubject = (c.subjectName ?? "").trim().toLowerCase();
+    const normStart = (c.startTime ?? "").trim();
+    const normEnd = (c.endTime ?? "").trim();
+    const normRoom = (c.room ?? "").trim().toLowerCase();
+    const normModality = (c.modality ?? "F2F").toUpperCase();
+    const normSet = c.setType === "BOTH" || !c.setType ? "" : c.setType;
+    const normStartDate = c.startDate ? toPhilippineDateOnly(c.startDate) : "";
+    const normEndDate = c.endDate ? toPhilippineDateOnly(c.endDate) : "";
+
+    const key = `${normSubject}|${normStart}|${normEnd}|${normRoom}|${normModality}|${normSet}|${normStartDate}|${normEndDate}`;
+
+    const currentDays =
+      c.daysOfWeek && c.daysOfWeek.length > 0
+        ? c.daysOfWeek
+        : [c.dayOfWeek];
+
+    const existing = map.get(key);
+    if (!existing) {
+      const sortedDays = Array.from(new Set(currentDays)).sort((a, b) => a - b);
+      map.set(key, {
+        ...c,
+        dayOfWeek: sortedDays[0] ?? c.dayOfWeek,
+        daysOfWeek: sortedDays,
+      });
+    } else {
+      const existingDays =
+        existing.daysOfWeek && existing.daysOfWeek.length > 0
+          ? existing.daysOfWeek
+          : [existing.dayOfWeek];
+      const mergedDays = Array.from(new Set([...existingDays, ...currentDays])).sort((a, b) => a - b);
+
+      map.set(key, {
+        ...existing,
+        dayOfWeek: mergedDays[0] ?? existing.dayOfWeek,
+        daysOfWeek: mergedDays,
+      });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+export function deduplicateCalendarEvents(events: ParsedCalendarEvent[]): ParsedCalendarEvent[] {
+  const map = new Map<string, ParsedCalendarEvent>();
+  for (const e of events) {
+    const key = `${(e.title ?? "").trim().toLowerCase()}|${(e.startDate ?? "").trim()}|${(e.endDate ?? "").trim()}|${(e.location ?? "").trim().toLowerCase()}`;
+    if (!map.has(key)) {
+      map.set(key, e);
+    }
+  }
+  return Array.from(map.values());
 }
 
 export function partitionSchedulePayload(
@@ -133,7 +192,7 @@ export function partitionSchedulePayload(
   }
 
   return {
-    classes: finalClasses,
+    classes: mergeClassSchedules(finalClasses),
     exams: [...rawExams, ...migratedExams],
   };
 }
@@ -568,8 +627,8 @@ export default function ScheduleConfirmScreen() {
 
       return {
         semesterInfo,
-        classSchedules: normalizedClasses,
-        calendarEvents,
+        classSchedules: mergeClassSchedules(normalizedClasses),
+        calendarEvents: deduplicateCalendarEvents(calendarEvents),
         examWeekBlockers,
         examEvents: partitioned.exams,
       };
@@ -706,6 +765,98 @@ export default function ScheduleConfirmScreen() {
 
   const scanner = useScheduleScanner();
 
+  // Synchronize review state whenever a new payload is scanned or provided
+  useEffect(() => {
+    setClasses(initialData.classSchedules);
+    setEvents(initialData.calendarEvents);
+    setExamBlockers(initialData.examWeekBlockers);
+    setExamEvents(initialData.examEvents);
+    setUniversalStartDate(
+      initialData.semesterInfo?.startDate
+        ? toPhilippineISO(initialData.semesterInfo.startDate, "08:00")
+        : ""
+    );
+    setUniversalEndDate(
+      initialData.semesterInfo?.endDate
+        ? toPhilippineISO(initialData.semesterInfo.endDate, "17:00")
+        : ""
+    );
+    setResolvedSubjects({});
+    setEditingClassIndex(null);
+    setEditingEventIndex(null);
+    setEditingBlockerIndex(null);
+    setEditingExamIndex(null);
+    setNewSubjectFor(null);
+    setShowSuccess(false);
+    setShowScanSheet(false);
+  }, [initialData]);
+
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const confirmCancel = useCallback(() => {
+    setShowCancelConfirm(false);
+    scanner.clearFile();
+    scanner.clearError();
+    setClasses([]);
+    setEvents([]);
+    setExamBlockers([]);
+    setExamEvents([]);
+    setUniversalStartDate("");
+    setUniversalEndDate("");
+    router.replace("/(app)/calendar");
+  }, [scanner]);
+
+  const handleCancelOrBack = useCallback(() => {
+    setShowCancelConfirm(true);
+  }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      // If an edit sheet, scan sheet, or success modal is open, let it handle back press
+      if (
+        editingClassIndex !== null ||
+        editingEventIndex !== null ||
+        editingBlockerIndex !== null ||
+        editingExamIndex !== null ||
+        showScanSheet ||
+        showSuccess
+      ) {
+        return false;
+      }
+
+      if (showCancelConfirm) {
+        setShowCancelConfirm(false);
+        return true;
+      }
+
+      setShowCancelConfirm(true);
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+    return () => subscription.remove();
+  }, [
+    editingClassIndex,
+    editingEventIndex,
+    editingBlockerIndex,
+    editingExamIndex,
+    showScanSheet,
+    showSuccess,
+    showCancelConfirm,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        scanner.clearFile();
+        scanner.clearError();
+      };
+    }, [scanner])
+  );
+
   const existingSubjectNames = useMemo(
     () => new Set(subjects.map((s) => s.name.toLowerCase())),
     [subjects]
@@ -752,8 +903,8 @@ export default function ScheduleConfirmScreen() {
       endDate: effectiveEnd !== undefined && effectiveEnd !== null ? effectiveEnd : c.endDate,
     }));
 
-    setClasses(mergedClassesWithDates);
-    setEvents(merged.calendarEvents ?? []);
+    setClasses(mergeClassSchedules(mergedClassesWithDates));
+    setEvents(deduplicateCalendarEvents(merged.calendarEvents ?? []));
     setExamBlockers(merged.examWeekBlockers ?? []);
     setExamEvents(partitioned.exams);
 
@@ -824,7 +975,7 @@ export default function ScheduleConfirmScreen() {
       for (const e of events) {
         const id = generateId();
         const validStartDate = toIsoDateString(e.startDate, now);
-        const validEndDate = toIsoDateString(e.endDate, validStartDate);
+        const validEndDate = e.endDate ? toIsoDateString(e.endDate, validStartDate) : null;
         queries.push(
           powerSync.execute(
             `INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, location, color, userId, subjectId, createdAt, updatedAt)
@@ -907,7 +1058,7 @@ export default function ScheduleConfirmScreen() {
         <View style={styles.header}>
           <Pressable
             style={styles.backBtn}
-            onPress={() => router.replace("/(app)/calendar")}
+            onPress={handleCancelOrBack}
             hitSlop={8}
           >
             <ChevronLeft size={20} color={colors.foreground} />
@@ -1133,15 +1284,44 @@ export default function ScheduleConfirmScreen() {
               {isSaving ? "Saving..." : "Add to My Calendar"}
             </Text>
           </Pressable>
-          <Pressable style={styles.scanAnotherBtn} onPress={() => setShowScanSheet(true)}>
-            <ScanLine size={16} color="#6366F1" />
-            <Text style={styles.scanAnotherText}>Scan Another File</Text>
+          <Pressable
+            style={[
+              styles.scanAnotherBtn,
+              {
+                backgroundColor: isDark ? "rgba(99, 102, 241, 0.12)" : "rgba(99, 102, 241, 0.08)",
+                borderColor: isDark ? "rgba(99, 102, 241, 0.3)" : "rgba(99, 102, 241, 0.2)",
+              },
+            ]}
+            onPress={() => setShowScanSheet(true)}
+          >
+            <ScanLine size={16} color="#6366F1" style={{ flexShrink: 0 }} />
+            <Text
+              style={[
+                styles.scanAnotherText,
+                { color: "#6366F1", flexShrink: 0, includeFontPadding: false },
+              ]}
+            >
+              Scan Another File
+            </Text>
           </Pressable>
           <Pressable
-            style={styles.cancelBtn}
-            onPress={() => router.replace("/(app)/calendar")}
+            style={[
+              styles.cancelBtn,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={handleCancelOrBack}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text
+              style={[
+                styles.cancelText,
+                { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+              ]}
+            >
+              Cancel
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1261,6 +1441,12 @@ export default function ScheduleConfirmScreen() {
             <Pressable
               style={styles.successBtn}
               onPress={() => {
+                scanner.clearFile();
+                scanner.clearError();
+                setClasses([]);
+                setEvents([]);
+                setExamBlockers([]);
+                setExamEvents([]);
                 setShowSuccess(false);
                 router.replace("/(app)/calendar");
               }}
@@ -1298,6 +1484,18 @@ export default function ScheduleConfirmScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Cancel Review Confirmation Modal */}
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Discard Parsed Schedule?"
+        description="Are you sure you want to cancel? Any parsed classes, events, and exams will be discarded."
+        confirmLabel="Discard"
+        cancelLabel="Keep Reviewing"
+        variant="danger"
+        onConfirm={confirmCancel}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </>
   );
 }
@@ -1402,6 +1600,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: "600",
       color: colors.mutedForeground,
       includeFontPadding: false,
+      flexShrink: 0,
     },
     scanAnotherBtn: {
       flexDirection: "row",
@@ -1419,6 +1618,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: "600",
       color: "#6366F1",
       includeFontPadding: false,
+      flexShrink: 0,
     },
     confirmBtn: {
       backgroundColor: "#6366F1",

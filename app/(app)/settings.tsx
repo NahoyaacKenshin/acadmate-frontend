@@ -78,7 +78,11 @@ function LeadPillsRow({
   const isCustom = !presets.includes(currentMinutes);
 
   return (
-    <View style={styles.leadMinutesRow}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.leadMinutesRow}
+    >
       {presets.map((mins) => {
         const isSel = currentMinutes === mins;
         return (
@@ -135,7 +139,7 @@ function LeadPillsRow({
           {isCustom ? formatLeadMinutes(currentMinutes) : 'Custom'}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1336,21 +1340,23 @@ const styles = StyleSheet.create({
   leadMinutesRow: {
     flexDirection: 'row',
     gap: 6,
+    paddingRight: 16,
   },
   leadMinutesPill: {
-    flex: 1,
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 12,
+    flexShrink: 0,
   },
   leadMinutesText: {
     fontSize: 11,
     fontWeight: '600',
     includeFontPadding: false,
     flexShrink: 0,
+    paddingRight: 2,
   },
   leadMinutesTextActive: {
     fontWeight: '700',

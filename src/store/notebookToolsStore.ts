@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ApiService } from '@/src/services/api';
-import { NotebookStorage } from '@/src/services/notebookStorage';
+import { NotebookStorage, PendingToolSyncItem } from '@/src/services/notebookStorage';
 import { useSystemStore } from './systemStore';
 
 export interface Flashcard {
@@ -109,6 +109,9 @@ interface NotebookToolsState {
   updateQuestion: (quizId: string, questionId: string, data: { question?: string; options?: string[]; correctAnswer?: number; explanation?: string }) => Promise<void>;
   deleteQuestion: (quizId: string, questionId: string) => Promise<void>;
   submitQuizAttempt: (quizId: string, answers: number[]) => Promise<QuizResult>;
+
+  // Offline Sync
+  syncPendingTools: () => Promise<void>;
 }
 
 export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
@@ -119,6 +122,162 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   isLoading: false,
   isGenerating: false,
   error: null,
+
+  // ─── Offline Sync ───────────────────────────────────────────────────────────
+
+  syncPendingTools: async () => {
+    const { isOnline } = useSystemStore.getState();
+    if (!isOnline) return;
+
+    const pending = await NotebookStorage.loadPendingToolsSync();
+    if (!pending || pending.length === 0) return;
+
+    const remainingQueue: PendingToolSyncItem[] = [];
+
+    for (const item of pending) {
+      try {
+        if (item.type === 'CREATE_DECK') {
+          const detail =
+            get().deckDetails[item.localId] ||
+            (await NotebookStorage.loadFlashcardDeckDetail(item.localId));
+          if (!detail) continue;
+
+          const cards = (detail.cards || []).map((c) => ({
+            front: c.front,
+            back: c.back,
+          }));
+
+          const res = await ApiService.flashcards.createDeck(item.notebookId, {
+            title: detail.title,
+            description: detail.description ?? undefined,
+            cards: cards.length > 0 ? cards : undefined,
+          });
+          const serverDeck: FlashcardDeckDetail = res.data;
+
+          set((state) => {
+            const list = (state.decksByNotebook[item.notebookId] || []).map((d) =>
+              d.id === item.localId ? serverDeck : d
+            );
+            const newDetails = { ...state.deckDetails };
+            delete newDetails[item.localId];
+            newDetails[serverDeck.id] = serverDeck;
+            return {
+              decksByNotebook: { ...state.decksByNotebook, [item.notebookId]: list },
+              deckDetails: newDetails,
+            };
+          });
+
+          await NotebookStorage.saveFlashcardDeckDetail(serverDeck.id, serverDeck);
+          await NotebookStorage.removeFlashcardDeckDetail(item.localId);
+          const currentList = get().decksByNotebook[item.notebookId] || [];
+          await NotebookStorage.saveFlashcardDecks(item.notebookId, currentList);
+
+          // Update any remaining items in pending queue referencing item.localId
+          for (let i = 0; i < remainingQueue.length; i++) {
+            if (remainingQueue[i].type === 'ADD_CARD' && (remainingQueue[i] as any).deckId === item.localId) {
+              (remainingQueue[i] as any).deckId = serverDeck.id;
+            }
+          }
+        } else if (item.type === 'CREATE_QUIZ') {
+          const detail =
+            get().quizDetails[item.localId] ||
+            (await NotebookStorage.loadQuizDetail(item.localId));
+          if (!detail) continue;
+
+          const questions = (detail.questions || []).map((q) => ({
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation ?? undefined,
+          }));
+
+          const res = await ApiService.quizzes.createQuiz(item.notebookId, {
+            title: detail.title,
+            description: detail.description ?? undefined,
+            questions: questions.length > 0 ? questions : undefined,
+          });
+          const serverQuiz: QuizDetail = res.data;
+
+          set((state) => {
+            const list = (state.quizzesByNotebook[item.notebookId] || []).map((q) =>
+              q.id === item.localId ? serverQuiz : q
+            );
+            const newDetails = { ...state.quizDetails };
+            delete newDetails[item.localId];
+            newDetails[serverQuiz.id] = serverQuiz;
+            return {
+              quizzesByNotebook: { ...state.quizzesByNotebook, [item.notebookId]: list },
+              quizDetails: newDetails,
+            };
+          });
+
+          await NotebookStorage.saveQuizDetail(serverQuiz.id, serverQuiz);
+          await NotebookStorage.removeQuizDetail(item.localId);
+          const currentList = get().quizzesByNotebook[item.notebookId] || [];
+          await NotebookStorage.saveQuizzes(item.notebookId, currentList);
+
+          for (let i = 0; i < remainingQueue.length; i++) {
+            if (remainingQueue[i].type === 'ADD_QUESTION' && (remainingQueue[i] as any).quizId === item.localId) {
+              (remainingQueue[i] as any).quizId = serverQuiz.id;
+            }
+          }
+        } else if (item.type === 'ADD_CARD') {
+          if (item.deckId.startsWith('local_deck_')) {
+            remainingQueue.push(item);
+            continue;
+          }
+          const res = await ApiService.flashcards.addCard(item.deckId, {
+            front: item.front,
+            back: item.back,
+          });
+          const serverCard = res.data;
+          set((state) => {
+            const detail = state.deckDetails[item.deckId];
+            if (!detail) return state;
+            const updatedCards = detail.cards.map((c) => (c.id === item.localId ? serverCard : c));
+            return {
+              deckDetails: {
+                ...state.deckDetails,
+                [item.deckId]: { ...detail, cards: updatedCards },
+              },
+            };
+          });
+          const updated = get().deckDetails[item.deckId];
+          if (updated) await NotebookStorage.saveFlashcardDeckDetail(item.deckId, updated);
+        } else if (item.type === 'ADD_QUESTION') {
+          if (item.quizId.startsWith('local_quiz_')) {
+            remainingQueue.push(item);
+            continue;
+          }
+          const res = await ApiService.quizzes.addQuestion(item.quizId, {
+            question: item.question,
+            options: item.options,
+            correctAnswer: item.correctAnswer,
+            explanation: item.explanation,
+          });
+          const serverQ = res.data;
+          set((state) => {
+            const detail = state.quizDetails[item.quizId];
+            if (!detail) return state;
+            const updatedQuestions = detail.questions.map((q) => (q.id === item.localId ? serverQ : q));
+            return {
+              quizDetails: {
+                ...state.quizDetails,
+                [item.quizId]: { ...detail, questions: updatedQuestions },
+              },
+            };
+          });
+          const updated = get().quizDetails[item.quizId];
+          if (updated) await NotebookStorage.saveQuizDetail(item.quizId, updated);
+        }
+      } catch (err: any) {
+        console.warn('[notebookToolsStore] Failed to sync item:', item.type, err?.message);
+        remainingQueue.push(item);
+      }
+    }
+
+    await NotebookStorage.savePendingToolsSync(remainingQueue);
+  },
 
   // ─── Flashcards ─────────────────────────────────────────────────────────────
 
@@ -136,21 +295,30 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       return;
     }
 
+    // Attempt pending background sync
+    get().syncPendingTools().catch(() => {});
+
     if (!silent) set({ isLoading: true, error: null });
 
     try {
       const res = await ApiService.flashcards.list(notebookId);
-      const decks = res.data ?? [];
-      set((state) => ({
-        decksByNotebook: { ...state.decksByNotebook, [notebookId]: decks },
-      }));
-      await NotebookStorage.saveFlashcardDecks(notebookId, decks);
+      const serverDecks: FlashcardDeckSummary[] = res.data ?? [];
 
-      // Pre-cache individual deck details if cards are included or in background
-      for (const d of decks) {
-        if (d.cards && Array.isArray(d.cards)) {
+      // Preserve any locally created decks that haven't synced yet
+      const currentList = get().decksByNotebook[notebookId] || [];
+      const pendingLocalDecks = currentList.filter((d) => d.id.startsWith('local_deck_'));
+      const combinedDecks = [...pendingLocalDecks, ...serverDecks];
+
+      set((state) => ({
+        decksByNotebook: { ...state.decksByNotebook, [notebookId]: combinedDecks },
+      }));
+      await NotebookStorage.saveFlashcardDecks(notebookId, combinedDecks);
+
+      // Pre-cache individual deck details
+      for (const d of serverDecks) {
+        if ((d as any).cards && Array.isArray((d as any).cards)) {
           set((state) => ({
-            deckDetails: { ...state.deckDetails, [d.id]: d },
+            deckDetails: { ...state.deckDetails, [d.id]: d as any },
           }));
           await NotebookStorage.saveFlashcardDeckDetail(d.id, d);
         } else {
@@ -189,6 +357,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       }));
     }
 
+    if (deckId.startsWith('local_deck_')) {
+      if (cached) return cached;
+      throw new Error('Local flashcard deck not found.');
+    }
+
     const { isOnline } = useSystemStore.getState();
     if (!isOnline) {
       if (cached) {
@@ -199,7 +372,17 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
 
     try {
       const res = await ApiService.flashcards.get(deckId);
-      const deck = res.data;
+      const deck: FlashcardDeckDetail = res.data;
+
+      // Preserve local cards not yet synced
+      if (cached && cached.cards) {
+        const localCards = cached.cards.filter((c: any) => c.id.startsWith('local_card_'));
+        if (localCards.length > 0) {
+          deck.cards = [...deck.cards, ...localCards];
+          deck.totalCards = deck.cards.length;
+        }
+      }
+
       set((state) => ({
         deckDetails: { ...state.deckDetails, [deckId]: deck },
       }));
@@ -244,22 +427,80 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   createDeck: async (notebookId: string, data) => {
     set({ isLoading: true });
     try {
-      const res = await ApiService.flashcards.createDeck(notebookId, data);
-      const newDeck = res.data;
+      const { isOnline } = useSystemStore.getState();
 
-      set((state) => {
-        const existing = state.decksByNotebook[notebookId] || [];
-        return {
-          decksByNotebook: { ...state.decksByNotebook, [notebookId]: [newDeck, ...existing] },
-          deckDetails: { ...state.deckDetails, [newDeck.id]: newDeck },
+      const createLocalDeck = async () => {
+        const localId = `local_deck_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const now = new Date().toISOString();
+        const initialCards: Flashcard[] = (data.cards || []).map((c, idx) => ({
+          id: `local_card_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 8)}`,
+          deckId: localId,
+          front: c.front,
+          back: c.back,
+          isMastered: false,
+          createdAt: now,
+        }));
+
+        const newDeck: FlashcardDeckDetail = {
+          id: localId,
+          notebookId,
+          title: data.title,
+          description: data.description ?? null,
+          totalCards: initialCards.length,
+          masteredCards: 0,
+          createdAt: now,
+          updatedAt: now,
+          cards: initialCards,
         };
-      });
 
-      await NotebookStorage.saveFlashcardDeckDetail(newDeck.id, newDeck);
-      const currentList = get().decksByNotebook[notebookId] || [];
-      await NotebookStorage.saveFlashcardDecks(notebookId, currentList);
+        set((state) => {
+          const existing = state.decksByNotebook[notebookId] || [];
+          return {
+            decksByNotebook: { ...state.decksByNotebook, [notebookId]: [newDeck, ...existing] },
+            deckDetails: { ...state.deckDetails, [newDeck.id]: newDeck },
+          };
+        });
 
-      return newDeck;
+        await NotebookStorage.saveFlashcardDeckDetail(newDeck.id, newDeck);
+        const currentList = get().decksByNotebook[notebookId] || [];
+        await NotebookStorage.saveFlashcardDecks(notebookId, currentList);
+
+        await NotebookStorage.enqueuePendingToolSync({
+          type: 'CREATE_DECK',
+          localId,
+          notebookId,
+          title: data.title,
+          description: data.description,
+        });
+
+        return newDeck;
+      };
+
+      if (!isOnline) {
+        return await createLocalDeck();
+      }
+
+      try {
+        const res = await ApiService.flashcards.createDeck(notebookId, data);
+        const newDeck = res.data;
+
+        set((state) => {
+          const existing = state.decksByNotebook[notebookId] || [];
+          return {
+            decksByNotebook: { ...state.decksByNotebook, [notebookId]: [newDeck, ...existing] },
+            deckDetails: { ...state.deckDetails, [newDeck.id]: newDeck },
+          };
+        });
+
+        await NotebookStorage.saveFlashcardDeckDetail(newDeck.id, newDeck);
+        const currentList = get().decksByNotebook[notebookId] || [];
+        await NotebookStorage.saveFlashcardDecks(notebookId, currentList);
+
+        return newDeck;
+      } catch (apiErr: any) {
+        console.warn('[notebookToolsStore] createDeck API failed, creating locally:', apiErr?.message);
+        return await createLocalDeck();
+      }
     } finally {
       set({ isLoading: false });
     }
@@ -283,7 +524,7 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     if (updated) await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !deckId.startsWith('local_deck_')) {
       try {
         await ApiService.flashcards.updateDeck(deckId, data);
       } catch (err) {
@@ -308,9 +549,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
 
     const currentList = get().decksByNotebook[notebookId] || [];
     await NotebookStorage.saveFlashcardDecks(notebookId, currentList);
+    await NotebookStorage.removeFlashcardDeckDetail(deckId);
+    await NotebookStorage.removePendingToolSync(deckId);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !deckId.startsWith('local_deck_')) {
       try {
         await ApiService.flashcards.deleteDeck(deckId);
       } catch (err) {
@@ -320,46 +563,114 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   },
 
   addCard: async (deckId: string, data) => {
-    const res = await ApiService.flashcards.addCard(deckId, data);
-    const newCard = res.data;
+    const { isOnline } = useSystemStore.getState();
+    const isLocalDeck = deckId.startsWith('local_deck_');
 
-    set((state) => {
-      const detail = state.deckDetails[deckId];
-      if (!detail) return state;
-      const exists = detail.cards.some((c) => c.id === newCard.id);
-      const updatedCards = exists
-        ? detail.cards.map((c) => (c.id === newCard.id ? newCard : c))
-        : [...detail.cards, newCard];
-      const updatedDetail: FlashcardDeckDetail = {
-        ...detail,
-        cards: updatedCards,
-        totalCards: updatedCards.length,
+    const addLocalCard = async (shouldQueueSync: boolean) => {
+      const localCardId = `local_card_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const newCard: Flashcard = {
+        id: localCardId,
+        deckId,
+        front: data.front,
+        back: data.back,
+        isMastered: false,
+        createdAt: new Date().toISOString(),
       };
 
-      const notebookId = detail.notebookId;
-      const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
-      const updatedDecks = list
-        ? list.map((d) =>
-            d.id === deckId ? { ...d, totalCards: updatedCards.length } : d
-          )
-        : undefined;
+      set((state) => {
+        const detail = state.deckDetails[deckId];
+        if (!detail) return state;
+        const updatedCards = [...detail.cards, newCard];
+        const updatedDetail: FlashcardDeckDetail = {
+          ...detail,
+          cards: updatedCards,
+          totalCards: updatedCards.length,
+        };
 
-      return {
-        deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
-        ...(notebookId && updatedDecks
-          ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
-          : {}),
-      };
-    });
+        const notebookId = detail.notebookId;
+        const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
+        const updatedDecks = list
+          ? list.map((d) => (d.id === deckId ? { ...d, totalCards: updatedCards.length } : d))
+          : undefined;
 
-    const updated = get().deckDetails[deckId];
-    if (updated) {
-      await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
-      if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
-        await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+        return {
+          deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
+          ...(notebookId && updatedDecks
+            ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
+            : {}),
+        };
+      });
+
+      const updated = get().deckDetails[deckId];
+      if (updated) {
+        await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+        if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
+          await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+        }
       }
+
+      if (shouldQueueSync) {
+        await NotebookStorage.enqueuePendingToolSync({
+          type: 'ADD_CARD',
+          localId: localCardId,
+          deckId,
+          front: data.front,
+          back: data.back,
+        });
+      }
+
+      return newCard;
+    };
+
+    if (!isOnline || isLocalDeck) {
+      return await addLocalCard(!isLocalDeck);
     }
-    return newCard;
+
+    try {
+      const res = await ApiService.flashcards.addCard(deckId, data);
+      const newCard = res.data;
+
+      set((state) => {
+        const detail = state.deckDetails[deckId];
+        if (!detail) return state;
+        const exists = detail.cards.some((c) => c.id === newCard.id);
+        const updatedCards = exists
+          ? detail.cards.map((c) => (c.id === newCard.id ? newCard : c))
+          : [...detail.cards, newCard];
+        const updatedDetail: FlashcardDeckDetail = {
+          ...detail,
+          cards: updatedCards,
+          totalCards: updatedCards.length,
+        };
+
+        const notebookId = detail.notebookId;
+        const list = notebookId ? state.decksByNotebook[notebookId] : undefined;
+        const updatedDecks = list
+          ? list.map((d) =>
+              d.id === deckId ? { ...d, totalCards: updatedCards.length } : d
+            )
+          : undefined;
+
+        return {
+          deckDetails: { ...state.deckDetails, [deckId]: updatedDetail },
+          ...(notebookId && updatedDecks
+            ? { decksByNotebook: { ...state.decksByNotebook, [notebookId]: updatedDecks } }
+            : {}),
+        };
+      });
+
+      const updated = get().deckDetails[deckId];
+      if (updated) {
+        await NotebookStorage.saveFlashcardDeckDetail(deckId, updated);
+        if (updated.notebookId && get().decksByNotebook[updated.notebookId]) {
+          await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
+        }
+      }
+      return newCard;
+    } catch (apiErr: any) {
+      console.warn('[notebookToolsStore] addCard API failed, creating locally:', apiErr?.message);
+      return await addLocalCard(true);
+    }
   },
 
   updateCard: async (deckId: string, cardId: string, data) => {
@@ -404,7 +715,7 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     }
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !cardId.startsWith('local_card_')) {
       try {
         await ApiService.flashcards.updateCard(cardId, data);
       } catch (err) {
@@ -460,9 +771,10 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
         await NotebookStorage.saveFlashcardDecks(updated.notebookId, get().decksByNotebook[updated.notebookId]);
       }
     }
+    await NotebookStorage.removePendingToolSync(cardId);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !cardId.startsWith('local_card_')) {
       try {
         await ApiService.flashcards.deleteCard(cardId);
       } catch (err) {
@@ -486,21 +798,28 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       return;
     }
 
+    get().syncPendingTools().catch(() => {});
+
     if (!silent) set({ isLoading: true, error: null });
 
     try {
       const res = await ApiService.quizzes.list(notebookId);
-      const quizzes = res.data ?? [];
-      set((state) => ({
-        quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: quizzes },
-      }));
-      await NotebookStorage.saveQuizzes(notebookId, quizzes);
+      const serverQuizzes: QuizSummary[] = res.data ?? [];
 
-      // Pre-cache individual quiz details if questions are included or in background
-      for (const q of quizzes) {
-        if (q.questions && Array.isArray(q.questions)) {
+      const currentList = get().quizzesByNotebook[notebookId] || [];
+      const pendingLocalQuizzes = currentList.filter((q) => q.id.startsWith('local_quiz_'));
+      const combinedQuizzes = [...pendingLocalQuizzes, ...serverQuizzes];
+
+      set((state) => ({
+        quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: combinedQuizzes },
+      }));
+      await NotebookStorage.saveQuizzes(notebookId, combinedQuizzes);
+
+      // Pre-cache individual quiz details
+      for (const q of serverQuizzes) {
+        if ((q as any).questions && Array.isArray((q as any).questions)) {
           set((state) => ({
-            quizDetails: { ...state.quizDetails, [q.id]: q },
+            quizDetails: { ...state.quizDetails, [q.id]: q as any },
           }));
           await NotebookStorage.saveQuizDetail(q.id, q);
         } else {
@@ -538,6 +857,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
       }));
     }
 
+    if (quizId.startsWith('local_quiz_')) {
+      if (cached) return cached;
+      throw new Error('Local quiz not found.');
+    }
+
     const { isOnline } = useSystemStore.getState();
     if (!isOnline) {
       if (cached) {
@@ -548,7 +872,16 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
 
     try {
       const res = await ApiService.quizzes.get(quizId);
-      const quiz = res.data;
+      const quiz: QuizDetail = res.data;
+
+      if (cached && cached.questions) {
+        const localQuestions = cached.questions.filter((q: any) => q.id.startsWith('local_q_'));
+        if (localQuestions.length > 0) {
+          quiz.questions = [...quiz.questions, ...localQuestions];
+          quiz.totalQuestions = quiz.questions.length;
+        }
+      }
+
       set((state) => ({
         quizDetails: { ...state.quizDetails, [quizId]: quiz },
       }));
@@ -590,22 +923,80 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   createQuiz: async (notebookId: string, data) => {
     set({ isLoading: true });
     try {
-      const res = await ApiService.quizzes.createQuiz(notebookId, data);
-      const newQuiz = res.data;
+      const { isOnline } = useSystemStore.getState();
 
-      set((state) => {
-        const existing = state.quizzesByNotebook[notebookId] || [];
-        return {
-          quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: [newQuiz, ...existing] },
-          quizDetails: { ...state.quizDetails, [newQuiz.id]: newQuiz },
+      const createLocalQuiz = async () => {
+        const localId = `local_quiz_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const now = new Date().toISOString();
+        const initialQuestions: QuizQuestion[] = (data.questions || []).map((q, idx) => ({
+          id: `local_q_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 8)}`,
+          question: q.question,
+          options: q.options || [],
+          correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
+          explanation: q.explanation ?? null,
+        }));
+
+        const newQuiz: QuizDetail = {
+          id: localId,
+          notebookId,
+          title: data.title,
+          description: data.description ?? null,
+          totalQuestions: initialQuestions.length,
+          bestAttempt: null,
+          createdAt: now,
+          updatedAt: now,
+          questions: initialQuestions,
+          attempts: [],
         };
-      });
 
-      await NotebookStorage.saveQuizDetail(newQuiz.id, newQuiz);
-      const currentList = get().quizzesByNotebook[notebookId] || [];
-      await NotebookStorage.saveQuizzes(notebookId, currentList);
+        set((state) => {
+          const existing = state.quizzesByNotebook[notebookId] || [];
+          return {
+            quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: [newQuiz, ...existing] },
+            quizDetails: { ...state.quizDetails, [newQuiz.id]: newQuiz },
+          };
+        });
 
-      return newQuiz;
+        await NotebookStorage.saveQuizDetail(newQuiz.id, newQuiz);
+        const currentList = get().quizzesByNotebook[notebookId] || [];
+        await NotebookStorage.saveQuizzes(notebookId, currentList);
+
+        await NotebookStorage.enqueuePendingToolSync({
+          type: 'CREATE_QUIZ',
+          localId,
+          notebookId,
+          title: data.title,
+          description: data.description,
+        });
+
+        return newQuiz;
+      };
+
+      if (!isOnline) {
+        return await createLocalQuiz();
+      }
+
+      try {
+        const res = await ApiService.quizzes.createQuiz(notebookId, data);
+        const newQuiz = res.data;
+
+        set((state) => {
+          const existing = state.quizzesByNotebook[notebookId] || [];
+          return {
+            quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: [newQuiz, ...existing] },
+            quizDetails: { ...state.quizDetails, [newQuiz.id]: newQuiz },
+          };
+        });
+
+        await NotebookStorage.saveQuizDetail(newQuiz.id, newQuiz);
+        const currentList = get().quizzesByNotebook[notebookId] || [];
+        await NotebookStorage.saveQuizzes(notebookId, currentList);
+
+        return newQuiz;
+      } catch (apiErr: any) {
+        console.warn('[notebookToolsStore] createQuiz API failed, creating locally:', apiErr?.message);
+        return await createLocalQuiz();
+      }
     } finally {
       set({ isLoading: false });
     }
@@ -628,7 +1019,7 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     if (updated) await NotebookStorage.saveQuizDetail(quizId, updated);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !quizId.startsWith('local_quiz_')) {
       try {
         await ApiService.quizzes.updateQuiz(quizId, data);
       } catch (err) {
@@ -653,9 +1044,11 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
 
     const currentList = get().quizzesByNotebook[notebookId] || [];
     await NotebookStorage.saveQuizzes(notebookId, currentList);
+    await NotebookStorage.removeQuizDetail(quizId);
+    await NotebookStorage.removePendingToolSync(quizId);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !quizId.startsWith('local_quiz_')) {
       try {
         await ApiService.quizzes.deleteQuiz(quizId);
       } catch (err) {
@@ -665,49 +1058,123 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   },
 
   addQuestion: async (quizId: string, data) => {
-    const res = await ApiService.quizzes.addQuestion(quizId, data);
-    const newQ = res.data;
+    const { isOnline } = useSystemStore.getState();
+    const isLocalQuiz = quizId.startsWith('local_quiz_');
 
-    set((state) => {
-      const detail = state.quizDetails[quizId];
-      if (!detail) return state;
-      const exists = detail.questions.some((q) => q.id === newQ.id);
-      const updatedQuestions = exists
-        ? detail.questions.map((q) => (q.id === newQ.id ? newQ : q))
-        : [...detail.questions, newQ];
-      const updatedDetail: QuizDetail = {
-        ...detail,
-        questions: updatedQuestions,
-        totalQuestions: updatedQuestions.length,
+    const addLocalQuestion = async (shouldQueueSync: boolean) => {
+      const localQId = `local_q_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const newQ: QuizQuestion = {
+        id: localQId,
+        question: data.question,
+        options: data.options,
+        correctAnswer: data.correctAnswer,
+        explanation: data.explanation ?? null,
       };
 
-      const notebookId = detail.notebookId;
-      const list = notebookId ? state.quizzesByNotebook[notebookId] : undefined;
-      const updatedQuizzes = list
-        ? list.map((q) =>
-            q.id === quizId ? { ...q, totalQuestions: updatedQuestions.length } : q
-          )
-        : undefined;
+      set((state) => {
+        const detail = state.quizDetails[quizId];
+        if (!detail) return state;
+        const updatedQuestions = [...detail.questions, newQ];
+        const updatedDetail: QuizDetail = {
+          ...detail,
+          questions: updatedQuestions,
+          totalQuestions: updatedQuestions.length,
+        };
 
-      return {
-        quizDetails: {
-          ...state.quizDetails,
-          [quizId]: updatedDetail,
-        },
-        ...(notebookId && updatedQuizzes
-          ? { quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: updatedQuizzes } }
-          : {}),
-      };
-    });
+        const notebookId = detail.notebookId;
+        const list = notebookId ? state.quizzesByNotebook[notebookId] : undefined;
+        const updatedQuizzes = list
+          ? list.map((q) =>
+              q.id === quizId ? { ...q, totalQuestions: updatedQuestions.length } : q
+            )
+          : undefined;
 
-    const updated = get().quizDetails[quizId];
-    if (updated) {
-      await NotebookStorage.saveQuizDetail(quizId, updated);
-      if (updated.notebookId && get().quizzesByNotebook[updated.notebookId]) {
-        await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
+        return {
+          quizDetails: {
+            ...state.quizDetails,
+            [quizId]: updatedDetail,
+          },
+          ...(notebookId && updatedQuizzes
+            ? { quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: updatedQuizzes } }
+            : {}),
+        };
+      });
+
+      const updated = get().quizDetails[quizId];
+      if (updated) {
+        await NotebookStorage.saveQuizDetail(quizId, updated);
+        if (updated.notebookId && get().quizzesByNotebook[updated.notebookId]) {
+          await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
+        }
       }
+
+      if (shouldQueueSync) {
+        await NotebookStorage.enqueuePendingToolSync({
+          type: 'ADD_QUESTION',
+          localId: localQId,
+          quizId,
+          question: data.question,
+          options: data.options,
+          correctAnswer: data.correctAnswer,
+          explanation: data.explanation,
+        });
+      }
+
+      return newQ;
+    };
+
+    if (!isOnline || isLocalQuiz) {
+      return await addLocalQuestion(!isLocalQuiz);
     }
-    return newQ;
+
+    try {
+      const res = await ApiService.quizzes.addQuestion(quizId, data);
+      const newQ = res.data;
+
+      set((state) => {
+        const detail = state.quizDetails[quizId];
+        if (!detail) return state;
+        const exists = detail.questions.some((q) => q.id === newQ.id);
+        const updatedQuestions = exists
+          ? detail.questions.map((q) => (q.id === newQ.id ? newQ : q))
+          : [...detail.questions, newQ];
+        const updatedDetail: QuizDetail = {
+          ...detail,
+          questions: updatedQuestions,
+          totalQuestions: updatedQuestions.length,
+        };
+
+        const notebookId = detail.notebookId;
+        const list = notebookId ? state.quizzesByNotebook[notebookId] : undefined;
+        const updatedQuizzes = list
+          ? list.map((q) =>
+              q.id === quizId ? { ...q, totalQuestions: updatedQuestions.length } : q
+            )
+          : undefined;
+
+        return {
+          quizDetails: {
+            ...state.quizDetails,
+            [quizId]: updatedDetail,
+          },
+          ...(notebookId && updatedQuizzes
+            ? { quizzesByNotebook: { ...state.quizzesByNotebook, [notebookId]: updatedQuizzes } }
+            : {}),
+        };
+      });
+
+      const updated = get().quizDetails[quizId];
+      if (updated) {
+        await NotebookStorage.saveQuizDetail(quizId, updated);
+        if (updated.notebookId && get().quizzesByNotebook[updated.notebookId]) {
+          await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
+        }
+      }
+      return newQ;
+    } catch (apiErr: any) {
+      console.warn('[notebookToolsStore] addQuestion API failed, creating locally:', apiErr?.message);
+      return await addLocalQuestion(true);
+    }
   },
 
   updateQuestion: async (quizId: string, questionId: string, data) => {
@@ -729,7 +1196,7 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
     if (updated) await NotebookStorage.saveQuizDetail(quizId, updated);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !questionId.startsWith('local_q_')) {
       try {
         await ApiService.quizzes.updateQuestion(questionId, data);
       } catch (err) {
@@ -775,9 +1242,10 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
         await NotebookStorage.saveQuizzes(updated.notebookId, get().quizzesByNotebook[updated.notebookId]);
       }
     }
+    await NotebookStorage.removePendingToolSync(questionId);
 
     const { isOnline } = useSystemStore.getState();
-    if (isOnline) {
+    if (isOnline && !questionId.startsWith('local_q_')) {
       try {
         await ApiService.quizzes.deleteQuestion(questionId);
       } catch (err) {
@@ -787,16 +1255,86 @@ export const useNotebookToolsStore = create<NotebookToolsState>((set, get) => ({
   },
 
   submitQuizAttempt: async (quizId: string, answers: number[]) => {
-    const res = await ApiService.quizzes.submitAttempt(quizId, answers);
-    const result: QuizResult = res.data;
+    const { isOnline } = useSystemStore.getState();
+    const isLocalQuiz = quizId.startsWith('local_quiz_');
 
-    // Refresh quiz detail to include updated attempts and best score
-    try {
-      await get().fetchQuizDetail(quizId);
-    } catch {
-      // ignore
+    if (isOnline && !isLocalQuiz) {
+      try {
+        const res = await ApiService.quizzes.submitAttempt(quizId, answers);
+        const result: QuizResult = res.data;
+
+        try {
+          await get().fetchQuizDetail(quizId);
+        } catch {
+          // ignore
+        }
+
+        return result;
+      } catch (err) {
+        console.warn('[notebookToolsStore] submitQuizAttempt API failed, falling back to local grading:', err);
+      }
     }
 
-    return result;
+    // Local grading fallback
+    const detail = get().quizDetails[quizId];
+    const questions = detail?.questions || [];
+    let score = 0;
+    const results = questions.map((q, idx) => {
+      const selected = answers[idx];
+      const isCorrect = selected === q.correctAnswer;
+      if (isCorrect) score++;
+      return {
+        questionId: q.id,
+        question: q.question,
+        selected,
+        correctAnswer: q.correctAnswer,
+        isCorrect,
+        explanation: q.explanation ?? undefined,
+      };
+    });
+
+    const localResult: QuizResult = {
+      attemptId: `local_attempt_${Date.now()}`,
+      score,
+      total: questions.length,
+      percentage: questions.length > 0 ? Math.round((score / questions.length) * 100) : 0,
+      results,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (detail) {
+      const prevBest = detail.bestAttempt?.score ?? -1;
+      const newBest =
+        score > prevBest
+          ? { score, total: questions.length, createdAt: localResult.createdAt }
+          : detail.bestAttempt;
+      const updatedDetail: QuizDetail = {
+        ...detail,
+        bestAttempt: newBest,
+        attempts: [
+          {
+            id: localResult.attemptId,
+            score,
+            total: questions.length,
+            answers,
+            createdAt: localResult.createdAt,
+          },
+          ...(detail.attempts || []),
+        ],
+      };
+      set((state) => ({
+        quizDetails: { ...state.quizDetails, [quizId]: updatedDetail },
+      }));
+      await NotebookStorage.saveQuizDetail(quizId, updatedDetail);
+    }
+
+    return localResult;
   },
 }));
+
+// Automatically trigger sync when the device transitions back online
+useSystemStore.subscribe((state, prevState) => {
+  if (!prevState.isOnline && state.isOnline) {
+    useNotebookToolsStore.getState().syncPendingTools().catch(() => {});
+  }
+});

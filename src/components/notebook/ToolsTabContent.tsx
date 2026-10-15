@@ -228,8 +228,17 @@ export function ToolsTabContent({
             onPress={() => setIsCreateDeckVisible(true)}
             style={styles.emptyActionBtn}
           >
-            <Sparkles size={14} color="#FFFFFF" />
-            <Text style={styles.emptyActionBtnText}>Generate with AI</Text>
+            {isOnline ? (
+              <>
+                <Sparkles size={14} color="#FFFFFF" />
+                <Text style={styles.emptyActionBtnText}>Generate with AI</Text>
+              </>
+            ) : (
+              <>
+                <Plus size={14} color="#FFFFFF" />
+                <Text style={styles.emptyActionBtnText}>Create Deck</Text>
+              </>
+            )}
           </Pressable>
         </View>
       ) : (
@@ -330,8 +339,17 @@ export function ToolsTabContent({
             onPress={() => setIsCreateQuizVisible(true)}
             style={styles.emptyActionBtn}
           >
-            <Sparkles size={14} color="#FFFFFF" />
-            <Text style={styles.emptyActionBtnText}>Generate with AI</Text>
+            {isOnline ? (
+              <>
+                <Sparkles size={14} color="#FFFFFF" />
+                <Text style={styles.emptyActionBtnText}>Generate with AI</Text>
+              </>
+            ) : (
+              <>
+                <Plus size={14} color="#FFFFFF" />
+                <Text style={styles.emptyActionBtnText}>Create Quiz</Text>
+              </>
+            )}
           </Pressable>
         </View>
       ) : (

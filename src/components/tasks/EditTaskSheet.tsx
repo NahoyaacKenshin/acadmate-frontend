@@ -499,15 +499,19 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       alignItems: 'center',
     },
     pickerText: {
+      flex: 1,
       color: colors.foreground,
       fontSize: 14,
       fontWeight: '500',
       includeFontPadding: false,
+      paddingRight: 8,
     },
     pickerPlaceholder: {
+      flex: 1,
       color: colors.mutedForeground,
       fontSize: 14,
       includeFontPadding: false,
+      paddingRight: 8,
     },
     pickerList: {
       backgroundColor: isDark ? colors.background : colors.card,

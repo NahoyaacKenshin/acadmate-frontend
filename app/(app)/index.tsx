@@ -1011,16 +1011,36 @@ function StudentHomeScreen() {
 
               <View style={styles.periodTextContainer}>
                 <View style={styles.periodTagRow}>
-                  <Text style={[styles.periodTagText, { color: todayPeriodInfo.color }]}>
+                  <Text
+                    style={[
+                      styles.periodTagText,
+                      { color: todayPeriodInfo.color, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
                     {todayPeriodInfo.categoryLabel.toUpperCase()}
                   </Text>
-                  <Text style={[styles.periodDot, { color: colors.mutedForeground }]}>·</Text>
-                  <Text style={[styles.periodSubAction, { color: colors.mutedForeground }]}>
+                  <Text
+                    style={[
+                      styles.periodDot,
+                      { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
+                    ·
+                  </Text>
+                  <Text
+                    style={[
+                      styles.periodSubAction,
+                      { color: colors.mutedForeground, flexShrink: 0, includeFontPadding: false },
+                    ]}
+                  >
                     Classes Blocked
                   </Text>
                 </View>
                 <Text
-                  style={[styles.periodBannerMainText, { color: colors.foreground }]}
+                  style={[
+                    styles.periodBannerMainText,
+                    { color: colors.foreground, flexShrink: 1, includeFontPadding: false },
+                  ]}
                   numberOfLines={1}
                 >
                   {todayPeriodInfo.title}
@@ -1633,13 +1653,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   modalityText: {
-    fontFamily: 'Inter',
+    fontFamily: 'Inter-Bold',
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.2,
     flexShrink: 0,
     includeFontPadding: false,
-    paddingRight: 4,
+    paddingRight: 6,
   },
   timelineText: {
     gap: 3,
@@ -1789,7 +1808,7 @@ const styles = StyleSheet.create({
   periodTagText: {
     fontFamily: 'Inter-Bold',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
     flexShrink: 0,
     includeFontPadding: false,
@@ -1812,6 +1831,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
+    flexShrink: 1,
     includeFontPadding: false,
   },
   periodChevronWrap: {

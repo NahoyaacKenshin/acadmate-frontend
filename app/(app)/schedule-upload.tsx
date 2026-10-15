@@ -47,17 +47,19 @@ export default function ScheduleUploadScreen() {
     uploadAndParse,
   } = useScheduleScanner();
 
-  // Clear any failed attempt error messages whenever the user leaves this screen
+  // Clear any failed attempt error messages and selected file whenever the user leaves this screen
   useFocusEffect(
     useCallback(() => {
       return () => {
         clearError();
+        clearFile();
       };
-    }, [clearError])
+    }, [clearError, clearFile])
   );
 
   const handleBack = () => {
     clearError();
+    clearFile();
     router.back();
   };
 
@@ -65,11 +67,11 @@ export default function ScheduleUploadScreen() {
     const data = await uploadAndParse();
     if (!data) return;
     clearError();
-    router.push({
+    clearFile();
+    router.replace({
       pathname: "/(app)/schedule-confirm" as any,
       params: { payload: JSON.stringify(data) },
     });
-    setTimeout(() => clearFile(), 500);
   };
 
   return (

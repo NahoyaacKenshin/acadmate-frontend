@@ -334,7 +334,6 @@ export default function TasksScreen() {
                     { color: selectedSubjectId === null ? '#6366F1' : colors.foreground },
                     selectedSubjectId === null && styles.subjectPillTextActive,
                   ]}
-                  numberOfLines={1}
                 >
                   All Subjects
                 </Text>
@@ -362,7 +361,6 @@ export default function TasksScreen() {
                         { color: isSubActive ? '#6366F1' : colors.foreground },
                         isSubActive && styles.subjectPillTextActive,
                       ]}
-                      numberOfLines={1}
                     >
                       {sub.name}
                     </Text>
@@ -551,6 +549,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      flexShrink: 0,
     },
     progressTitle: {
       fontFamily: 'Inter-Bold',
@@ -558,6 +557,8 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontWeight: '700',
       color: colors.foreground,
       includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 6,
     },
     progressStats: {
       fontFamily: 'Inter',
@@ -648,11 +649,15 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       color: colors.foreground,
       includeFontPadding: false,
       flexShrink: 0,
+      paddingRight: 4,
     },
     subjectPillTextActive: {
       fontFamily: 'Inter-Bold',
       color: '#6366F1',
       fontWeight: '700',
+      includeFontPadding: false,
+      flexShrink: 0,
+      paddingRight: 4,
     },
     listContent: {
       paddingHorizontal: 16,
@@ -668,7 +673,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     sectionHeaderLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      flex: 1,
+      flexShrink: 0,
     },
     sectionIndicator: {
       width: 4,
@@ -685,7 +690,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       includeFontPadding: false,
       flexShrink: 0,
       marginRight: 8,
-      paddingRight: 6,
+      paddingRight: 8,
     },
     sectionBadge: {
       paddingHorizontal: 7,
