@@ -5,7 +5,6 @@ export type AuthUser = {
   avatarUrl?: string | null;
   role?: string | null;
   emailVerified?: string | null;
-  programName?: string | null;
   studentSet?: 'A' | 'B' | 'Standard' | null;
   hasCompletedOnboarding?: boolean;
 };

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -346,7 +347,9 @@ export default function SettingsScreen() {
               },
             ]}
           >
-            {userInitials ? (
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : userInitials ? (
               <Text style={[styles.avatarText, { color: '#6366F1' }]}>{userInitials}</Text>
             ) : (
               <User size={22} color="#6366F1" />
@@ -1130,6 +1133,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
   },
   avatarText: {
     fontFamily: 'Inter-Bold',

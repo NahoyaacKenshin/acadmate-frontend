@@ -459,7 +459,7 @@ export const ApiService = {
 
   // --- User Profile ---
   profile: {
-    update: async (data: { name?: string; programName?: string | null }) => {
+    update: async (data: { name?: string; avatarUrl?: string | null }) => {
       const response = await fetch(`${ENV.API_URL}/auth/v1/me`, {
         method: 'PATCH',
         headers: getHeaders(),

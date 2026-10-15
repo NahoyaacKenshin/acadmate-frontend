@@ -3,7 +3,6 @@ import { create } from 'zustand';
 import type { AuthUser } from '@/src/features/auth/auth.types';
 import { authApi } from '@/src/features/auth/auth.api';
 
-const USER_PROGRAM_KEY = 'acadmate.userProgram';
 const STUDENT_SET_KEY = 'acadmate.studentSet';
 const ANCHOR_MONDAY_KEY = 'acadmate.anchorMonday';
 const ANCHOR_SET_KEY = 'acadmate.anchorSet';
@@ -77,7 +76,6 @@ export function computeCurrentSet(
 }
 
 type UserState = {
-  programName: string | null;
   studentSet: StudentSet | null;
   anchorMonday: string | null;
   anchorSet: 'A' | 'B' | null;
@@ -86,7 +84,6 @@ type UserState = {
   isLoaded: boolean;
   loadUserPreferences: () => Promise<void>;
   syncFromAuthUser: (user: AuthUser) => Promise<void>;
-  setProgram: (programName: string, studentSet?: StudentSet | null) => Promise<void>;
   setStudentSet: (studentSet: StudentSet) => Promise<void>;
   setNickname: (nickname: string) => Promise<void>;
   completeOnboarding: (studentSet?: StudentSet) => Promise<void>;
@@ -94,7 +91,6 @@ type UserState = {
 };
 
 export const useUserStore = create<UserState>((set, get) => ({
-  programName: null,
   studentSet: null,
   anchorMonday: null,
   anchorSet: null,
@@ -104,7 +100,6 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   loadUserPreferences: async () => {
     try {
-      const programName = await SecureStore.getItemAsync(USER_PROGRAM_KEY);
       const studentSetRaw = await SecureStore.getItemAsync(STUDENT_SET_KEY);
       const anchorMondayRaw = await SecureStore.getItemAsync(ANCHOR_MONDAY_KEY);
       const anchorSetRaw = await SecureStore.getItemAsync(ANCHOR_SET_KEY);
@@ -126,7 +121,6 @@ export const useUserStore = create<UserState>((set, get) => ({
       const hasCompletedOnboarding = onboardingRaw === 'true';
 
       set({
-        programName: programName || null,
         studentSet,
         anchorMonday,
         anchorSet,
@@ -170,10 +164,6 @@ export const useUserStore = create<UserState>((set, get) => ({
             }
           }
         }
-        if (user.programName) {
-          await SecureStore.setItemAsync(USER_PROGRAM_KEY, user.programName);
-        }
-
         let resolvedNickname = get().nickname;
         if (!resolvedNickname && user.name) {
           resolvedNickname = user.name;
@@ -186,7 +176,6 @@ export const useUserStore = create<UserState>((set, get) => ({
           studentSet: (user.studentSet as StudentSet) ?? get().studentSet,
           anchorMonday: currentAnchorMonday,
           anchorSet: currentAnchorSet,
-          programName: user.programName ?? get().programName,
           isLoaded: true,
         });
 
@@ -209,7 +198,6 @@ export const useUserStore = create<UserState>((set, get) => ({
         await SecureStore.deleteItemAsync(STUDENT_SET_KEY);
         await SecureStore.deleteItemAsync(ANCHOR_MONDAY_KEY);
         await SecureStore.deleteItemAsync(ANCHOR_SET_KEY);
-        await SecureStore.deleteItemAsync(USER_PROGRAM_KEY);
 
         set({
           hasCompletedOnboarding: false,
@@ -217,21 +205,11 @@ export const useUserStore = create<UserState>((set, get) => ({
           studentSet: (user.studentSet as StudentSet) ?? null,
           anchorMonday: null,
           anchorSet: null,
-          programName: user.programName ?? null,
           isLoaded: true,
         });
       }
     } catch (e) {
       console.warn('syncFromAuthUser failed:', e);
-    }
-  },
-
-  setProgram: async (programName, studentSet = null) => {
-    await SecureStore.setItemAsync(USER_PROGRAM_KEY, programName);
-    set({ programName });
-
-    if (studentSet) {
-      await get().setStudentSet(studentSet);
     }
   },
 
@@ -263,8 +241,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     try {
       const body: Record<string, unknown> = { hasCompletedOnboarding: true };
       if (studentSet) body.studentSet = studentSet;
-      const currentProgram = get().programName;
-      if (currentProgram) body.programName = currentProgram;
       const currentNickname = get().nickname;
       if (currentNickname) body.name = currentNickname;
 
@@ -293,7 +269,6 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   clearUserPreferences: async () => {
     try {
-      await SecureStore.deleteItemAsync(USER_PROGRAM_KEY);
       await SecureStore.deleteItemAsync(STUDENT_SET_KEY);
       await SecureStore.deleteItemAsync(ANCHOR_MONDAY_KEY);
       await SecureStore.deleteItemAsync(ANCHOR_SET_KEY);
@@ -303,7 +278,6 @@ export const useUserStore = create<UserState>((set, get) => ({
       console.warn('Failed to clear user preferences from storage:', e);
     } finally {
       set({
-        programName: null,
         studentSet: null,
         anchorMonday: null,
         anchorSet: null,
