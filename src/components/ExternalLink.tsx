@@ -21,3 +21,4 @@ export function ExternalLink(props: Omit<ComponentProps<typeof Link>, 'href'> & 
     />
   );
 }
+

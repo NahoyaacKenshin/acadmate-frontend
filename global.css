@@ -1,35 +1,159 @@
 @import "tailwindcss";
 @import "uniwind";
 
-@theme {
-  /* Design Tokens for React Native Reusables (Shadcn Mobile) */
-  --color-background: #ffffff;
-  --color-foreground: #211201; /* Your backend --ww-hd-dark scale */
+:root {
+  --color-background: #FAFAFA;
+  --color-foreground: #09090B;
 
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #09090B;
 
-  --color-popover: #ffffff;
-  --color-popover-foreground: #211201;
+  --color-muted: #F4F4F5;
+  --color-muted-foreground: #71717A;
 
-  --color-border: #e4e4e7;
-  --color-input: #e4e4e7;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #09090B;
 
-  --color-primary: #875605; /* Your backend --ww-hd-gold scale */
-  --color-primary-foreground: #ffffff;
+  --color-border: #E4E4E7;
+  --color-input: #FFFFFF;
+  --color-ring: #2563EB;
 
-  --color-accent: #fbf5ee;
-  --color-accent-foreground: #875605;
+  --color-primary: #0F172A;
+  --color-primary-foreground: #FFFFFF;
 
-  --font-sans: "Montserrat";
+  --color-secondary: #F4F4F5;
+  --color-secondary-foreground: #18181B;
+
+  --color-accent: #F4F4F5;
+  --color-accent-foreground: #0F172A;
+
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+
+  --font-sans: "Inter";
 }
 
-/* Base Dark Mode overrides if matching device settings */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #121212;
-    --color-foreground: #f5f5f5;
-    --color-border: #27272a;
-    --color-input: #27272a;
+  :root:not(.light) {
+    --color-background: #090A0F;
+    --color-foreground: #F8FAFC;
+
+    --color-card: #12141D;
+    --color-card-foreground: #F8FAFC;
+
+    --color-muted: #181B26;
+    --color-muted-foreground: #94A3B8;
+
+    --color-popover: #12141D;
+    --color-popover-foreground: #F8FAFC;
+
+    --color-border: #232736;
+    --color-input: #12141D;
+    --color-ring: #3B82F6;
+
+    --color-primary: #F8FAFC;
+    --color-primary-foreground: #090A0F;
+
+    --color-secondary: #181B26;
+    --color-secondary-foreground: #F8FAFC;
+
+    --color-accent: #181B26;
+    --color-accent-foreground: #6C8EFF;
+
+    --color-destructive: #EF4444;
+    --color-destructive-foreground: #FFFFFF;
   }
+}
+
+/* Explicit light theme — registered so Uniwind.setTheme('light') works correctly */
+.light {
+  --color-background: #FAFAFA;
+  --color-foreground: #09090B;
+
+  --color-card: #FFFFFF;
+  --color-card-foreground: #09090B;
+
+  --color-muted: #F4F4F5;
+  --color-muted-foreground: #71717A;
+
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #09090B;
+
+  --color-border: #E4E4E7;
+  --color-input: #FFFFFF;
+  --color-ring: #2563EB;
+
+  --color-primary: #0F172A;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-secondary: #F4F4F5;
+  --color-secondary-foreground: #18181B;
+
+  --color-accent: #F4F4F5;
+  --color-accent-foreground: #0F172A;
+
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+}
+
+.dark {
+  --color-background: #090A0F;
+  --color-foreground: #F8FAFC;
+
+  --color-card: #12141D;
+  --color-card-foreground: #F8FAFC;
+
+  --color-muted: #181B26;
+  --color-muted-foreground: #94A3B8;
+
+  --color-popover: #12141D;
+  --color-popover-foreground: #F8FAFC;
+
+  --color-border: #232736;
+  --color-input: #12141D;
+  --color-ring: #3B82F6;
+
+  --color-primary: #F8FAFC;
+  --color-primary-foreground: #090A0F;
+
+  --color-secondary: #181B26;
+  --color-secondary-foreground: #F8FAFC;
+
+  --color-accent: #181B26;
+  --color-accent-foreground: #6C8EFF;
+
+  --color-destructive: #EF4444;
+  --color-destructive-foreground: #FFFFFF;
+}
+
+@theme {
+  --color-background: var(--color-background, #FAFAFA);
+  --color-foreground: var(--color-foreground, #09090B);
+
+  --color-card: var(--color-card, #FFFFFF);
+  --color-card-foreground: var(--color-card-foreground, #09090B);
+
+  --color-muted: var(--color-muted, #F4F4F5);
+  --color-muted-foreground: var(--color-muted-foreground, #71717A);
+
+  --color-popover: var(--color-popover, #FFFFFF);
+  --color-popover-foreground: var(--color-popover-foreground, #09090B);
+
+  --color-border: var(--color-border, #E4E4E7);
+  --color-input: var(--color-input, #FFFFFF);
+  --color-ring: var(--color-ring, #2563EB);
+
+  --color-primary: var(--color-primary, #0F172A);
+  --color-primary-foreground: var(--color-primary-foreground, #FFFFFF);
+
+  --color-secondary: var(--color-secondary, #F4F4F5);
+  --color-secondary-foreground: var(--color-secondary-foreground, #18181B);
+
+  --color-accent: var(--color-accent, #F4F4F5);
+  --color-accent-foreground: var(--color-accent-foreground, #0F172A);
+
+  --color-destructive: var(--color-destructive, #DC2626);
+  --color-destructive-foreground: var(--color-destructive-foreground, #FFFFFF);
+
+  --font-sans: "Inter";
 }

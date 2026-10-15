@@ -1,0 +1,537 @@
+import React from 'react';
+import { View, StyleSheet, Pressable, Text } from 'react-native';
+import { X, BookOpen, CalendarDays, GraduationCap, Pencil } from 'lucide-react-native';
+import { useTheme } from '@/src/theme/useTheme';
+import {
+  formatDatePHT,
+  formatTime12PHT,
+  isSameDayPHT,
+  parseToPHTDate,
+  toPhilippineDateOnly,
+} from '@/src/utils/philippineTime';
+
+// ── Types (mirroring backend ParsedScheduleResult) ───────────────────────────
+
+export interface ParsedSemesterInfo {
+  label?: string | null;     // e.g. "1st Semester A.Y. 2026-2027"
+  startDate?: string | null; // "YYYY-MM-DD"
+  endDate?: string | null;   // "YYYY-MM-DD"
+}
+
+export interface ParsedClassSchedule {
+  dayOfWeek: number;
+  daysOfWeek?: number[];
+  startTime: string;
+  endTime: string;
+  subjectName: string;
+  room?: string | null;
+  modality?: 'F2F' | 'ONLINE';
+  setType?: 'A' | 'B' | 'BOTH' | null;
+  startDate?: string;
+  endDate?: string | null;
+}
+
+export interface ParsedCalendarEvent {
+  title: string;
+  startDate: string;
+  endDate?: string | null;
+  allDay?: boolean;
+  location?: string | null;
+}
+
+export interface ParsedExamWeekBlocker {
+  title: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface ParsedExamEvent {
+  subjectName?: string | null;
+  title: string;
+  startDate: string | null;
+  endDate?: string | null;
+  dayOfWeek?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  room?: string | null;
+}
+
+export interface ParsedExamWeek {
+  title: string;
+  startDate: string | null; // ISO-8601 datetime if specific date is known, else null
+  endDate: string | null;   // ISO-8601 datetime if specific date is known, else null
+  dayOfWeek?: number | null; // 0=Sun…6=Sat — set when only day-of-week is known
+  startTime?: string | null; // HH:MM 24h — set when only time is known, no specific date
+  endTime?: string | null;   // HH:MM 24h
+  resolvedFromExamWeekId?: string | null; // which admin ExamWeek block was used to resolve
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatDate(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+function formatTimeFromISO(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  // If time is exactly midnight UTC (00:00:00.000Z), likely no time was parsed — omit it
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0) return '';
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function to12h(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+export function isExamKeyword(text?: string | null): boolean {
+  if (!text) return false;
+  return /\b(exam|examination|examinations|midterm|midterms|final|finals|prelim|prelims|semi-?final|semifinal|periodical|summative|assessment|quiz)\b/i.test(text);
+}
+
+// ── ClassSchedule row ─────────────────────────────────────────────────────────
+
+interface ClassRowProps {
+  item: ParsedClassSchedule;
+  isNewSubject: boolean;
+  onRemove: () => void;
+  onCreateSubject: () => void;
+  onEdit?: () => void;
+}
+
+export function ClassScheduleRow({
+  item,
+  isNewSubject,
+  onRemove,
+  onCreateSubject,
+  onEdit,
+}: ClassRowProps) {
+  const { colors, isDark } = useTheme();
+
+  const daysText = (() => {
+    if (item.daysOfWeek && item.daysOfWeek.length > 0) {
+      const sorted = [...item.daysOfWeek].sort((a, b) => a - b);
+      return sorted.map((d) => DAY_LABELS[d] ?? '').filter(Boolean).join(', ');
+    }
+    return DAY_LABELS[item.dayOfWeek] ?? '';
+  })();
+
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
+        <BookOpen size={16} color="#6366F1" />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.subjectName}</Text>
+          {isNewSubject && (
+            <Pressable style={styles.newSubjectBadge} onPress={onCreateSubject}>
+              <Text style={styles.newSubjectText}>+ New Subject</Text>
+            </Pressable>
+          )}
+        </View>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+          {daysText} · {to12h(item.startTime)} – {to12h(item.endTime)}
+          {item.modality ? `  ·  ${item.modality}` : ''}
+          {item.room && item.room.trim().toLowerCase() !== item.modality?.toLowerCase() && !/^(online|virtual|n\/?a|none)$/i.test(item.room.trim()) ? `  ·  ${item.room}` : ''}
+        </Text>
+        {(item.startDate || item.setType) && (
+          <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>
+            {item.setType && item.setType !== 'BOTH' ? `Set ${item.setType}  ·  ` : ''}
+            {item.startDate ? formatDate(item.startDate) : ''}
+            {item.endDate ? ` – ${formatDate(item.endDate)}` : ''}
+          </Text>
+        )}
+      </Pressable>
+
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── CalendarEvent row ─────────────────────────────────────────────────────────
+
+export function formatEventDateTime(
+  startDateIso: string,
+  endDateIso?: string | null,
+  allDay?: boolean
+): string {
+  if (!startDateIso) return '';
+  const hasTime = !allDay && startDateIso.includes('T') && !startDateIso.includes('T00:00:00');
+
+  if (allDay) {
+    const isMultiDay =
+      endDateIso &&
+      toPhilippineDateOnly(endDateIso) !== toPhilippineDateOnly(startDateIso);
+    return isMultiDay
+      ? `All Day  ·  ${formatDatePHT(startDateIso)} – ${formatDatePHT(endDateIso)}`
+      : `All Day  ·  ${formatDatePHT(startDateIso)}`;
+  }
+
+  if (hasTime) {
+    if (endDateIso && endDateIso.includes('T') && !endDateIso.includes('T00:00:00')) {
+      const phtStart = parseToPHTDate(startDateIso) ?? new Date(startDateIso);
+      const isSameDay = isSameDayPHT(endDateIso, phtStart);
+      if (isSameDay) {
+        return `${formatDatePHT(startDateIso)}  ·  ${formatTime12PHT(startDateIso)} – ${formatTime12PHT(endDateIso)}`;
+      }
+      return `${formatDatePHT(startDateIso)} ${formatTime12PHT(startDateIso)} – ${formatDatePHT(endDateIso)} ${formatTime12PHT(endDateIso)}`;
+    }
+    return `${formatDatePHT(startDateIso)}  ·  ${formatTime12PHT(startDateIso)}`;
+  }
+
+  const isMultiDay =
+    endDateIso &&
+    toPhilippineDateOnly(endDateIso) !== toPhilippineDateOnly(startDateIso);
+  if (isMultiDay) {
+    return `${formatDatePHT(startDateIso)} – ${formatDatePHT(endDateIso)}`;
+  }
+
+  return formatDatePHT(startDateIso);
+}
+
+interface EventRowProps {
+  item: ParsedCalendarEvent;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function CalendarEventRow({ item, onRemove, onEdit }: EventRowProps) {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
+        <CalendarDays size={16} color="#6366F1" />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>
+          {formatEventDateTime(item.startDate, item.endDate, item.allDay)}
+          {item.location ? `  ·  ${item.location}` : ''}
+        </Text>
+      </Pressable>
+
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── ExamWeek Blocker row (Blackout window) ────────────────────────────────────
+
+interface ExamBlockerRowProps {
+  item: ParsedExamWeekBlocker;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function ExamBlockerRow({ item, onRemove, onEdit }: ExamBlockerRowProps) {
+  const { colors, isDark } = useTheme();
+  const startStr = formatDate(item.startDate);
+  const endStr = formatDate(item.endDate);
+  const dateSub = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
+
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
+        <GraduationCap size={16} color="#F59E0B" />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+        <Text style={[styles.rowSub, { color: '#F59E0B' }]}>
+          Class Blocker  ·  {dateSub}
+        </Text>
+      </Pressable>
+
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── Exam Event row (Individual subject test session) ──────────────────────────
+
+interface ExamEventRowProps {
+  item: ParsedExamEvent;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function ExamEventRow({ item, onRemove, onEdit }: ExamEventRowProps) {
+  const { colors, isDark } = useTheme();
+  const isPending = !item.startDate && item.dayOfWeek != null;
+  const dayLabel = item.dayOfWeek != null ? DAY_LABELS[item.dayOfWeek] : null;
+
+  const timeSub = (() => {
+    if (item.startTime) {
+      const fmt = (hhmm: string) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+      };
+      return `${fmt(item.startTime)}${item.endTime ? ` – ${fmt(item.endTime)}` : ''}`;
+    }
+    return null;
+  })();
+
+  const dateSub = (() => {
+    if (!item.startDate) return null;
+    const datePart = formatDate(item.startDate);
+    const timePart = formatTimeFromISO(item.startDate);
+    return `${datePart}${timePart ? `  ·  ${timePart}` : (timeSub ? `  ·  ${timeSub}` : '')}`;
+  })();
+
+  const roomSub = item.room ? `  ·  ${item.room}` : '';
+
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isPending ? (isDark ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.1)') : (isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)') }]}>
+        <GraduationCap size={16} color={isPending ? colors.mutedForeground : '#6366F1'} />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+        {isPending ? (
+          <Text style={[styles.rowSub, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
+            {dayLabel}{timeSub ? `  ·  ${timeSub}` : ''}{'  —  Tap to assign date'}{roomSub}
+          </Text>
+        ) : (
+          <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{(dateSub ?? timeSub ?? 'Exam session') + roomSub}</Text>
+        )}
+      </Pressable>
+
+      <View style={styles.actionButtons}>
+        {onEdit && (
+          <Pressable
+            style={[styles.editBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+            onPress={onEdit}
+            hitSlop={8}
+          >
+            <Pencil size={15} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+          onPress={onRemove}
+          hitSlop={8}
+        >
+          <X size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── ExamWeek row (Legacy compatibility) ───────────────────────────────────────
+
+interface ExamWeekRowProps {
+  item: ParsedExamWeek;
+  onRemove: () => void;
+  onEdit?: () => void;
+}
+
+export function ExamWeekRow({ item, onRemove, onEdit }: ExamWeekRowProps) {
+  const { colors, isDark } = useTheme();
+  const isPending = !item.startDate && item.dayOfWeek != null;
+  const dayLabel = item.dayOfWeek != null ? DAY_LABELS[item.dayOfWeek] : null;
+
+  const timeSub = (() => {
+    if (item.startTime) {
+      const fmt = (hhmm: string) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+      };
+      return `${fmt(item.startTime)}${item.endTime ? ` – ${fmt(item.endTime)}` : ''}`;
+    }
+    return null;
+  })();
+
+  const dateSub = (() => {
+    if (!item.startDate) return null;
+    const datePart = formatDate(item.startDate);
+    const timePart = formatTimeFromISO(item.startDate);
+    const endDatePart = item.endDate && formatDate(item.endDate) !== datePart
+      ? ` – ${formatDate(item.endDate)}${formatTimeFromISO(item.endDate) ? `  ·  ${formatTimeFromISO(item.endDate)}` : ''}`
+      : (item.endDate && formatTimeFromISO(item.endDate) ? ` – ${formatTimeFromISO(item.endDate)}` : '');
+    return `${datePart}${timePart ? `  ·  ${timePart}` : ''}${endDatePart}`;
+  })();
+
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: isPending ? (isDark ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.1)') : (isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)') }]}>
+        <GraduationCap size={16} color={isPending ? colors.mutedForeground : '#6366F1'} />
+      </View>
+
+      <Pressable style={styles.content} onPress={onEdit}>
+        <Text style={[styles.rowTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+        {isPending ? (
+          <Text style={[styles.rowSub, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
+            {dayLabel}{timeSub ? `  ·  ${timeSub}` : ''}{'  —  Tap to assign date'}
+          </Text>
+        ) : (
+          <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{dateSub ?? timeSub ?? ''}</Text>
+        )}
+      </Pressable>
+
+      <Pressable
+        style={[styles.removeBtn, { backgroundColor: isDark ? colors.muted : '#E4E4E7' }]}
+        onPress={onRemove}
+        hitSlop={8}
+      >
+        <X size={16} color={colors.mutedForeground} />
+      </Pressable>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  content: {
+    flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 3,
+  },
+  rowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
+    includeFontPadding: false,
+    letterSpacing: -0.2,
+  },
+  rowSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    includeFontPadding: false,
+  },
+  rowMeta: {
+    fontSize: 11,
+    marginTop: 2,
+    includeFontPadding: false,
+  },
+  newSubjectBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    flexShrink: 0,
+  },
+  newSubjectText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#F59E0B',
+    includeFontPadding: false,
+    flexShrink: 0,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+

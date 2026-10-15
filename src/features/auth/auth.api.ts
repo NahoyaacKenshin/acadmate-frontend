@@ -24,4 +24,18 @@ export const authApi = {
       method: 'POST',
       body: { email },
     }),
+  forgotPassword: (email: string) =>
+    apiRequest<AuthResponse>('/auth/v1/forgot-password', {
+      method: 'POST',
+      body: { email },
+    }),
+  resetPassword: (token: string, password: string) =>
+    apiRequest<AuthResponse>('/auth/v1/reset-password', {
+      method: 'POST',
+      body: { token, password },
+    }),
+  updateMe: (data: Record<string, unknown>, token?: string | null) =>
+    apiRequest<AuthResponse>('/auth/v1/me', { method: 'PATCH', body: data, token }),
+  loginWithGoogle: (idToken: string) =>
+    apiRequest<AuthResponse>('/auth/v1/google', { method: 'POST', body: { idToken } }),
 };
